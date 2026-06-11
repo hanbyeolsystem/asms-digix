@@ -1,0 +1,634 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>A/S Admin - 접수내역</title>
+<link rel="stylesheet" href="css/style.css">
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<script src="js/supabase-config.js"></script>
+<script src="js/supabase-client.js"></script>
+<script src="js/rental-match.js"></script>
+<script src="css/partials.js"></script>
+<style>
+  .order-table { width: 100%; }
+  .order-table td.cu { text-align: center; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 130px; }
+  .order-table td.cu-clickable { cursor: pointer; }
+  .order-table td.cu-clickable:hover { background: #f5f5f5; }
+  .order-table td.product { white-space: nowrap; text-align: center; }
+  .toolbar2 { width: 730px; margin: 6px auto 0; text-align: right; color: #888; font-size: 11px; }
+  .bulk-bar { width: 730px; margin: 6px auto 4px; padding: 8px 10px; background: #fff7d6; border: 1px solid #f0c000; border-radius: 4px;
+              display: flex; align-items: center; justify-content: space-between; font-size: 13px; }
+  .bulk-bar .bulk-info { color: #555; }
+  .bulk-bar .bulk-info b { color: #c00; font-size: 14px; }
+  .bulk-bar button { padding: 6px 14px; font-size: 13px; cursor: pointer; background: #2563eb; color: #fff; border: none; border-radius: 4px; }
+  .bulk-bar button:hover { background: #1d4ed8; }
+  .order-table td.bulk, .order-table th.bulk { width: 32px; text-align: center; padding: 0; }
+  .order-table input.bulk-cb { width: 18px; height: 18px; margin: 0; cursor: pointer; }
+  /* 비관리자: 삭제 컬럼 숨김. body.is-admin 일 때만 표시 */
+  .admin-only { display: none; }
+  body.is-admin .admin-only { display: table-cell; }
+  .bulk-modal { position: fixed; inset: 0; background: rgba(0,0,0,.4); display: none; align-items: center; justify-content: center; z-index: 1000; }
+  .bulk-modal.show { display: flex; }
+  .bulk-modal-box { background: #fff; padding: 20px; border-radius: 8px; min-width: 320px; max-width: 480px; width: 90%; box-shadow: 0 4px 20px rgba(0,0,0,.2); }
+  .bulk-modal-title { font-size: 16px; font-weight: bold; margin-bottom: 4px; color: #111; }
+  .bulk-modal-sub { font-size: 12px; color: #888; margin-bottom: 10px; }
+  .bulk-modal textarea { width: 100%; box-sizing: border-box; padding: 8px; font-size: 14px; border: 1px solid #ccc; border-radius: 4px; resize: vertical; min-height: 80px; }
+  .bulk-modal-btns { margin-top: 12px; display: flex; gap: 8px; justify-content: flex-end; }
+  .bulk-modal-btns button { padding: 8px 16px; font-size: 13px; border: none; border-radius: 4px; cursor: pointer; }
+  .bulk-modal-btns .bm-ok { background: #2563eb; color: #fff; }
+  .bulk-modal-btns .bm-ok:hover { background: #1d4ed8; }
+  .bulk-modal-btns .bm-cancel { background: #eee; color: #333; }
+</style>
+</head>
+<body>
+<div class="app">
+  <header class="app-header" id="app-header"></header>
+
+  <main class="app-main">
+    <div class="content-wrap">
+      <div class="page-title">A/S 접수내역</div>
+
+      <table class="outer-table"><tr><td>
+
+        <!-- 검색 -->
+        <table class="search-box">
+          <form name="frm1" onsubmit="event.preventDefault();manualSearch();">
+          <tr>
+            <td colspan="2">
+              <select id="f_name">
+                <option value="cu_name" selected>고객명</option>
+                <option value="product">제품명</option>
+                <option value="phone">전화번호</option>
+                <option value="serial">시리얼번호</option>
+              </select>
+              <input type="text" id="f_value" value="">
+              <input type="submit" value="검색">
+              <input type="button" value="신규등록" onclick="location.href='order-new.html'">
+              <input type="button" value="초기화" onclick="resetFilter()">
+            </td>
+          </tr>
+          </form>
+
+          <tr>
+            <td class="alt">
+              <label><input type="radio" name="re_now" value="" checked onchange="applyFilter()">전체</label>
+              <label><input type="radio" name="re_now" value="접수" onchange="applyFilter()">접수</label>
+              <label><input type="radio" name="re_now" value="진행" onchange="applyFilter()">진행</label>
+              <label><input type="radio" name="re_now" value="센터" onchange="applyFilter()">센터</label>
+              <label><input type="radio" name="re_now" value="견적" onchange="applyFilter()">견적</label>
+              <label><input type="radio" name="re_now" value="택배" onchange="applyFilter()">택배</label>
+              <label><input type="radio" name="re_now" value="완료" onchange="applyFilter()">완료</label>
+              <label><input type="radio" name="re_now" value="출고" onchange="applyFilter()">출고</label>
+            </td>
+            <td class="alt">검색된 게시물수 : <b id="hitCount">0</b>건</td>
+          </tr>
+        </table>
+
+        <div class="toolbar2"><span id="harvestStatus"></span></div>
+
+        <!-- 빠른 상태 탭 -->
+        <div class="status-tabs" id="statusTabs">
+          <a href="#" data-status="" class="active">전체</a> |
+          <a href="#" data-status="접수">접수</a> |
+          <a href="#" data-status="진행">진행</a> |
+          <a href="#" data-status="센터">센터</a> |
+          <a href="#" data-status="견적">견적</a> |
+          <a href="#" data-status="택배">택배</a> |
+          <a href="#" data-status="완료">완료</a> |
+          <a href="#" data-status="출고">출고</a>
+        </div>
+
+        <!-- 일괄 처리 바 -->
+        <div class="bulk-bar" id="bulkBar" style="display:none;">
+          <span class="bulk-info"><b id="bulkCount">0</b>건 선택됨</span>
+          <button type="button" id="bulkShipBtn" onclick="bulkShip()">선택한 건 출고로 변경</button>
+        </div>
+
+        <!-- 일괄 출고 모달 -->
+        <div class="bulk-modal" id="bulkShipModal">
+          <div class="bulk-modal-box">
+            <div class="bulk-modal-title">선택한 <span id="bulkModalCount">0</span>건을 출고로 변경</div>
+            <div class="bulk-modal-sub" id="bulkModalSub">기존의견에 누적할 내용을 입력하세요 (선택, 비워둬도 됨)</div>
+            <textarea id="bulkModalText" placeholder="예: 입금확인 / 발송완료 등"></textarea>
+            <div class="bulk-modal-btns">
+              <button type="button" class="bm-cancel" onclick="closeBulkModal()">취소</button>
+              <button type="button" class="bm-ok" id="bulkModalOk" onclick="confirmBulkShip()">변경</button>
+            </div>
+          </div>
+        </div>
+
+        <!-- 목록 테이블 -->
+        <table class="data-table order-table">
+          <thead>
+            <tr>
+              <th class="bulk"><input type="checkbox" id="bulkSelectAll" class="bulk-cb" onchange="toggleAllBulk(this.checked)" title="이 페이지 전체 선택"></th>
+              <th width="80">접수번호</th>
+              <th width="55">요청</th>
+              <th width="55">상태</th>
+              <th width="120">고객명</th>
+              <th>제품명</th>
+              <th width="90">시리얼번호</th>
+              <th width="75">처리일</th>
+              <th width="65">접수자</th>
+              <th width="45" class="admin-only">삭제</th>
+            </tr>
+          </thead>
+          <tbody id="orderBody">
+            <tr><td colspan="10">로딩 중…</td></tr>
+          </tbody>
+        </table>
+
+        <!-- 페이지네이션 -->
+        <div class="center" style="margin-top:10px;">
+          <span id="pageInfo"></span>
+          <div id="pager" style="margin-top:6px;"></div>
+        </div>
+
+      </td></tr></table>
+    </div>
+  </main>
+
+  <footer class="app-footer" id="app-footer"></footer>
+</div>
+
+<script>
+// 원본에서 그대로 가져온 실데이터 (orders.json 이 없을 때 사용)
+const FALLBACK_ORDERS = [
+  { seq_no: 54824, order_no: "260429-9",  branch: "대구", cu_name: "숲속예은유치원",            status: "접수", product: "PC 출장요청",      serial: "슬기반",   process_date: "2026/04/29", receiver: "조이준",  kind2: "일반" },
+  { seq_no: 54823, order_no: "260429-8",  branch: "대구", cu_name: "늑대(영천점)",              status: "택배", product: "토너납품",         serial: "8370 정품", process_date: "2026/04/29", receiver: "우은숙",  kind2: "일반" },
+  { seq_no: 54822, order_no: "260429-7",  branch: "대구", cu_name: "동대구점 다원시스템",        status: "진행", product: "납품",             serial: "정착기",   process_date: "2026/04/29", receiver: "조이준",  kind2: "일반" },
+  { seq_no: 54821, order_no: "260429-6",  branch: "대구", cu_name: "이안테크(2공장)",            status: "진행", product: "임대출장",         serial: "5800",     process_date: "2026/04/29", receiver: "조이준",  kind2: "일반" },
+  { seq_no: 54820, order_no: "260429-5",  branch: "대구", cu_name: "위더스(광영점)백계문",       status: "완료", product: "토너납품",         serial: "5455",     process_date: "2026/04/29", receiver: "우은숙",  kind2: "일반" },
+  { seq_no: 54819, order_no: "260429-4",  branch: "대구", cu_name: "중앙솔루션",                 status: "완료", product: "토너납품",         serial: "5244",     process_date: "2026/04/29", receiver: "우은숙",  kind2: "일반" },
+  { seq_no: 54818, order_no: "260429-3",  branch: "대구", cu_name: "최수정 SW팜",                status: "진행", product: "임대출장",         serial: "8710",     process_date: "2026/04/29", receiver: "조이준",  kind2: "일반" },
+  { seq_no: 54817, order_no: "260429-2",  branch: "대구", cu_name: "이안테크(2공장)",            status: "출고", product: "임대출장",         serial: "251CI",    process_date: "2026/04/29", receiver: "조이준",  kind2: "일반" },
+  { seq_no: 54816, order_no: "260429-1",  branch: "대구", cu_name: "신독",                       status: "진행", product: "PC 납품",          serial: "조립",     process_date: "2026/04/29", receiver: "조이준",  kind2: "일반" },
+  { seq_no: 54815, order_no: "260428-10", branch: "대구", cu_name: "더채움 언어심리지원",        status: "진행", product: "임대초기설치",     serial: "엡손",     process_date: "2026/04/29", receiver: "우은숙",  kind2: "일반" },
+  { seq_no: 54814, order_no: "260428-9",  branch: "대구", cu_name: "송원ENG",                    status: "출고", product: "PC 출장요청",      serial: "조립",     process_date: "2026/04/28", receiver: "김상환",  kind2: "일반" },
+  { seq_no: 54813, order_no: "260428-8",  branch: "대구", cu_name: "위더스(부산연제)정성",       status: "출고", product: "토너납품",         serial: "057H 외",  process_date: "2026/04/28", receiver: "우은숙",  kind2: "일반" },
+  { seq_no: 54812, order_no: "260428-7",  branch: "대구", cu_name: "동대구점 다원시스템",        status: "완료", product: "토너납품",         serial: "510S",     process_date: "2026/04/28", receiver: "우은숙",  kind2: "일반" },
+  { seq_no: 54811, order_no: "260428-6",  branch: "대구", cu_name: "남해주택건설",               status: "완료", product: "납품",             serial: "A4",       process_date: "2026/04/29", receiver: "김상환",  kind2: "일반" },
+  { seq_no: 54810, order_no: "260428-5",  branch: "대구", cu_name: "김용부면장님",               status: "출고", product: "임대초기설치",     serial: "PC외",     process_date: "2026/04/28", receiver: "조이준",  kind2: "일반" },
+];
+
+let ORDERS   = [];        // 폴백 모드용 (전체 적재)
+let FILTERED = [];        // 폴백 모드 필터 결과
+let CURRENT_PAGE_ROWS = []; // SB 모드에서 현재 페이지의 rows
+let TOTAL_ROWS = 0;       // SB 모드에서 검색 결과 총 행수
+const PAGE_SIZE = 15;
+let CURRENT_PAGE = 1;
+
+function getUserOrders() {
+  try { return JSON.parse(localStorage.getItem("user_orders") || "[]"); }
+  catch (e) { return []; }
+}
+
+function getDeletedSet() {
+  try {
+    return new Set(JSON.parse(localStorage.getItem("deleted_orders") || "[]").map(String));
+  } catch (e) { return new Set(); }
+}
+
+function mergeUser() {
+  const u = getUserOrders();
+  const deleted = getDeletedSet();
+  const map = new Map();
+  ORDERS.forEach(o => {
+    const k = String(o.seq_no);
+    if (!deleted.has(k)) map.set(k, { ...o, seq_no: o.seq_no });
+  });
+  u.forEach(o => {
+    const k = String(o.seq_no);
+    if (deleted.has(k)) return;
+    const existing = map.get(k) || { seq_no: o.seq_no };
+    // 원본 필드를 유지하면서 user 변경분(빈 값 제외)을 덮어씀
+    const overlay = {};
+    for (const key of Object.keys(o)) {
+      if (o[key] !== "" && o[key] != null) overlay[key] = o[key];
+    }
+    map.set(k, { ...existing, ...overlay });
+  });
+  ORDERS = [...map.values()].sort((a, b) => Number(b.seq_no) - Number(a.seq_no));
+}
+
+async function checkAdmin() {
+  if (typeof window.currentIsAdmin !== "function") return;
+  try {
+    const ok = await window.currentIsAdmin();
+    if (ok) document.body.classList.add("is-admin");
+  } catch (e) {}
+}
+
+async function load() {
+  checkAdmin();   // 비동기 — 결과 오기 전엔 삭제 컬럼 숨김 상태
+  if (window.ensureRentalMatchCache) {
+    window.ensureRentalMatchCache().then(() => {
+      if (CURRENT_PAGE_ROWS && CURRENT_PAGE_ROWS.length) drawSb();
+      else if (FILTERED && FILTERED.length) draw();
+    });
+  }
+  if (window.SB_CONFIGURED) {
+    // 서버 측 페이지네이션: 첫 페이지만 즉시 fetch
+    const initStatus = new URLSearchParams(location.search).get("status") || "";
+    setStatus(initStatus);   // setStatus 가 applyFilter() 호출
+    return;
+  }
+  try {
+    const r = await fetch("data/orders.json?ts=" + Date.now());
+    if (r.ok) ORDERS = await r.json();
+    else      ORDERS = FALLBACK_ORDERS;
+  } catch (e) {
+    ORDERS = FALLBACK_ORDERS;
+  }
+  mergeUser();
+  const initStatus = new URLSearchParams(location.search).get("status") || "";
+  setStatus(initStatus);
+  loadStatus();
+  setInterval(loadStatus, 5000);
+}
+
+async function loadStatus() {
+  try {
+    const r = await fetch("data/harvest_orders_status.json?ts=" + Date.now());
+    if (!r.ok) return;
+    const s = await r.json();
+    const el = document.getElementById("harvestStatus");
+    if (s.phase === "done") {
+      el.innerHTML = `자동 수집 완료 (${s.total_orders}건) · ${s.updated_at}`;
+      el.style.color = "#080";
+    } else {
+      el.innerHTML = `<span style="color:#c60;">● 자동 수집중</span> 페이지 ${s.page} / 누적 ${s.total_orders}건`;
+    }
+    if (s.total_orders > ORDERS.length - getUserOrders().length) {
+      const r2 = await fetch("data/orders.json?ts=" + Date.now());
+      if (r2.ok) {
+        ORDERS = await r2.json();
+        mergeUser();
+        applyFilter();
+      }
+    }
+  } catch (e) {}
+}
+
+async function setStatus(v) {
+  document.querySelectorAll("input[name='re_now']").forEach(r => { r.checked = (r.value === v); });
+  document.querySelectorAll("#statusTabs a").forEach(a => {
+    a.classList.toggle("active", (a.dataset.status || "") === v);
+  });
+  await applyFilter();
+}
+window.setStatus = setStatus;
+
+function bindStatusTabs() {
+  document.querySelectorAll("#statusTabs a").forEach(a => {
+    a.addEventListener("click", e => {
+      e.preventDefault();
+      setStatus(a.dataset.status || "");
+    });
+  });
+
+  // 헤더의 빠른 status 탭 (.quick a) - 같은 orders.html 안에서는 reload 막기
+  document.addEventListener("click", (e) => {
+    const a = e.target.closest(".quick a");
+    if (!a) return;
+    const here = location.pathname.split("/").pop();
+    if (here !== "orders.html") return;  // 다른 페이지에서는 정상 navigation
+    e.preventDefault();
+    const u = new URL(a.href, location.href);
+    const s = u.searchParams.get("status") || "";
+    history.pushState({}, "", "orders.html" + (s ? "?status=" + encodeURIComponent(s) : ""));
+    setStatus(s);
+  });
+
+  // 브라우저 뒤로/앞으로 시에도 동작
+  window.addEventListener("popstate", () => {
+    const url = new URL(location.href);
+    // popstate 로 이동된 상태에서는 입력창을 항상 비워두고
+    // 필터는 URL 의 ?cu / ?status 로부터 복원
+    document.getElementById("f_name").value = "cu_name";
+    document.getElementById("f_value").value = "";
+    const s = url.searchParams.get("status") || "";
+    setStatus(s);
+  });
+}
+if (document.readyState === "loading") {
+  document.addEventListener("DOMContentLoaded", bindStatusTabs);
+} else {
+  bindStatusTabs();
+}
+
+function getStatus() {
+  const el = document.querySelector("input[name='re_now']:checked");
+  return el ? el.value : "";
+}
+
+async function applyFilter(resetPage = true) {
+  if (resetPage) CURRENT_PAGE = 1;
+  const cu = new URLSearchParams(location.search).get("cu") || "";
+  const f = cu ? "cu_name" : document.getElementById("f_name").value;
+  const q = cu || document.getElementById("f_value").value.trim();
+  const s = getStatus();
+
+  if (window.SB_CONFIGURED) {
+    document.getElementById("orderBody").innerHTML =
+      "<tr><td colspan='10' style='text-align:center;padding:20px;color:#888;'>불러오는 중...</td></tr>";
+    const res = await window.dbOrdersPage({
+      page: CURRENT_PAGE, pageSize: PAGE_SIZE,
+      status: s, searchField: f, searchValue: q,
+    });
+    CURRENT_PAGE_ROWS = res?.rows || [];
+    TOTAL_ROWS = res?.total || 0;
+    drawSb();
+    return;
+  }
+
+  // 폴백 모드 (Supabase 미설정)
+  FILTERED = ORDERS.filter(r => {
+    if (s && r.status !== s) return false;
+    if (q) {
+      let v;
+      if (f === "phone") {
+        v = ((r.cu_tel || "") + " " + (r.cu_mobile || "")).toLowerCase();
+      } else {
+        v = (r[f] || "").toString().toLowerCase();
+      }
+      if (!v.includes(q.toLowerCase())) return false;
+    }
+    return true;
+  });
+  draw();
+}
+
+function clearCuFromUrl() {
+  const url = new URL(location.href);
+  if (url.searchParams.has("cu")) {
+    url.searchParams.delete("cu");
+    history.replaceState({}, "", url.toString());
+  }
+}
+
+function manualSearch() {
+  clearCuFromUrl();
+  applyFilter();
+}
+window.manualSearch = manualSearch;
+
+function resetFilter() {
+  clearCuFromUrl();
+  document.getElementById("f_name").value = "cu_name";
+  document.getElementById("f_value").value = "";
+  setStatus("");
+}
+
+function searchByCustomer(name) {
+  const v = (name || "").trim();
+  if (!v) return;
+  // 입력창은 비워둠 (이름이 보이지 않게)
+  document.getElementById("f_name").value = "cu_name";
+  document.getElementById("f_value").value = "";
+  // URL 에 ?cu=<이름> 을 푸시 → Back 버튼이 이전 상태로 돌아감
+  const url = new URL(location.href);
+  url.searchParams.set("cu", v);
+  url.searchParams.delete("status");
+  history.pushState({}, "", url.toString());
+  // 상태 필터는 "전체" 로 + 검색 실행
+  setStatus("");
+  window.scrollTo(0, 0);
+}
+window.searchByCustomer = searchByCustomer;
+
+document.addEventListener("DOMContentLoaded", () => {
+  const tb = document.getElementById("orderBody");
+  if (tb) {
+    tb.addEventListener("click", (e) => {
+      const td = e.target.closest("td.cu-clickable");
+      if (!td) return;
+      searchByCustomer(td.dataset.cu);
+    });
+  }
+});
+
+function draw() {
+  const tb = document.getElementById("orderBody");
+  document.getElementById("hitCount").textContent = FILTERED.length.toLocaleString();
+  if (!FILTERED.length) {
+    tb.innerHTML = "<tr><td colspan='10'>검색 결과가 없습니다.</td></tr>";
+    document.getElementById("pageInfo").textContent = "";
+    document.getElementById("pager").innerHTML = "";
+    return;
+  }
+  const total = FILTERED.length;
+  const totalPages = Math.max(1, Math.ceil(total / PAGE_SIZE));
+  if (CURRENT_PAGE > totalPages) CURRENT_PAGE = totalPages;
+  const start = (CURRENT_PAGE - 1) * PAGE_SIZE;
+  const slice = FILTERED.slice(start, start + PAGE_SIZE);
+
+  tb.innerHTML = slice.map(r => `
+    <tr>
+      <td class="bulk"><input type="checkbox" class="bulk-cb" data-seq="${r.seq_no}" onchange="refreshBulkBar()"></td>
+      <td><a href="order-detail.html?seq_no=${r.seq_no}">${esc(r.order_no)}</a></td>
+      <td>${esc(r.kind2)}</td>
+      <td class="st-${esc(r.status)}">${esc(r.status)}</td>
+      <td class="cu ${r.cu_name ? 'cu-clickable' : ''}" title="${esc(r.cu_name)}" data-cu="${esc(r.cu_name)}">${esc(r.cu_name)}${window.rentalBadgeSuffix ? window.rentalBadgeSuffix(r.cu_name) : ''}</td>
+      <td class="product"><a href="order-detail.html?seq_no=${r.seq_no}">${esc(r.product)}</a></td>
+      <td>${esc(r.serial)}</td>
+      <td>${esc(r.process_date)}</td>
+      <td>${esc(r.receiver)}</td>
+      <td class="admin-only"><a href="javascript:godel('${r.seq_no}')">삭제</a></td>
+    </tr>
+  `).join("");
+
+  document.getElementById("pageInfo").textContent =
+    `${(start + 1).toLocaleString()}-${Math.min(start + PAGE_SIZE, total).toLocaleString()} / ${total.toLocaleString()}건 (전체 ${ORDERS.length.toLocaleString()}건 중)`;
+
+  drawPager(totalPages);
+  refreshBulkBar();
+}
+
+function drawSb() {
+  const tb = document.getElementById("orderBody");
+  document.getElementById("hitCount").textContent = TOTAL_ROWS.toLocaleString();
+  if (!CURRENT_PAGE_ROWS.length) {
+    tb.innerHTML = "<tr><td colspan='10'>검색 결과가 없습니다.</td></tr>";
+    document.getElementById("pageInfo").textContent = "";
+    document.getElementById("pager").innerHTML = "";
+    return;
+  }
+  const totalPages = Math.max(1, Math.ceil(TOTAL_ROWS / PAGE_SIZE));
+  if (CURRENT_PAGE > totalPages) CURRENT_PAGE = totalPages;
+  const start = (CURRENT_PAGE - 1) * PAGE_SIZE;
+  tb.innerHTML = CURRENT_PAGE_ROWS.map(r => `
+    <tr>
+      <td class="bulk"><input type="checkbox" class="bulk-cb" data-seq="${r.seq_no}" onchange="refreshBulkBar()"></td>
+      <td><a href="order-detail.html?seq_no=${r.seq_no}">${esc(r.order_no)}</a></td>
+      <td>${esc(r.kind2)}</td>
+      <td class="st-${esc(r.status)}">${esc(r.status)}</td>
+      <td class="cu ${r.cu_name ? 'cu-clickable' : ''}" title="${esc(r.cu_name)}" data-cu="${esc(r.cu_name)}">${esc(r.cu_name)}${window.rentalBadgeSuffix ? window.rentalBadgeSuffix(r.cu_name) : ''}</td>
+      <td class="product"><a href="order-detail.html?seq_no=${r.seq_no}">${esc(r.product)}</a></td>
+      <td>${esc(r.serial)}</td>
+      <td>${esc(r.process_date)}</td>
+      <td>${esc(r.receiver)}</td>
+      <td class="admin-only"><a href="javascript:godel('${r.seq_no}')">삭제</a></td>
+    </tr>
+  `).join("");
+  document.getElementById("pageInfo").textContent =
+    `${(start + 1).toLocaleString()}-${Math.min(start + PAGE_SIZE, TOTAL_ROWS).toLocaleString()} / ${TOTAL_ROWS.toLocaleString()}건`;
+  drawPager(totalPages);
+  refreshBulkBar();
+}
+
+function drawPager(total) {
+  const p = document.getElementById("pager");
+  if (total <= 1) { p.innerHTML = ""; return; }
+  let html = "";
+  const cur = CURRENT_PAGE, win = 5;
+  const from = Math.max(1, cur - win), to = Math.min(total, cur + win);
+  if (cur > 1) html += `<a href="javascript:goPage(1)">[처음]</a> <a href="javascript:goPage(${cur-1})">[이전]</a> `;
+  for (let i = from; i <= to; i++) {
+    html += i === cur ? ` <b style="color:#0000ff">${i}</b> ` : ` <a href="javascript:goPage(${i})">${i}</a> `;
+  }
+  if (cur < total) html += ` <a href="javascript:goPage(${cur+1})">[다음]</a> <a href="javascript:goPage(${total})">[맨끝]</a>`;
+  p.innerHTML = html;
+}
+
+async function goPage(n) {
+  CURRENT_PAGE = n;
+  if (window.SB_CONFIGURED) {
+    await applyFilter(false);
+  } else {
+    draw();
+  }
+  window.scrollTo(0, 0);
+}
+window.goPage = goPage;
+async function godel(id) {
+  if (!confirm("정말로 삭제하시겠습니까??")) return;
+  if (window.SB_CONFIGURED) {
+    const res = await window.dbOrderDelete(id);
+    if (res?.error) { alert("삭제 실패: " + res.error); return; }
+  } else {
+    const u = getUserOrders();
+    const next = u.filter(o => String(o.seq_no) !== String(id));
+    localStorage.setItem("user_orders", JSON.stringify(next));
+    const deleted = JSON.parse(localStorage.getItem("deleted_orders") || "[]");
+    if (!deleted.includes(String(id))) {
+      deleted.push(String(id));
+      localStorage.setItem("deleted_orders", JSON.stringify(deleted));
+    }
+  }
+  ORDERS = ORDERS.filter(o => String(o.seq_no) !== String(id));
+  applyFilter();
+  alert("삭제되었습니다.");
+}
+function esc(s) {
+  return (s == null ? "" : String(s))
+    .replace(/&/g, "&amp;").replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;").replace(/"/g, "&quot;");
+}
+
+function toggleAllBulk(checked) {
+  document.querySelectorAll("#orderBody .bulk-cb").forEach(cb => { cb.checked = checked; });
+  refreshBulkBar();
+}
+window.toggleAllBulk = toggleAllBulk;
+
+function refreshBulkBar() {
+  const checked = document.querySelectorAll("#orderBody .bulk-cb:checked");
+  const count = checked.length;
+  const bar = document.getElementById("bulkBar");
+  document.getElementById("bulkCount").textContent = count;
+  bar.style.display = count > 0 ? "flex" : "none";
+  // 헤더 체크박스 상태 동기화
+  const all = document.querySelectorAll("#orderBody .bulk-cb");
+  const head = document.getElementById("bulkSelectAll");
+  if (head) head.checked = (all.length > 0 && count === all.length);
+}
+window.refreshBulkBar = refreshBulkBar;
+
+let BULK_WORK = [];  // 모달 확인 대기 중인 처리 대상
+
+function bulkShip() {
+  const checkedSeqs = [...document.querySelectorAll("#orderBody .bulk-cb:checked")]
+    .map(cb => String(cb.dataset.seq));
+  if (!checkedSeqs.length) { alert("선택된 건이 없습니다."); return; }
+
+  const pool = window.SB_CONFIGURED ? CURRENT_PAGE_ROWS : (FILTERED.length ? FILTERED : ORDERS);
+  const targets = checkedSeqs
+    .map(seq => pool.find(r => String(r.seq_no) === seq))
+    .filter(r => r);
+  const skipped = targets.filter(r => r.status === "출고").length;
+  const work = targets.filter(r => r.status !== "출고");
+
+  if (!work.length) {
+    alert(`선택된 ${checkedSeqs.length}건 모두 이미 출고 상태입니다.`);
+    return;
+  }
+  BULK_WORK = work;
+  document.getElementById("bulkModalCount").textContent = work.length;
+  document.getElementById("bulkModalSub").textContent =
+    skipped ? `(이미 출고 상태인 ${skipped}건은 제외) 기존의견에 누적할 내용을 입력하세요 (선택)`
+            : `기존의견에 누적할 내용을 입력하세요 (선택, 비워둬도 됨)`;
+  document.getElementById("bulkModalText").value = "";
+  document.getElementById("bulkShipModal").classList.add("show");
+  setTimeout(() => document.getElementById("bulkModalText").focus(), 50);
+}
+window.bulkShip = bulkShip;
+
+function closeBulkModal() {
+  document.getElementById("bulkShipModal").classList.remove("show");
+  BULK_WORK = [];
+}
+window.closeBulkModal = closeBulkModal;
+
+async function confirmBulkShip() {
+  const work = BULK_WORK;
+  const add = document.getElementById("bulkModalText").value.trim();
+  document.getElementById("bulkShipModal").classList.remove("show");
+  if (!work.length) return;
+
+  const author = localStorage.getItem("current_user") || "관리자";
+  const n = new Date();
+  const pad = x => String(x).padStart(2, "0");
+  const head = `${pad(n.getMonth()+1)}월 ${pad(n.getDate())}일 ${pad(n.getHours())}시 ${pad(n.getMinutes())}분  ${author} 기사의 의견 : 출고`;
+  const stamp = add ? `${head}<br>${add}<br>` : `${head}<br>`;
+
+  const btn = document.getElementById("bulkShipBtn");
+  btn.disabled = true;
+  let ok = 0, fail = 0;
+  for (let i = 0; i < work.length; i++) {
+    const r = work[i];
+    btn.textContent = `처리 중... (${i+1}/${work.length})`;
+    const prev = (r.re_content || "").trim();
+    const sep = (prev && !/<br\s*\/?\s*>\s*$/i.test(prev)) ? "<br>" : "";
+    const newRC = prev ? prev + sep + stamp : stamp;
+    const updated = { ...r, seq_no: Number(r.seq_no), re_content: newRC, status: "출고", re_now: "출고" };
+    delete updated.created_at; delete updated.updated_at;
+    if (window.SB_CONFIGURED) {
+      const res = await window.dbOrderUpsert(updated);
+      if (res?.error) { fail++; console.error("bulkShip fail", r.seq_no, res.error); }
+      else ok++;
+    } else {
+      const u = getUserOrders();
+      const idx = u.findIndex(x => String(x.seq_no) === String(r.seq_no));
+      if (idx >= 0) u[idx] = { ...u[idx], ...updated };
+      else u.push(updated);
+      localStorage.setItem("user_orders", JSON.stringify(u));
+      ok++;
+    }
+  }
+  btn.disabled = false;
+  btn.textContent = "선택한 건 출고로 변경";
+  BULK_WORK = [];
+  alert(`완료: ${ok}건${fail ? ` / 실패: ${fail}건` : ""}`);
+  await applyFilter(false);
+}
+window.confirmBulkShip = confirmBulkShip;
+
+document.addEventListener("DOMContentLoaded", load);
+document.addEventListener("keydown", e => {
+  if (e.key === "Enter" && document.activeElement.id === "f_value") applyFilter();
+});
+</script>
+</body>
+</html>

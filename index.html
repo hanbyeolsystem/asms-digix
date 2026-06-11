@@ -1,0 +1,21 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>ASMS - A/S Management System</title>
+<script>
+  // Supabase 가 비밀번호 재설정 메일에서 redirect 하면 #type=recovery 가 따라옴
+  // 그 경우 fragment 를 보존한 채 login.html 로 이동해 reset_pw 모드 자동 진입
+  (function () {
+    const hash = location.hash || "";
+    const target = (hash && hash.includes("type=recovery")) ? "login.html" + hash : "login.html";
+    location.replace(target);
+  })();
+</script>
+<meta http-equiv="refresh" content="2; url=login.html">
+</head>
+<body>
+<p>로그인 페이지로 이동합니다... <a href="login.html">바로가기</a></p>
+</body>
+</html>

@@ -1,0 +1,33 @@
+# 개인정보가 포함된 데이터 (절대 커밋 금지)
+data/orders.json
+data/order_details.json
+data/customers.json
+data/customers.csv
+data/order_details_*.json
+data/all_seqs.json
+data/seen_seqs.json
+data/harvest_*_status.json
+!data/harvest_orders_status.json
+
+# 백업 파일
+*.bak
+*.bak[0-9]*
+
+# 비밀번호/설정
+tools/config.py
+.env
+.env.local
+
+# 파이썬
+__pycache__/
+*.pyc
+
+# OS / 에디터
+.DS_Store
+Thumbs.db
+.vscode/
+.idea/
+
+# 임시
+*.tmp
+*.log

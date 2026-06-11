@@ -1,0 +1,97 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>A/S 관리툴 - 로그인</title>
+<link rel="stylesheet" href="css/style.css">
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<script src="js/supabase-config.js"></script>
+<script src="js/supabase-client.js"></script>
+<style>
+  .login-msg { margin-top: 8px; min-height: 16px; font-size: 12px; }
+  .login-msg.err { color: #c00; }
+  .login-msg.ok  { color: #060; }
+</style>
+<script>
+function showMsg(text, kind) {
+  const el = document.getElementById("loginMsg");
+  el.textContent = text;
+  el.className = "login-msg " + (kind || "");
+}
+
+function toEmail(input) {
+  // '@' 없으면 fake domain 부착해서 Supabase email 형태로 만듦
+  return input.includes("@") ? input : input + "@asms.local";
+}
+
+async function submitForm() {
+  if (!window.SB_CONFIGURED) {
+    showMsg("(데모 모드) 설정 없이도 로그인 됩니다.", "ok");
+    setTimeout(() => location.href = nextUrl(), 500);
+    return;
+  }
+  const id = document.getElementById("ID").value.trim();
+  const pw = document.getElementById("PW").value;
+  if (!id) { showMsg("아이디를 입력하세요.", "err"); return; }
+  if (!pw) { showMsg("비밀번호를 입력하세요.", "err"); return; }
+
+  document.getElementById("loginBtn").disabled = true;
+  try {
+    const { error } = await window.sb.auth.signInWithPassword({
+      email: toEmail(id), password: pw,
+    });
+    if (error) throw error;
+    showMsg("로그인 성공", "ok");
+    setTimeout(() => location.href = nextUrl(), 300);
+  } catch (e) {
+    showMsg(e.message || String(e), "err");
+  } finally {
+    document.getElementById("loginBtn").disabled = false;
+  }
+}
+
+function nextUrl() {
+  const p = new URLSearchParams(location.search);
+  return p.get("next") || "orders.html";
+}
+
+function onEnter(e) { if ((e.keyCode || e.which) === 13) submitForm(); }
+
+window.addEventListener("DOMContentLoaded", async () => {
+  if (!window.SB_CONFIGURED || !window.sb) return;
+  const { data: { session } } = await window.sb.auth.getSession();
+  if (session) location.href = nextUrl();
+});
+</script>
+</head>
+<body>
+<div class="login-wrap">
+  <div class="login-box">
+    <div>
+      <div class="login-logo">{회사명}</div>
+      <div style="text-align:center;margin-top:6px;font-size:12px;">
+        <span style="color:#888">version 2.0</span> -
+        <span style="font-family:Dotum;font-size:11px;">관리자 / 엔지니어 로그인</span>
+      </div>
+    </div>
+
+    <form name="frm2" onsubmit="event.preventDefault();submitForm();" class="login-form">
+      <table border="0" cellspacing="0" cellpadding="0">
+        <tr>
+          <td>아이디 :&nbsp;</td>
+          <td><input type="text" id="ID" autocomplete="username" autofocus></td>
+        </tr>
+        <tr>
+          <td>비밀번호 :&nbsp;</td>
+          <td><input type="password" id="PW" autocomplete="current-password" onkeypress="onEnter(event)"></td>
+        </tr>
+      </table>
+    </form>
+
+    <button type="button" class="login-btn" id="loginBtn" onclick="submitForm()">LOGIN</button>
+    <div class="login-msg" id="loginMsg"></div>
+  </div>
+</div>
+</body>
+</html>

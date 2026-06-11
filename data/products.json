@@ -1,0 +1,46 @@
+[
+  {
+    "seq_no": 4,
+    "kind": "제품",
+    "courier": "YES",
+    "code": "PD01",
+    "name": "프린터수리의뢰",
+    "as_count": "0",
+    "date": "2026년 01월 01일",
+    "money": "0",
+    "number_old": "PD01"
+  },
+  {
+    "seq_no": 3,
+    "kind": "출장",
+    "courier": "NO",
+    "code": "TR01",
+    "name": "출장비",
+    "as_count": "0",
+    "date": "2026년 01월 01일",
+    "money": "30000",
+    "number_old": "TR01"
+  },
+  {
+    "seq_no": 2,
+    "kind": "부품",
+    "courier": "YES",
+    "code": "PT01",
+    "name": "부품교체",
+    "as_count": "0",
+    "date": "2026년 01월 01일",
+    "money": "0",
+    "number_old": "PT01"
+  },
+  {
+    "seq_no": 1,
+    "kind": "제품",
+    "courier": "YES",
+    "code": "DL01",
+    "name": "자재납품",
+    "as_count": "0",
+    "date": "2026년 01월 01일",
+    "money": "0",
+    "number_old": "DL01"
+  }
+]

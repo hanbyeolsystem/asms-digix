@@ -1,0 +1,730 @@
+/* =====================================================================
+   ASMS Clone — 디자인 토큰 (원본 wolf-fox.dreamtec.co.kr 기준)
+   ===================================================================== */
+
+* { box-sizing: border-box; }
+
+body {
+  margin: 0;
+  padding: 0;
+  background: #ffffff;
+  color: #333333;
+  font-family: "굴림", Gulim, Dotum, "맑은 고딕", "Malgun Gothic", sans-serif;
+  font-size: 12px;
+  line-height: 150%;
+}
+
+a {
+  color: #333333;
+  text-decoration: none;
+}
+a:visited { color: #666666; }
+a:hover   { color: #0000ff; }
+
+img { border: 0; vertical-align: middle; }
+
+/* ---------- Layout (frameset 대체) ---------- */
+.app {
+  display: flex;
+  flex-direction: column;
+  min-height: 100vh;
+}
+.app-header { flex: 0 0 auto; }
+.app-main {
+  flex: 1 1 auto;
+  padding: 8px 0 24px;
+}
+.app-footer { flex: 0 0 auto; }
+
+/* ---------- 상단 메뉴 (as_menu.php) ---------- */
+.top-bar {
+  width: 100%;
+  background: #ffffff;
+}
+.top-bar-row1 {
+  display: flex;
+  align-items: flex-end;
+  height: 57px;
+  padding: 0 8px;
+}
+.brand {
+  width: 170px;
+  text-align: center;
+}
+.brand .brand-logo {
+  display: inline-block;
+  width: 106px;
+  height: 25px;
+  background: #000068;
+  color: #fff;
+  font-weight: bold;
+  text-align: center;
+  line-height: 25px;
+  letter-spacing: 1px;
+}
+.brand .branch-tag {
+  font-size: 11px;
+  font-family: Dotum, sans-serif;
+  margin-left: 4px;
+}
+
+.top-menu-wrap {
+  width: auto;
+  border: 1px solid #cccccc;
+  border-bottom: 0;
+  background: #ffffff;
+  padding: 4px 6px;
+  margin-left: 8px;
+  white-space: nowrap;
+}
+.top-menu-wrap a {
+  margin: 0 4px;
+}
+.top-menu-wrap .sep { color: #999; }
+
+.top-bar-divider1 { height: 1px; background: #333333; }
+.top-bar-divider2 { height: 5px; background: #000068; }
+
+.top-bar-row2 {
+  height: 22px;
+  background: #eeeeee;
+  display: flex;
+  align-items: center;
+  padding: 0 8px;
+  font-size: 12px;
+}
+.top-bar-row2 .gap { display: inline-block; width: 18px; }
+.top-bar-row2 .quick a { color: blue; margin: 0 2px; }
+.top-bar-row2 .clock { font-weight: bold; color: #000; }
+
+/* ---------- 푸터 ---------- */
+.app-footer .foot-line { height: 1px; background: #333333; }
+.app-footer .foot-bar {
+  height: 22px;
+  background: #000068;
+  text-align: right;
+  padding: 0 12px;
+  color: #ffffff;
+  font-weight: bold;
+  line-height: 22px;
+}
+
+/* ---------- 페이지 타이틀 띠 (as_order.gif 대체) ---------- */
+.page-title {
+  width: 800px;
+  height: 40px;
+  background: linear-gradient(180deg, #000068 0%, #2030a0 100%);
+  color: #fff;
+  font-weight: bold;
+  font-size: 14px;
+  display: flex;
+  align-items: center;
+  padding: 0 16px;
+  margin: 0 auto 0;
+  letter-spacing: 1px;
+}
+
+/* ---------- 컨텐츠 박스 (테이블 외곽) ---------- */
+.content-wrap {
+  width: 800px;
+  margin: 0 auto;
+  padding: 0 15px;
+}
+
+.outer-table {
+  width: 100%;
+  border-collapse: separate;
+  border-spacing: 1px;
+  background: #cccccc;
+}
+.outer-table > tbody > tr > td {
+  background: #ffffff;
+  padding: 4px;
+}
+
+/* ---------- 검색/필터 박스 ---------- */
+.search-box {
+  width: 730px;
+  border-collapse: separate;
+  border-spacing: 1px;
+  background: #999999;
+  margin: 8px auto 0;
+}
+.search-box td {
+  background: #eeeeee;
+  padding: 4px 6px;
+  text-align: center;
+}
+.search-box td.alt { background: #ffffff; }
+
+.search-box input[type="text"],
+.search-box select {
+  font-family: Gulim, "굴림", sans-serif;
+  font-size: 9pt;
+  height: 20px;
+  border: 1px solid #999999;
+  background: #fff;
+  padding: 0 4px;
+}
+.search-box input[type="submit"],
+.search-box input[type="button"] {
+  font-size: 9pt;
+  cursor: pointer;
+  padding: 1px 6px;
+}
+
+/* ---------- 데이터 테이블 (목록) ---------- */
+.data-table {
+  width: 730px;
+  border-collapse: separate;
+  border-spacing: 1px;
+  background: #cccccc;
+  margin: 8px auto 0;
+}
+.data-table th,
+.data-table td {
+  padding: 4px;
+  text-align: center;
+  background: #ffffff;
+}
+.data-table thead th {
+  background: #bbbbff;
+  height: 28px;
+  font-weight: normal;
+}
+.data-table tbody tr:nth-child(odd) td  { background: #eeeeee; }
+.data-table tbody tr:nth-child(even) td { background: #ffffff; }
+
+/* 상태 배경 색 (cell 단위 강조) */
+.st-접수 { background: #ffbcce !important; }
+.st-진행 { background: #ffcbff !important; }
+.st-센터 { background: #ffd9b3 !important; }
+.st-견적 { background: #ffd0d0 !important; }
+.st-택배 { background: #ceffff !important; }
+.st-완료 { background: #ffffce !important; }
+.st-출고 { background: #ceffce !important; }
+
+/* ---------- 탭/링크형 상태 필터 ---------- */
+.status-tabs {
+  width: 730px;
+  margin: 8px auto 0;
+  background: #eeeeee;
+  text-align: center;
+  padding: 4px 0;
+  border: 1px solid #cccccc;
+}
+.status-tabs a { margin: 0 6px; cursor: pointer; }
+.status-tabs a.active { font-weight: bold; color: #c00; text-decoration: underline; }
+
+/* ---------- 입력 폼 (신규접수/상세) ---------- */
+.form-table {
+  width: 800px;
+  margin: 8px auto 0;
+  border-collapse: separate;
+  border-spacing: 1px;
+  background: #cccccc;
+}
+.form-table th,
+.form-table td {
+  background: #ffffff;
+  padding: 6px 8px;
+  vertical-align: middle;
+}
+.form-table th {
+  background: #eeeeee;
+  width: 110px;
+  text-align: center;
+  font-weight: normal;
+}
+.form-table input[type="text"],
+.form-table input[type="password"],
+.form-table input[type="email"],
+.form-table textarea,
+.form-table select {
+  font-family: Gulim, "굴림", sans-serif;
+  font-size: 9pt;
+  border: 1px solid #999999;
+  background: #fff;
+  padding: 2px 4px;
+}
+.form-table textarea {
+  width: 460px;
+  height: 60px;
+}
+
+/* ---------- 버튼 모음 ---------- */
+.btn-row {
+  width: 800px;
+  margin: 12px auto 0;
+  text-align: center;
+}
+.btn {
+  font-family: Gulim, "굴림", sans-serif;
+  font-size: 9pt;
+  padding: 4px 14px;
+  border: 1px solid #555;
+  background: linear-gradient(180deg, #ffffff, #dddddd);
+  cursor: pointer;
+  margin: 0 3px;
+}
+.btn-primary {
+  background: linear-gradient(180deg, #4060c8, #000068);
+  color: #fff;
+  border-color: #000033;
+}
+
+/* ---------- 정산 토글 ---------- */
+.price-panel {
+  border-top: 2px solid #000066;
+  margin-top: 8px;
+  padding-top: 6px;
+  font-size: 12px;
+  width: 730px;
+  margin-left: auto;
+  margin-right: auto;
+}
+.price-panel .row {
+  display: flex;
+  margin: 2px 0;
+}
+.price-panel .label,
+.price-panel .value {
+  border: 1px solid #cccccc;
+  padding: 3px;
+}
+.price-panel .label { width: 130px; text-align: center; margin-left: 40px; }
+.price-panel .value { width: 430px; text-align: right; }
+
+/* ---------- 로그인 ---------- */
+.login-wrap {
+  height: 100vh;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: #ffffff;
+}
+.login-box {
+  display: flex;
+  align-items: center;
+  gap: 20px;
+}
+.login-logo {
+  width: 273px;
+  height: 63px;
+  background: #000068;
+  color: #fff;
+  font-weight: bold;
+  text-align: center;
+  line-height: 63px;
+  font-size: 24px;
+  letter-spacing: 4px;
+}
+.login-form td {
+  height: 30px;
+  padding: 0 4px;
+  text-align: right;
+  font-size: 12px;
+}
+.login-form input {
+  width: 110px;
+  height: 18px;
+  border: 1px solid #999999;
+  background: #fff;
+  font-family: Gulim, "굴림", sans-serif;
+  font-size: 9pt;
+  padding: 0 4px;
+}
+.login-btn {
+  width: 58px;
+  height: 58px;
+  background: #000068;
+  color: #fff;
+  border: 0;
+  font-weight: bold;
+  font-size: 14px;
+  cursor: pointer;
+}
+
+/* ---------- SMS 패널 ---------- */
+.sms-balance td {
+  padding: 4px 12px;
+}
+.sms-balance .head { background: #efefef; }
+.sms-balance .val  { background: #ffffff; text-align: right; font-weight: bold; }
+
+.sms-step {
+  display: inline-block;
+  width: 127px;
+  vertical-align: top;
+  font-size: 12px;
+}
+.sms-step .num {
+  color: #d16060;
+  font-weight: bold;
+  font-size: 14px;
+}
+
+/* ---------- 작은 유틸 ---------- */
+.right { text-align: right; }
+.center { text-align: center; }
+.gray-box {
+  background: #eeeeee;
+  border: 1px solid #cccccc;
+  padding: 4px 6px;
+}
+.divider-navy { height: 1px; background: #000066; margin: 6px 0; }
+.note { color: #888; font-size: 11px; }
+
+/* =====================================================================
+   반응형 — 태블릿(≤1024px), 모바일(≤768px), 소형(≤480px)
+   ===================================================================== */
+
+/* --- 태블릿 이하: 고정폭 해제 --- */
+@media (max-width: 1024px) {
+  body { font-size: 13px; }
+
+  .content-wrap,
+  .page-title,
+  .toolbar,
+  .stat-bar,
+  .toolbar2,
+  .status-tabs,
+  .btn-row,
+  .price-panel,
+  .info-bar {
+    width: auto !important;
+    max-width: 100%;
+    margin-left: auto;
+    margin-right: auto;
+    padding-left: 8px;
+    padding-right: 8px;
+    box-sizing: border-box;
+  }
+  .info-bar { flex-wrap: wrap; gap: 6px; font-size: 12px; }
+
+  /* 모달 - 화면 폭에 맞게 축소 */
+  .ce-box, .modal-box { max-width: 95vw !important; width: 480px; }
+
+  .outer-table,
+  .data-table,
+  .form-table,
+  .search-box,
+  .order-table,
+  .cust-table {
+    width: 100% !important;
+    min-width: 0;
+  }
+
+  /* 데이터 테이블이 터무니없이 넓을 때 가로 스크롤 */
+  .content-wrap > .outer-table,
+  .data-table {
+    display: block;
+    overflow-x: auto;
+    -webkit-overflow-scrolling: touch;
+  }
+  .data-table thead, .data-table tbody { display: table; width: 100%; min-width: 700px; }
+  .data-table tr { display: table-row; }
+  .data-table th, .data-table td { display: table-cell; }
+}
+
+/* --- 모바일 (≤768px) --- */
+@media (max-width: 768px) {
+  body { font-size: 14px; line-height: 1.5; }
+
+  /* ---------- 헤더 ---------- */
+  .top-bar-row1 {
+    flex-direction: column;
+    height: auto;
+    align-items: stretch;
+    padding: 6px 6px 0;
+  }
+  .brand {
+    width: auto;
+    text-align: left;
+    margin-bottom: 6px;
+  }
+  .brand .brand-logo { vertical-align: middle; }
+
+  .top-menu-wrap {
+    width: 100%;
+    margin-left: 0;
+    padding: 4px;
+    border: 0;
+    display: flex;
+    flex-wrap: wrap;
+    gap: 4px;
+    background: transparent;
+  }
+  .top-menu-wrap a {
+    flex: 1 1 calc(33.333% - 6px);
+    text-align: center;
+    padding: 8px 4px;
+    background: #f0f3ff;
+    border: 1px solid #ccd;
+    border-radius: 4px;
+    margin: 0;
+    font-size: 12.5px;
+    line-height: 1.2;
+  }
+  .top-menu-wrap a:first-child {
+    flex: 1 1 100%;
+    background: #000068;
+    color: #fff !important;
+    font-weight: bold;
+  }
+  .top-menu-wrap .sep { display: none; }
+  /* 모바일에서 숨길 요소 (헤더 메뉴 + order-detail 일부 행/버튼 등) */
+  .m-hide { display: none !important; }
+  /* 모바일 — 상단 1행(브랜드 + 메뉴) 통째로 숨김. 날짜/시간 행부터 노출 */
+  .top-bar-row1, .top-bar-divider1, .top-bar-divider2 { display: none !important; }
+
+  .top-bar-row2 {
+    height: auto;
+    padding: 6px 8px;
+    flex-wrap: wrap;
+    gap: 6px;
+    font-size: 11px;
+    line-height: 1.4;
+  }
+  .top-bar-row2 .gap { width: 100%; }
+  .top-bar-row2 .quick { width: 100%; }
+  .top-bar-row2 .quick a { padding: 2px 4px; }
+
+  /* ---------- 페이지 타이틀 ---------- */
+  .page-title {
+    height: auto;
+    min-height: 40px;
+    padding: 8px 12px;
+    font-size: 14px;
+    line-height: 1.3;
+  }
+
+  /* ---------- 폼: 한 줄에 한 필드씩 세로 배치 ---------- */
+  .form-table th,
+  .form-table td {
+    display: block;
+    width: 100% !important;
+    text-align: left !important;
+    padding: 6px 10px;
+    box-sizing: border-box;
+  }
+  .form-table th {
+    background: #e8eaff;
+    font-weight: bold;
+    border-bottom: 1px solid #cccccc;
+    color: #000068;
+  }
+
+  /* ---------- 입력 (iOS 자동 줌 방지: 16px) ---------- */
+  input[type="text"],
+  input[type="password"],
+  input[type="email"],
+  input[type="tel"],
+  input[type="number"],
+  input[type="date"],
+  input[type="time"],
+  textarea,
+  select {
+    font-size: 16px !important;
+    min-height: 36px;
+    padding: 4px 8px;
+    box-sizing: border-box;
+  }
+  .form-table input[type="text"]:not([name^="cu_tel"]):not([name^="co_tel"]):not([name^="cu_mobile"]):not([name^="co_fax"]):not([name="zipcode1"]):not([name="zipcode2"]),
+  .form-table input[type="password"],
+  .form-table input[type="email"],
+  .form-table textarea,
+  .form-table select,
+  .toolbar input[type="text"],
+  .toolbar select {
+    width: 100% !important;
+    max-width: 100%;
+  }
+  .form-table textarea { height: 90px; }
+
+  /* 전화번호 3분할: 30%씩 가로 정렬 */
+  .form-table input[name^="cu_tel"],
+  .form-table input[name^="co_tel"],
+  .form-table input[name^="cu_mobile"],
+  .form-table input[name^="co_fax"] {
+    width: 30% !important;
+    display: inline-block;
+  }
+  .form-table input[name="zipcode1"] { width: 40% !important; display: inline-block; }
+
+  /* readonly 보기 모드 - 모바일에서도 깔끔하게 */
+  .view-table input[readonly] {
+    width: 100% !important;
+    max-width: 100% !important;
+    box-sizing: border-box;
+    border-bottom: 1px dotted #ddd;
+    background: transparent !important;
+  }
+  .view-table input[readonly][value=""] { border-bottom-color: transparent; }
+  /* 전화 분할 input 은 한 줄에 (위 100% 규칙 위에 덮어씀) */
+  .view-table input[name^="cu_tel"][readonly],
+  .view-table input[name^="co_tel"][readonly],
+  .view-table input[name^="cu_mobile"][readonly],
+  .view-table input[name^="co_fax"][readonly],
+  .view-table input[name="zipcode1"][readonly] {
+    width: 28% !important;
+    display: inline-block !important;
+  }
+
+  /* 신규접수 매칭 박스 */
+  #matchRow td { font-size: 13px; line-height: 1.7; padding: 8px 10px; }
+  #matchRow a { display: inline-block; padding: 2px 4px; }
+
+  /* 인라인 검색 버튼 */
+  .search-btn-inline {
+    display: inline-block;
+    margin-top: 4px;
+    padding: 6px 12px !important;
+    font-size: 13px !important;
+    min-height: 34px;
+  }
+
+  /* 모달 안의 폼 */
+  .modal-box, .ce-box { width: 95vw !important; max-width: 95vw !important; }
+  .modal-body table td.lbl,
+  .ce-body td.lbl { width: 80px; }
+  .modal-list-item { padding: 10px 12px; font-size: 14px; }
+
+  /* 상품 검색 모달 탭 */
+  .prod-mode-tabs { padding: 6px 8px; }
+  .prod-mode-tab { padding: 6px 10px !important; font-size: 13px !important; }
+
+  /* ---------- 버튼 ---------- */
+  .btn,
+  button.btn,
+  input[type="submit"],
+  input[type="button"] {
+    min-height: 42px;
+    padding: 8px 16px;
+    font-size: 14px;
+    margin: 4px 2px;
+    border-radius: 4px;
+  }
+
+  /* ---------- 검색 박스 ---------- */
+  .search-box td {
+    display: block;
+    width: 100% !important;
+    text-align: left;
+    padding: 6px 8px;
+  }
+  .search-box select { width: 100% !important; max-width: 100%; }
+
+  .toolbar {
+    flex-direction: column;
+    align-items: stretch;
+    gap: 6px;
+  }
+  .toolbar input[type="text"],
+  .toolbar select { width: 100% !important; }
+
+  /* ---------- 통계바 ---------- */
+  .stat-bar {
+    flex-wrap: wrap;
+    gap: 8px;
+    font-size: 12px;
+    padding: 8px 10px;
+  }
+
+  /* ---------- 상태 탭 ---------- */
+  .status-tabs {
+    padding: 8px 4px;
+    font-size: 13px;
+    line-height: 1.8;
+  }
+  .status-tabs a {
+    display: inline-block;
+    padding: 4px 10px;
+    margin: 2px;
+    background: #fff;
+    border: 1px solid #ccc;
+    border-radius: 4px;
+    color: #333;
+  }
+
+  /* ---------- 데이터 테이블 ---------- */
+  .data-table th,
+  .data-table td {
+    padding: 8px 6px;
+    font-size: 12px;
+    white-space: nowrap;
+  }
+  .data-table thead, .data-table tbody { min-width: 900px; }
+
+  /* ---------- 로그인 ---------- */
+  .login-wrap { padding: 0 16px; }
+  .login-box {
+    flex-direction: column;
+    gap: 14px;
+    width: 100%;
+    max-width: 360px;
+  }
+  .login-logo {
+    width: 100%;
+    height: 80px;
+    line-height: 80px;
+    font-size: 28px;
+  }
+  .login-form { width: 100%; }
+  .login-form table { width: 100%; }
+  .login-form td:first-child {
+    width: 90px;
+    text-align: right;
+  }
+  .login-form input { width: 100%; height: 38px; font-size: 16px; }
+  .login-btn {
+    width: 100%;
+    height: 52px;
+    font-size: 16px;
+  }
+
+  /* ---------- SMS ---------- */
+  .sms-balance { width: 100%; }
+  .sms-step { display: block; width: 100%; margin-bottom: 6px; }
+
+  /* ---------- 푸터 ---------- */
+  .app-footer .foot-bar {
+    text-align: center;
+    font-size: 12px;
+    height: auto;
+    padding: 6px 12px;
+  }
+}
+
+/* --- 소형 모바일 (≤480px) --- */
+@media (max-width: 480px) {
+  .top-menu-wrap a:not(:first-child) {
+    flex: 1 1 calc(50% - 6px);
+    font-size: 12px;
+  }
+  .data-table th,
+  .data-table td { font-size: 11px; padding: 6px 4px; }
+
+  /* 헤더 시계/사용자 정보 */
+  .top-bar-row2 { font-size: 10.5px; padding: 6px 6px; }
+  .top-bar-row2 .quick a { padding: 2px 6px; font-size: 11px; }
+
+  /* customers.html stat-bar */
+  .stat-bar { font-size: 11px; padding: 6px 8px; }
+
+  /* 페이지 타이틀 폰트 더 작게 */
+  .page-title { font-size: 13px; padding: 6px 10px; }
+
+  /* 검색 폼 */
+  .search-box td { padding: 4px 6px; }
+  .search-box input[type="text"] { width: 100% !important; }
+
+  /* 데이터 테이블 더 작은 폰트 */
+  .order-table th, .order-table td { font-size: 11px; padding: 5px 3px; }
+  .cust-table  th, .cust-table  td { font-size: 11px; padding: 5px 3px; }
+  .cust-table  td.addr { max-width: 200px; }
+
+  /* 페이저 */
+  #pager { font-size: 12px; }
+  #pageInfo { font-size: 11px; }
+}

@@ -1,0 +1,710 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>A/S Admin - 신규접수</title>
+<link rel="stylesheet" href="css/style.css">
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<script src="js/supabase-config.js"></script>
+<script src="js/supabase-client.js"></script>
+<script src="js/rental-match.js"></script>
+<script src="css/partials.js"></script>
+<!-- 다음 우편번호 서비스 (원본과 동일) -->
+<script src="https://t1.daumcdn.net/mapjsapi/bundle/postcode/prod/postcode.v2.js"></script>
+<style>
+  /* 검색 모달 */
+  .modal-backdrop {
+    position: fixed; inset: 0;
+    background: rgba(0, 0, 0, 0.55);
+    z-index: 9000;
+    display: none;
+    align-items: center; justify-content: center;
+  }
+  .modal-backdrop.show { display: flex; }
+  .modal-box {
+    background: #fff;
+    width: 92%; max-width: 620px;
+    max-height: 88vh;
+    display: flex; flex-direction: column;
+    border: 1px solid #555;
+    box-shadow: 0 10px 40px rgba(0,0,0,0.3);
+    border-radius: 6px;
+    overflow: hidden;
+  }
+  .modal-header {
+    padding: 10px 14px;
+    background: #000068;
+    color: #fff;
+    font-weight: bold;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+  }
+  .modal-header .close-btn {
+    background: transparent; border: 0; color: #fff;
+    font-size: 24px; cursor: pointer; line-height: 1;
+    padding: 0 4px;
+  }
+  .modal-body { padding: 12px; overflow: auto; flex: 1; }
+  .modal-search {
+    display: flex; gap: 6px; margin-bottom: 8px;
+  }
+  .modal-search input {
+    flex: 1; padding: 7px 10px;
+    border: 1px solid #999; font-size: 14px;
+  }
+  .modal-list {
+    border: 1px solid #ddd;
+    max-height: 60vh; overflow-y: auto;
+    background: #fafafa;
+  }
+  .modal-list-item {
+    padding: 8px 12px;
+    border-bottom: 1px solid #eee;
+    cursor: pointer;
+    background: #fff;
+  }
+  .modal-list-item:hover { background: #f0f3ff; }
+  .modal-list-item small { color: #888; font-size: 11px; }
+  .modal-empty { padding: 14px; color: #888; text-align: center; }
+  .search-btn-inline {
+    margin-left: 4px; padding: 3px 10px;
+    background: #4060c8; color: #fff;
+    border: 1px solid #000033;
+    cursor: pointer; font-size: 12px;
+    border-radius: 3px;
+  }
+</style>
+<script>
+// CUSTOMERS: 현재 회원검색 모달/매칭안내가 참조하는 검색 결과만 보관 (lazy).
+// PRODUCTS: 상품은 186건이라 그대로 풀로딩.
+let CUSTOMERS = [];
+let PRODUCTS  = [];
+let CUSTOMERS_TOTAL = 0;  // 헤더 "전체 N명" 표시용
+let CUST_FALLBACK_FULL = null;  // 폴백 모드(Supabase 미설정)에서만 전체 배열 캐시
+
+async function loadDB() {
+  if (window.SB_CONFIGURED) {
+    // customers 는 모달/매칭 시점에 lazy 로 가져옴. 페이지 진입 시엔 카운트만.
+    try { CUSTOMERS_TOTAL = (await window.dbCustomersCount()) || 0; } catch (e) {}
+    try { PRODUCTS = (await window.dbProductsAll()) || []; } catch (e) {}
+  } else {
+    try {
+      const r = await fetch("data/customers.json?ts=" + Date.now());
+      if (r.ok) {
+        CUST_FALLBACK_FULL = await r.json();
+        CUSTOMERS_TOTAL = CUST_FALLBACK_FULL.length;
+      }
+    } catch (e) {}
+    try {
+      const r = await fetch("data/products.json?ts=" + Date.now());
+      if (r.ok) PRODUCTS = await r.json();
+    } catch (e) {}
+  }
+  updateDBStatus();
+  await fillWorkName();
+}
+
+// 폴백 모드 클라이언트측 검색 + 서버 모드 dbCustomersSearch 의 래퍼
+async function searchCustomers(q, limit = 50) {
+  if (window.SB_CONFIGURED) {
+    return await window.dbCustomersSearch(q, limit);
+  }
+  const list = CUST_FALLBACK_FULL || [];
+  const v = (q || "").trim().toLowerCase();
+  const filtered = v
+    ? list.filter(c =>
+        ((c.cu_name || "") + " " + (c.co_name || "") + " " + (c.cu_kind || "")).toLowerCase().includes(v) ||
+        (c.cu_mobile || "").includes(v) ||
+        (c.cu_tel || "").includes(v) ||
+        (c.address1 || "").toLowerCase().includes(v)
+      )
+    : list;
+  return filtered.slice(0, limit);
+}
+
+// debounce 헬퍼
+function debounce(fn, ms) {
+  let h = null;
+  return function (...args) {
+    if (h) clearTimeout(h);
+    h = setTimeout(() => fn.apply(this, args), ms);
+  };
+}
+
+async function fillWorkName() {
+  const f = document.frm;
+  if (!f || !f.work_name) return;
+  let n = "";
+  if (typeof window.currentUserName === "function") {
+    try { n = (await window.currentUserName()) || ""; } catch (e) {}
+  }
+  if (!n) n = localStorage.getItem("current_user") || "";
+  f.work_name.value = n || "관리자";
+}
+
+function updateDBStatus() {
+  const el = document.getElementById("dbStatus");
+  if (el) el.textContent = `(검색 가능: 회원 ${CUSTOMERS_TOTAL.toLocaleString()}명 / 상품 ${PRODUCTS.length}건)`;
+}
+
+// 전화번호 자동 포맷팅
+// isMobile=false → 유선 XXX-XXX-XXXX, 7자리만 입력 시 onBlur 에서 053 prefix
+// isMobile=true  → 휴대폰 XXX-XXXX-XXXX
+function formatPhone(raw, isMobile) {
+  const d = (raw || "").replace(/\D/g, "");
+  if (d.length <= 3) return d;
+  if (isMobile) {
+    if (d.length <= 7) return d.slice(0,3) + "-" + d.slice(3);
+    return d.slice(0,3) + "-" + d.slice(3,7) + "-" + d.slice(7,11);
+  }
+  if (d.length <= 6) return d.slice(0,3) + "-" + d.slice(3);
+  if (d.length <= 10) return d.slice(0,3) + "-" + d.slice(3, d.length-4) + "-" + d.slice(-4);
+  return d.slice(0,3) + "-" + d.slice(3,7) + "-" + d.slice(7,11);
+}
+function formatPhoneFinal(raw, isMobile) {
+  let d = (raw || "").replace(/\D/g, "");
+  if (!isMobile && d.length === 7) d = "053" + d;
+  return formatPhone(d, isMobile);
+}
+window.formatPhone = formatPhone;
+window.formatPhoneFinal = formatPhoneFinal;
+
+// 사업자번호: 10자리 → XXX-XX-XXXXX
+function formatBizNo(raw) {
+  const d = (raw || "").replace(/\D/g, "");
+  if (d.length <= 3) return d;
+  if (d.length <= 5) return d.slice(0,3) + "-" + d.slice(3);
+  return d.slice(0,3) + "-" + d.slice(3,5) + "-" + d.slice(5,10);
+}
+window.formatBizNo = formatBizNo;
+
+/* ==================== 우편번호 검색 (Daum API) ==================== */
+function searchZip() {
+  if (typeof daum === "undefined") {
+    alert("Daum 우편번호 서비스를 불러오지 못했습니다. 인터넷 연결을 확인해주세요.");
+    return;
+  }
+  new daum.Postcode({
+    oncomplete: function (data) {
+      const fullAddr = data.roadAddress || data.jibunAddress || "";
+      let extra = "";
+      if (data.userSelectedType === "R") {
+        if (data.bname) extra += data.bname;
+        if (data.buildingName) extra += (extra ? ", " : "") + data.buildingName;
+      }
+      document.getElementById("zipcode1").value = data.zonecode;
+      document.getElementById("address1").value = fullAddr + (extra ? " (" + extra + ")" : "");
+      document.getElementById("address2").focus();
+    }
+  }).open();
+}
+
+/* ==================== 기존 고객 매칭 안내 ==================== */
+let MATCHED_CUSTOMER = null;  // 등록 시 사용할 cu_number 결정
+let MATCH_RESULTS = [];        // 매칭 안내에 표시 중인 후보 (selectMatch idx 용)
+
+async function _checkExistingCustomerCore() {
+  const f = document.frm;
+  const name = (f.cu_name.value || "").trim();
+  const tel    = (f.cu_tel.value || "").trim();
+  const mobile = (f.cu_mobile.value || "").trim();
+  const row = document.getElementById("matchRow");
+  const list = document.getElementById("matchList");
+
+  const hasName   = name && name.length >= 2;
+  const hasTel    = tel && tel.replace(/-/g,"").length >= 4;
+  const hasMobile = mobile && mobile.replace(/-/g,"").length >= 4;
+  if (!hasName && !hasTel && !hasMobile) {
+    row.style.display = "none"; MATCHED_CUSTOMER = null; MATCH_RESULTS = []; return;
+  }
+
+  // 가장 강한 신호 한 가지로 서버측 검색 (모바일 > 전화 > 이름 순)
+  const q = hasMobile ? mobile : (hasTel ? tel : name);
+  const results = await searchCustomers(q, 20);
+
+  // 추가 조건이 있으면 클라이언트에서 더 정밀하게 필터
+  const matches = new Map();
+  results.forEach(c => {
+    let hit = false;
+    if (hasName   && c.cu_name && c.cu_name.includes(name))      hit = true;
+    if (hasTel    && c.cu_tel  && c.cu_tel.includes(tel))        hit = true;
+    if (hasMobile && c.cu_mobile && c.cu_mobile.includes(mobile)) hit = true;
+    if (hit) matches.set(c.cu_number, c);
+  });
+  const arr = Array.from(matches.values())
+    .sort((a,b)=>(b.order_count||0)-(a.order_count||0)).slice(0, 5);
+  MATCH_RESULTS = arr;
+  if (arr.length === 0) { row.style.display = "none"; MATCHED_CUSTOMER = null; return; }
+  list.innerHTML = arr.map((c, i) => {
+    return `<a style="margin-right:10px;color:#06b;cursor:pointer;text-decoration:underline;" onclick="selectMatch(${i})">`
+      + `${esc(c.cu_name)}${(c.order_count||0)>0?' ('+c.order_count+'회)':''}${c.cu_mobile?' / '+esc(c.cu_mobile):''}${c.cu_tel?' / '+esc(c.cu_tel):''}`
+      + `</a>`;
+  }).join(" · ");
+  row.style.display = "";
+}
+const checkExistingCustomer = debounce(_checkExistingCustomerCore, 250);
+window.checkExistingCustomer = checkExistingCustomer;
+
+function selectMatch(i) {
+  const c = MATCH_RESULTS[i];
+  if (!c) return;
+  applyCustomerSelection(c);
+}
+window.selectMatch = selectMatch;
+
+/* ==================== 임대거래처 실시간 배지 ==================== */
+function updateRentalBadge() {
+  const holder = document.getElementById("rentalBadgeHolder");
+  if (!holder) return;
+  const name = (document.frm.cu_name.value || "").trim();
+  holder.innerHTML = (name && window.rentalBadgeSuffix) ? window.rentalBadgeSuffix(name) : "";
+}
+window.updateRentalBadge = updateRentalBadge;
+if (window.ensureRentalMatchCache) {
+  window.ensureRentalMatchCache().then(updateRentalBadge);
+}
+
+/* ==================== 회원 검색 ==================== */
+// CUSTOMERS 는 현재 모달에 표시 중인 검색 결과만 보관 (서버측 lazy 검색).
+function openCustModal() {
+  document.getElementById("custModal").classList.add("show");
+  const s = document.getElementById("custSearch");
+  s.value = "";
+  setTimeout(() => s.focus(), 50);
+  renderCustList("");
+}
+function closeCustModal() {
+  document.getElementById("custModal").classList.remove("show");
+}
+
+async function _renderCustListCore(q) {
+  q = (q || "").trim();
+  const listEl = document.getElementById("custList");
+  const countEl = document.getElementById("custCount");
+  listEl.innerHTML = `<div class="modal-empty" style="color:#aaa;">검색 중…</div>`;
+  const limit = 100;
+  const list = await searchCustomers(q, limit);
+  CUSTOMERS = list;  // selectCust 가 참조
+  const html = list.map((c, i) => {
+    const lease = c.cu_kind  ? `<span style="background:#fce8e8;color:#a40000;padding:1px 6px;border-radius:3px;font-size:11px;margin-right:4px;">임대 ${esc(c.cu_kind)}</span>` : "";
+    const top   = c.co_name  ? `<span style="background:#e8f0fc;color:#003a7a;padding:1px 6px;border-radius:3px;font-size:11px;">주판매 ${esc(c.co_name)}</span>` : "";
+    const oc    = (c.order_count || 0) > 0 ? `<span style="color:#888;font-size:11px;margin-left:6px;">접수 ${c.order_count}회</span>` : "";
+    return `
+    <div class="modal-list-item" onclick="selectCust(${i})">
+      <b>${esc(c.cu_name)}</b>${oc}
+      ${(lease || top) ? `<div style="margin-top:3px;">${lease}${top}</div>` : ""}
+      <small style="display:block;margin-top:3px;">
+        ${esc(c.cu_mobile || "")}${c.cu_mobile && c.cu_tel ? " · " : ""}${esc(c.cu_tel || "")}<br>
+        ${esc(c.address1 || "")} ${esc(c.address2 || "")}
+      </small>
+    </div>`;
+  }).join("");
+  listEl.innerHTML = html ||
+    `<div class="modal-empty">검색 결과 없음<br><small>전체 ${CUSTOMERS_TOTAL.toLocaleString()}명의 고객 데이터에서 검색</small></div>`;
+  countEl.textContent = q
+    ? `${list.length}명 표시 (전체 ${CUSTOMERS_TOTAL.toLocaleString()}명 중)`
+    : `상위 ${list.length}명 (전체 ${CUSTOMERS_TOTAL.toLocaleString()}명)`;
+}
+const renderCustList = debounce(_renderCustListCore, 200);
+window.renderCustList = renderCustList;
+
+function applyCustomerSelection(c) {
+  MATCHED_CUSTOMER = c;
+  const f = document.frm;
+  f.cu_name.value = c.cu_name || "";
+  if (f.co_name) f.co_name.value = c.co_name || "";
+  if (f.cu_kind) f.cu_kind.value = c.cu_kind || "";
+  f.cu_mail.value = c.cu_mail || "";
+  document.getElementById("zipcode1").value = c.zipcode1 || "";
+  document.getElementById("address1").value = c.address1 || "";
+  document.getElementById("address2").value = c.address2 || "";
+  ["cu_tel", "co_tel", "cu_mobile", "co_fax"].forEach(name => {
+    if (f[name]) f[name].value = c[name] || "";
+  });
+  closeCustModal();
+  document.getElementById("matchRow").style.display = "none";
+  updateRentalBadge();
+}
+
+function selectCust(idx) {
+  const c = CUSTOMERS[idx];
+  if (!c) return;
+  applyCustomerSelection(c);
+}
+
+/* ==================== 상품 검색 ==================== */
+let PROD_MODE = "all"; // 'all' | 'lease' | 'top'
+
+function openProdModal(mode) {
+  PROD_MODE = mode || "all";
+  syncProdTabs();
+  document.getElementById("prodModal").classList.add("show");
+  const s = document.getElementById("prodSearch");
+  s.value = "";
+  setTimeout(() => s.focus(), 50);
+  renderProdList("");
+}
+function closeProdModal() {
+  document.getElementById("prodModal").classList.remove("show");
+}
+function setProdMode(m) {
+  PROD_MODE = m;
+  syncProdTabs();
+  renderProdList(document.getElementById("prodSearch").value);
+}
+function syncProdTabs() {
+  document.querySelectorAll(".prod-mode-tab").forEach(t => {
+    t.classList.toggle("active", t.dataset.mode === PROD_MODE);
+  });
+}
+function getModeList() {
+  if (PROD_MODE === "lease") {
+    return PRODUCTS.filter(p => (p.name || "").includes("임대"));
+  }
+  return PRODUCTS;
+}
+function renderProdList(q) {
+  q = (q || "").trim().toLowerCase();
+  let base = getModeList();
+  const list = q
+    ? base.filter(p =>
+        (p.code || "").toLowerCase().includes(q) ||
+        (p.name || "").toLowerCase().includes(q)
+      )
+    : base;
+  const limited = list.slice(0, 200);
+  const html = limited.map((p, i) => `
+    <div class="modal-list-item" onclick="selectProd(${PRODUCTS.indexOf(p)})">
+      ${esc(p.name)}
+    </div>
+  `).join("");
+  document.getElementById("prodList").innerHTML = html ||
+    `<div class="modal-empty">검색 결과 없음<br><small>${base.length}건의 상품 데이터에서 검색</small></div>`;
+  const modeName = PROD_MODE === "lease" ? "임대제품" : "전체";
+  document.getElementById("prodCount").textContent =
+    q ? `${list.length}건` : `${modeName} ${base.length}건`;
+}
+function selectProd(idx) {
+  const p = PRODUCTS[idx];
+  if (!p) return;
+  document.frm.mo_number.value = p.code || "";
+  document.frm.mo_engname.value = p.name || "";
+  closeProdModal();
+}
+
+/* ==================== 등록 ==================== */
+function radio(name) {
+  const el = document.querySelector(`input[name="${name}"]:checked`);
+  return el ? el.value : "";
+}
+
+async function go() {
+  const f = document.frm;
+  if (!f.cu_name.value) { alert("고객 성명을 입력하세요"); f.cu_name.focus(); return; }
+  if (!(f.cu_tel.value || "").trim()) {
+    alert("고객의 연락처를 입력하세요"); f.cu_tel.focus(); return;
+  }
+  if (!f.mo_number.value) { alert("상품 검색을 클릭해서 상품정보를 입력하세요"); return; }
+  if (!f.mo_serial.value) { alert("시리얼번호를 입력하세요"); f.mo_serial.focus(); return; }
+  if (!f.cu_want.value) { alert("고객 요청사항을 입력하세요"); f.cu_want.focus(); return; }
+
+  const t = new Date();
+  const yy = String(t.getFullYear()).slice(2);
+  const mm = String(t.getMonth() + 1).padStart(2, "0");
+  const dd = String(t.getDate()).padStart(2, "0");
+  const today_prefix = `${yy}${mm}${dd}-`;
+  const date_str = `${t.getFullYear()}/${mm}/${dd}`;
+
+  let todayCount = 1;
+  let nextSeq = Date.now();
+  if (window.SB_CONFIGURED && window.sb) {
+    try {
+      const { data } = await window.sb.from("orders")
+        .select("seq_no, order_no")
+        .like("order_no", today_prefix + "%");
+      todayCount = (data || []).length + 1;
+      const { data: max } = await window.sb.from("orders")
+        .select("seq_no").order("seq_no", { ascending: false }).limit(1);
+      if (max && max[0]) nextSeq = (max[0].seq_no || 0) + 1;
+    } catch (e) { console.warn(e); }
+  } else {
+    const stored = JSON.parse(localStorage.getItem("user_orders") || "[]");
+    todayCount = stored.filter(o => (o.order_no || "").startsWith(today_prefix)).length + 1;
+  }
+
+  // 매칭 안내가 켜져있는데 사용자가 클릭으로 회원 선택 안 했으면 한 번 더 확인
+  if (!MATCHED_CUSTOMER && document.getElementById("matchRow").style.display !== "none") {
+    if (!confirm("기존 고객으로 등록된 매칭이 있습니다. 그래도 신규 고객으로 등록하시겠습니까?\n(취소를 누르고 매칭 안내에서 클릭하면 기존 고객으로 등록됩니다.)")) return;
+  }
+
+  const cu_number = MATCHED_CUSTOMER?.cu_number || ("U_" + Date.now());
+
+  const newOrder = {
+    seq_no:       nextSeq,
+    order_no:     today_prefix + todayCount,
+    branch:       "대구",
+    cu_number:    cu_number,
+    cu_name:      f.cu_name.value.trim(),
+    status:       "접수",
+    product:      f.mo_engname.value.trim() || "미입력",
+    serial:       f.mo_serial.value.trim(),
+    process_date: date_str,
+    receiver:     f.work_name.value.trim() || localStorage.getItem("current_user") || "관리자",
+    kind2:        radio("or_kind3") || "출장",
+    cu_kind:      f.cu_kind ? f.cu_kind.value.trim() : "",  // 임대제품
+    co_name:      f.co_name ? f.co_name.value.trim() : "",  // 주판매
+    cu_tel:       (f.cu_tel.value || "").trim(),
+    co_tel:       (f.co_tel.value || "").trim(),
+    cu_mobile:    (f.cu_mobile.value || "").trim(),
+    co_fax:       (f.co_fax.value || "").trim(),
+    cu_mail:      f.cu_mail.value,
+    zipcode1:     f.zipcode1.value,
+    address1:     f.address1.value,
+    address2:     f.address2.value,
+    mo_number:    f.mo_number.value,
+    cu_want:      f.cu_want.value,
+    created_at:   t.toISOString(),
+  };
+
+  if (window.SB_CONFIGURED) {
+    delete newOrder.created_at;
+    const res = await window.dbOrderUpsert(newOrder);
+    if (res?.error) { alert("등록 실패: " + res.error); return; }
+
+    // customers 동기화: 매칭이면 last_seq/order_count 갱신, 신규면 INSERT
+    try {
+      if (MATCHED_CUSTOMER) {
+        await window.dbCustomerUpdate(cu_number, {
+          last_seq: nextSeq,
+          order_count: (MATCHED_CUSTOMER.order_count || 0) + 1,
+        });
+      } else {
+        await window.dbCustomerInsert({
+          cu_number,
+          cu_name:    newOrder.cu_name,
+          cu_kind:    newOrder.cu_kind,
+          co_name:    newOrder.co_name,
+          cu_mail:    newOrder.cu_mail,
+          zipcode1:   newOrder.zipcode1,
+          address1:   newOrder.address1,
+          address2:   newOrder.address2,
+          cu_tel:     newOrder.cu_tel,
+          cu_mobile:  newOrder.cu_mobile,
+          co_tel:     newOrder.co_tel,
+          co_fax:     newOrder.co_fax,
+          last_seq:   nextSeq,
+          order_count: 1,
+        });
+      }
+    } catch (e) { console.warn("customers 동기화 실패:", e); }
+
+    // 슬랙 알림 발송 (실패해도 접수는 성공으로 처리)
+    try {
+      const { data: nRes, error: nErr } = await window.sb.functions.invoke("notify-order", {
+        method: "POST",
+        body: {
+          order: {
+            order_no:  newOrder.order_no,
+            cu_name:   newOrder.cu_name,
+            cu_tel:    newOrder.cu_tel,
+            cu_mobile: newOrder.cu_mobile,
+            product:   newOrder.product,
+            kind2:     newOrder.kind2,
+            receiver:  newOrder.receiver,
+            cu_want:   newOrder.cu_want,
+          },
+        },
+      });
+      if (nErr || nRes?.error) console.warn("[notify-order]", nErr || nRes?.error, nRes?.detail);
+    } catch (e) { console.warn("슬랙 알림 발송 실패:", e); }
+  } else {
+    const stored = JSON.parse(localStorage.getItem("user_orders") || "[]");
+    stored.push(newOrder);
+    localStorage.setItem("user_orders", JSON.stringify(stored));
+  }
+
+  alert(`접수가 등록되었습니다.\n접수번호: ${newOrder.order_no}` + (MATCHED_CUSTOMER ? "\n(기존 고객 연결됨)" : "\n(신규 고객 자동 등록)"));
+  location.href = "orders.html?status=접수";
+}
+
+function esc(s) {
+  return (s == null ? "" : String(s))
+    .replace(/&/g, "&amp;").replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;").replace(/"/g, "&quot;");
+}
+
+document.addEventListener("DOMContentLoaded", loadDB);
+document.addEventListener("keydown", e => {
+  if (e.key === "Escape") {
+    document.querySelectorAll(".modal-backdrop.show").forEach(m => m.classList.remove("show"));
+  }
+});
+</script>
+</head>
+<body>
+<div class="app">
+  <header class="app-header" id="app-header"></header>
+
+  <main class="app-main">
+    <div class="content-wrap">
+      <div class="page-title">A/S 신규접수 <span id="dbStatus" style="font-size:11px;font-weight:normal;color:#bcd;margin-left:10px;"></span></div>
+
+      <form name="frm" onsubmit="event.preventDefault();go();">
+      <table class="form-table">
+        <tr>
+          <th>고객 성명</th>
+          <td>
+            <input type="text" name="cu_name" size="14" maxlength="20" oninput="checkExistingCustomer();updateRentalBadge();">
+            <span id="rentalBadgeHolder"></span>
+            <button type="button" class="search-btn-inline" onclick="openCustModal()">회원 검색</button>
+          </td>
+          <th>주판매</th>
+          <td><input type="text" name="co_name" size="20" maxlength="40" placeholder="주판매 제품"></td>
+        </tr>
+        <tr>
+          <th>임대제품</th>
+          <td colspan="3"><input type="text" name="cu_kind" size="40" maxlength="40" placeholder="임대제품명을 입력하세요"></td>
+        </tr>
+        <tr id="matchRow" style="display:none;">
+          <td colspan="4" style="background:#fff8db;border:1px solid #e0c54e;padding:6px 10px;font-size:12px;">
+            <span style="color:#a40000;font-weight:bold;">기존 고객 매칭:</span>
+            <span id="matchList"></span>
+          </td>
+        </tr>
+        <tr>
+          <th>전화번호</th>
+          <td>
+            <input type="tel" name="cu_tel" size="20" maxlength="20" placeholder="예: 053-123-4567"
+                   oninput="this.value=formatPhone(this.value,false);checkExistingCustomer();"
+                   onblur="this.value=formatPhoneFinal(this.value,false);">
+          </td>
+          <th>사업자번호</th>
+          <td>
+            <input type="text" name="co_tel" size="20" maxlength="12" placeholder="예: 123-45-67890"
+                   oninput="this.value=formatBizNo(this.value);">
+          </td>
+        </tr>
+        <tr>
+          <th>휴대폰</th>
+          <td>
+            <input type="tel" name="cu_mobile" size="20" maxlength="20" placeholder="예: 010-1234-5678"
+                   oninput="this.value=formatPhone(this.value,true);checkExistingCustomer();"
+                   onblur="this.value=formatPhoneFinal(this.value,true);">
+          </td>
+          <th>팩스</th>
+          <td>
+            <input type="tel" name="co_fax" size="20" maxlength="20" placeholder="예: 053-123-4567"
+                   oninput="this.value=formatPhone(this.value,false);"
+                   onblur="this.value=formatPhoneFinal(this.value,false);">
+          </td>
+        </tr>
+        <tr>
+          <th>이메일</th>
+          <td colspan="3"><input type="text" name="cu_mail" size="50" maxlength="50"></td>
+        </tr>
+        <tr>
+          <th>주소</th>
+          <td colspan="3">
+            <input type="text" name="zipcode1" id="zipcode1" size="8" readonly>
+            <button type="button" class="search-btn-inline" onclick="searchZip()">우편번호 검색</button>
+            <span class="note">우편번호 검색 클릭 → 다음 우편번호 검색창</span><br>
+            <input type="text" name="address1" id="address1" size="50" readonly onclick="searchZip()" style="cursor:pointer;margin-top:4px;background:#fafafa;" placeholder="주소를 검색해주세요"><br>
+            <input type="text" name="address2" id="address2" size="50" maxlength="100" placeholder="상세주소" style="margin-top:4px;">
+          </td>
+        </tr>
+        <tr>
+          <th>처리자</th>
+          <td><input type="text" name="work_name" size="10" maxlength="20"></td>
+          <th>요청방법</th>
+          <td>
+            <label><input type="radio" name="or_kind3" value="출장" checked>출장</label>&nbsp;
+            <label><input type="radio" name="or_kind3" value="택배">택배</label>&nbsp;
+            <label><input type="radio" name="or_kind3" value="내방">내방</label>
+          </td>
+        </tr>
+        <tr>
+          <th>상품 코드</th>
+          <td>
+            <input type="text" name="mo_number" size="20" maxlength="20" readonly>
+            <button type="button" class="search-btn-inline" onclick="openProdModal('all')">상품 검색</button>
+            <button type="button" class="search-btn-inline" onclick="openProdModal('lease')">임대제품</button>
+          </td>
+          <th>시리얼번호</th>
+          <td><input type="text" name="mo_serial" size="22" maxlength="20"></td>
+        </tr>
+        <tr>
+          <th>상품명</th>
+          <td colspan="3"><input type="text" name="mo_engname" size="40" maxlength="40" readonly></td>
+        </tr>
+        <tr>
+          <th>고객 요청사항</th>
+          <td colspan="3"><textarea name="cu_want"></textarea></td>
+        </tr>
+      </table>
+      </form>
+
+      <div class="btn-row">
+        <button class="btn btn-primary" onclick="go()">접수 등록</button>
+        <button class="btn" onclick="location.href='orders.html'">목록으로</button>
+      </div>
+    </div>
+  </main>
+
+  <footer class="app-footer" id="app-footer"></footer>
+</div>
+
+<!-- ===== 회원 검색 모달 ===== -->
+<div id="custModal" class="modal-backdrop" onclick="if(event.target===this)closeCustModal()">
+  <div class="modal-box">
+    <div class="modal-header">
+      <span>회원 검색 <span id="custCount" style="font-weight:normal;font-size:11px;color:#bcd;"></span></span>
+      <button class="close-btn" type="button" onclick="closeCustModal()">×</button>
+    </div>
+    <div class="modal-body">
+      <div class="modal-search">
+        <input type="text" id="custSearch" placeholder="이름·휴대폰·전화·주소로 검색"
+               oninput="renderCustList(this.value)">
+      </div>
+      <div class="modal-list" id="custList"></div>
+      <div style="margin-top:8px;color:#888;font-size:11px;">
+        ※ 원본 사이트에서 수집한 고객 데이터에서 검색합니다. 일치하는 회원이 없으면 직접 입력하세요.
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ===== 상품 검색 모달 ===== -->
+<style>
+  .prod-mode-tabs { padding: 6px 12px; border-bottom: 1px solid #ddd; background:#f7f7f7; }
+  .prod-mode-tab {
+    display: inline-block; padding: 4px 10px; margin-right: 4px;
+    cursor: pointer; color: #06b; font-size: 13px; text-decoration: none;
+    border-radius: 3px;
+  }
+  .prod-mode-tab:hover { background: #e8eef9; }
+  .prod-mode-tab.active { font-weight: bold; color: #c00; background: #fff; border: 1px solid #ccc; }
+</style>
+<div id="prodModal" class="modal-backdrop" onclick="if(event.target===this)closeProdModal()">
+  <div class="modal-box">
+    <div class="modal-header">
+      <span>상품 검색 <span id="prodCount" style="font-weight:normal;font-size:11px;color:#bcd;"></span></span>
+      <button class="close-btn" type="button" onclick="closeProdModal()">×</button>
+    </div>
+    <div class="prod-mode-tabs">
+      <a href="#" class="prod-mode-tab active" data-mode="all"   onclick="event.preventDefault();setProdMode('all')">전체</a>
+      <a href="#" class="prod-mode-tab"        data-mode="lease" onclick="event.preventDefault();setProdMode('lease')">임대제품</a>
+    </div>
+    <div class="modal-body">
+      <div class="modal-search">
+        <input type="text" id="prodSearch" placeholder="상품명·상품코드로 검색 (현재 탭 안에서)"
+               oninput="renderProdList(this.value)">
+      </div>
+      <div class="modal-list" id="prodList"></div>
+    </div>
+  </div>
+</div>
+
+</body>
+</html>

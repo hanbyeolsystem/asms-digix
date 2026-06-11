@@ -1,0 +1,274 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>A/S Admin - 부품/상품 정보 입력/수정</title>
+<link rel="stylesheet" href="css/style.css">
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<script src="js/supabase-config.js"></script>
+<script src="js/supabase-client.js"></script>
+<script src="css/partials.js"></script>
+<style>
+  .pd-wrap { width: 800px; max-width: 100%; margin: 12px auto; box-sizing: border-box; }
+  .pd-title-img {
+    background: #1e2939; color: #fff;
+    padding: 10px 16px; font-weight: bold; font-size: 14px;
+  }
+  .pd-frame {
+    background: #ccc; padding: 1px;
+  }
+  .pd-inner {
+    background: #fff; padding: 16px;
+  }
+  .pd-section-title {
+    background: #cccccc; padding: 6px 10px;
+    font-weight: bold; font-size: 13px;
+    margin-bottom: 10px;
+  }
+  table.pd-form {
+    width: 600px; max-width: 100%; margin: 0 auto;
+    border-collapse: collapse; background: #ccc;
+  }
+  table.pd-form td {
+    padding: 6px 10px; font-size: 13px;
+    border: 1px solid #ccc;
+  }
+  table.pd-form td.lbl {
+    background: #eeeeee; width: 250px;
+  }
+  table.pd-form td.val {
+    background: #ffffff;
+  }
+  .pd-buttons {
+    width: 730px; max-width: 100%; margin: 16px auto 0; text-align: center;
+  }
+  .pd-buttons input[type=button] {
+    padding: 6px 16px; font-size: 13px; cursor: pointer;
+  }
+  .pd-warning {
+    width: 800px; max-width: 100%; margin: 12px auto;
+    background: #fff8db; border: 1px solid #e0c54e;
+    padding: 12px; text-align: center; color: #855;
+  }
+  .pd-note {
+    color: #888; font-size: 12px; margin-left: 8px;
+  }
+  @media (max-width: 600px) {
+    table.pd-form td.lbl { width: 110px; font-size: 12px; }
+    table.pd-form td { padding: 4px 6px; }
+    .pd-inner { padding: 8px; }
+  }
+</style>
+</head>
+<body>
+<div class="app">
+  <header class="app-header" id="app-header"></header>
+
+  <main class="app-main">
+    <div class="content-wrap">
+      <div class="page-title">부품 / 상품 정보 입력 / 수정</div>
+
+      <div class="pd-warning" id="pdWarn" style="display:none;"></div>
+
+      <form name="frm" id="frm" onsubmit="event.preventDefault();return false;">
+        <div class="pd-wrap">
+          <div class="pd-title-img">■ 부품 / 상품 정보 입력 / 수정</div>
+          <div class="pd-frame"><div class="pd-inner">
+            <div class="pd-section-title" id="pdSectionTitle">▶ 부품/상품 정보 수정 ( * 표시항목은 필수 입력 항목입니다. )</div>
+
+            <table class="pd-form">
+              <tr>
+                <td class="lbl">택배 가능</td>
+                <td class="val">
+                  <label><input type="radio" name="mo_srfr" value="y"> Yes</label> &nbsp;&nbsp;&nbsp;
+                  <label><input type="radio" name="mo_srfr" value="n"> NO</label>
+                </td>
+              </tr>
+              <tr>
+                <td class="lbl">부품/상품 구분</td>
+                <td class="val">
+                  <label><input type="radio" name="mo_gubun" value="제품"> 제품</label> &nbsp;&nbsp;&nbsp;
+                  <label><input type="radio" name="mo_gubun" value="부품"> 부품</label>
+                </td>
+              </tr>
+              <tr>
+                <td class="lbl">A/S 횟수</td>
+                <td class="val">
+                  <input type="text" name="mo_qty" id="mo_qty" size="20" maxlength="20" readonly>
+                  <span class="pd-note">수정할 수 없는 항목입니다.</span>
+                </td>
+              </tr>
+              <tr>
+                <td class="lbl">부품/상품 명</td>
+                <td class="val"><input type="text" name="mo_engname" id="mo_engname" size="40" maxlength="40"></td>
+              </tr>
+              <tr>
+                <td class="lbl">부품/상품 번호</td>
+                <td class="val"><input type="text" name="mo_number" id="mo_number" size="20" maxlength="20"></td>
+              </tr>
+              <tr>
+                <td class="lbl">단가 (입력예:25000)</td>
+                <td class="val"><input type="text" name="mo_money" id="mo_money" size="20" maxlength="20"></td>
+              </tr>
+            </table>
+            <input type="hidden" name="mo_number_old" id="mo_number_old">
+
+            <div class="pd-buttons">
+              <input type="button" id="saveBtn" value="부품/상품 정보 수정" onclick="onSave();">
+              &nbsp;
+              <input type="button" value="목록으로" onclick="location.href='products.html';">
+            </div>
+          </div></div>
+        </div>
+      </form>
+
+      <div class="pd-wrap" id="metaInfo" style="display:none;">
+        <table class="pd-form" style="margin-top:8px;">
+          <tr><td class="lbl">입력/수정일</td><td class="val" id="mDate"></td></tr>
+          <tr><td class="lbl">SEQ NO</td><td class="val" id="mSeq"></td></tr>
+        </table>
+      </div>
+    </div>
+  </main>
+
+  <footer class="app-footer" id="app-footer"></footer>
+</div>
+
+<script>
+function getSeqNo() {
+  return new URLSearchParams(location.search).get("seq_no");
+}
+
+function setRadio(name, value) {
+  const els = document.getElementsByName(name);
+  for (const el of els) el.checked = (el.value === value);
+}
+
+function todayKr() {
+  const n = new Date();
+  const pad = x => String(x).padStart(2, "0");
+  return `${n.getFullYear()}년 ${pad(n.getMonth()+1)}월 ${pad(n.getDate())}일`;
+}
+
+function readForm() {
+  const f = document.frm;
+  const radio = name => {
+    const el = document.querySelector(`input[name="${name}"]:checked`);
+    return el ? el.value : "";
+  };
+  return {
+    courier:    radio("mo_srfr") === "y" ? "YES" : "NO",
+    kind:       radio("mo_gubun") || "제품",
+    name:       (f.mo_engname.value || "").trim(),
+    code:       (f.mo_number.value || "").trim(),
+    money:      (f.mo_money.value || "").trim(),
+    number_old: (f.mo_number_old.value || "").trim(),
+  };
+}
+
+async function onSave() {
+  const seq = getSeqNo();
+  const row = readForm();
+  if (!row.name) { alert("부품/상품 명을 입력하세요."); return; }
+  if (!row.code) { alert("부품/상품 번호를 입력하세요."); return; }
+  if (!window.SB_CONFIGURED) { alert("Supabase 미설정 상태입니다."); return; }
+
+  const btn = document.getElementById("saveBtn");
+  btn.disabled = true;
+  if (seq) {
+    row.date = todayKr();
+    const res = await window.dbProductUpdate(seq, row);
+    btn.disabled = false;
+    if (res?.error) { alert("저장 실패: " + res.error); return; }
+    alert("수정되었습니다.");
+    location.href = "products.html";
+  } else {
+    const nextSeq = await window.dbProductNextSeq();
+    if (!nextSeq) { btn.disabled = false; alert("seq_no 계산 실패"); return; }
+    row.seq_no   = nextSeq;
+    row.as_count = "0";
+    row.date     = todayKr();
+    if (!row.number_old) row.number_old = row.code;
+    const res = await window.dbProductInsert(row);
+    btn.disabled = false;
+    if (res?.error) { alert("등록 실패: " + res.error); return; }
+    alert("등록되었습니다.");
+    location.href = "products.html";
+  }
+}
+
+async function load() {
+  const seq = getSeqNo();
+  if (!seq) {
+    document.getElementById("pdSectionTitle").textContent = "▶ 부품/상품 신규 입력 ( * 표시항목은 필수 입력 항목입니다. )";
+    document.getElementById("saveBtn").value = "부품/상품 등록";
+    setRadio("mo_srfr", "n");
+    setRadio("mo_gubun", "제품");
+    document.getElementById("mo_qty").value = "0";
+    document.title = "신규 부품/상품 입력";
+    return;
+  }
+  let item = null;
+  if (window.SB_CONFIGURED) {
+    try {
+      item = await window.dbProductBySeq(seq);
+    } catch (e) {
+      const w = document.getElementById("pdWarn");
+      w.innerHTML = "데이터 로드 실패: " + e.message;
+      w.style.display = "block";
+      return;
+    }
+    if (!item) {
+      const w = document.getElementById("pdWarn");
+      w.innerHTML = `seq_no=${seq} 항목을 찾을 수 없습니다. <a href="products.html">목록으로</a>`;
+      w.style.display = "block";
+      return;
+    }
+    setRadio("mo_srfr",  item.courier === "YES" ? "y" : "n");
+    setRadio("mo_gubun", item.kind || "제품");
+    document.getElementById("mo_qty").value      = item.as_count || "";
+    document.getElementById("mo_engname").value  = item.name || "";
+    document.getElementById("mo_number").value   = item.code || "";
+    document.getElementById("mo_money").value    = item.money || "";
+    document.getElementById("mo_number_old").value = item.number_old || item.code || "";
+    document.getElementById("mDate").textContent = item.date || "";
+    document.getElementById("mSeq").textContent  = item.seq_no;
+    document.getElementById("metaInfo").style.display = "";
+    document.title = `[${item.code}] ${item.name} - 부품/상품 상세`;
+    return;
+  }
+  let products;
+  try {
+    const r = await fetch("data/products.json?ts=" + Date.now());
+    products = await r.json();
+  } catch (e) {
+    const w = document.getElementById("pdWarn");
+    w.innerHTML = "데이터 로드 실패: " + e.message;
+    w.style.display = "block";
+    return;
+  }
+  item = products.find(p => String(p.seq_no) === String(seq));
+  if (!item) {
+    const w = document.getElementById("pdWarn");
+    w.innerHTML = `seq_no=${seq} 항목을 찾을 수 없습니다. <a href="products.html">목록으로</a>`;
+    w.style.display = "block";
+    return;
+  }
+  setRadio("mo_srfr",  item.courier === "YES" ? "y" : "n");
+  setRadio("mo_gubun", item.kind || "제품");
+  document.getElementById("mo_qty").value      = item.as_count || "";
+  document.getElementById("mo_engname").value  = item.name || "";
+  document.getElementById("mo_number").value   = item.code || "";
+  document.getElementById("mo_money").value    = item.money || "";
+  document.getElementById("mo_number_old").value = item.number_old || item.code || "";
+  document.getElementById("mDate").textContent = item.date || "";
+  document.getElementById("mSeq").textContent  = item.seq_no;
+  document.getElementById("metaInfo").style.display = "";
+  document.title = `[${item.code}] ${item.name} - 부품/상품 상세`;
+}
+
+load();
+</script>
+</body>
+</html>

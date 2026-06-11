@@ -1,0 +1,421 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>A/S Admin - 고객관리</title>
+<link rel="stylesheet" href="css/style.css">
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<script src="js/supabase-config.js"></script>
+<script src="js/supabase-client.js"></script>
+<script src="js/rental-match.js"></script>
+<script src="css/partials.js"></script>
+<style>
+  .cust-table { width: 980px; }
+  .cust-table td { white-space: nowrap; }
+  .cust-table td.addr { white-space: normal; max-width: 280px; word-break: break-all; }
+  .pill {
+    display: inline-block; padding: 1px 6px; border: 1px solid #ccc;
+    background: #f7f7f7; font-size: 11px;
+  }
+  .toolbar { width: 980px; margin: 8px auto 0; display: flex; gap: 6px; align-items: center; }
+  .toolbar input[type="text"] { width: 220px; height: 22px; }
+  .stat-bar {
+    width: 980px; margin: 6px auto 0;
+    background: #eeeeee; border: 1px solid #cccccc; padding: 5px 10px;
+    display: flex; gap: 18px;
+  }
+  .stat-bar b { color: #000068; }
+  /* 삭제 링크는 관리자에게만 (수정은 모두에게) */
+  .admin-del { display: none; }
+  body.is-admin .admin-del { display: inline; }
+</style>
+</head>
+<body>
+<div class="app">
+  <header class="app-header" id="app-header"></header>
+
+  <main class="app-main">
+    <div class="content-wrap" style="width:1000px;">
+      <div class="page-title" style="width:1000px;">고객 관리</div>
+
+      <div class="toolbar">
+        <select id="filterField">
+          <option value="cu_name">고객명/거래처</option>
+          <option value="cu_mobile">휴대폰</option>
+          <option value="cu_tel">일반전화</option>
+          <option value="address1">주소</option>
+          <option value="cu_mail">이메일</option>
+        </select>
+        <input type="text" id="filterText" placeholder="검색어를 입력하세요">
+        <input type="button" class="btn btn-primary" value="검색" onclick="render()">
+        <input type="button" class="btn" value="초기화" onclick="resetFilter()">
+        <input type="button" class="btn" value="CSV 다운로드" onclick="downloadCsv()">
+        <input type="button" class="btn" value="신규 고객" onclick="addCustomer()">
+      </div>
+
+      <div class="stat-bar">
+        <span>총 고객: <b id="cnt-total">0</b></span>
+        <span id="cnt-by-kind"></span>
+        <span id="harvestStatus" style="margin-left:auto;color:#888;"></span>
+      </div>
+
+      <table class="data-table cust-table" id="custTable">
+        <thead>
+          <tr>
+            <th width="40">No</th>
+            <th width="60">접수수</th>
+            <th>고객명</th>
+            <th>휴대폰</th>
+            <th>일반전화</th>
+            <th>이메일</th>
+            <th>주소</th>
+            <th width="60">최근접수</th>
+            <th width="80">관리</th>
+          </tr>
+        </thead>
+        <tbody id="custBody">
+          <tr><td colspan="9">로딩 중…</td></tr>
+        </tbody>
+      </table>
+
+      <div class="center" style="margin: 12px auto 0; width: 980px;">
+        <span id="pageInfo"></span>
+        <div id="pager" style="margin-top:6px;"></div>
+      </div>
+    </div>
+  </main>
+
+  <footer class="app-footer" id="app-footer"></footer>
+</div>
+
+<script>
+let CUSTOMERS = [];
+let FILTERED  = [];
+const PAGE_SIZE = 50;
+
+// 사업자번호 자동 포맷팅: XXX-XX-XXXXX
+function formatBizNo(raw) {
+  const d = (raw || "").replace(/\D/g, "");
+  if (d.length <= 3) return d;
+  if (d.length <= 5) return d.slice(0,3) + "-" + d.slice(3);
+  return d.slice(0,3) + "-" + d.slice(3,5) + "-" + d.slice(5,10);
+}
+window.formatBizNo = formatBizNo;
+let CURRENT_PAGE = 1;
+
+async function load() {
+  try {
+    if (window.SB_CONFIGURED) {
+      CUSTOMERS = (await window.dbCustomersAll()) || [];
+    } else {
+      const res = await fetch("data/customers.json?ts=" + Date.now());
+      CUSTOMERS = await res.json();
+    }
+  } catch (e) {
+    document.getElementById("custBody").innerHTML =
+      "<tr><td colspan='9' style='color:#c33;padding:20px;'>고객 데이터를 불러오지 못했습니다: " +
+      esc(e.message || String(e)) + "</td></tr>";
+    return;
+  }
+  if (window.ensureRentalMatchCache) {
+    window.ensureRentalMatchCache().then(() => { if (FILTERED && FILTERED.length) drawRows(); });
+  }
+  render();
+  if (!window.SB_CONFIGURED) {
+    loadStatus();
+    setInterval(loadStatus, 5000);
+  }
+}
+
+async function loadStatus() {
+  try {
+    const r = await fetch("data/harvest_status.json?ts=" + Date.now());
+    if (!r.ok) return;
+    const s = await r.json();
+    const el = document.getElementById("harvestStatus");
+    if (s.phase === "done") {
+      el.innerHTML = `수집 완료 · 갱신 ${s.updated_at}`;
+      el.style.color = "#080";
+    } else if (s.phase === "list") {
+      el.innerHTML = `<span style="color:#c60;">● 수집중</span> 목록 페이지 ${s.list_page} 스캔 / 누적 고객 ${s.unique_customers}`;
+    } else if (s.phase === "detail") {
+      const pct = s.total_targets ? Math.round(100 * s.total_done / s.total_targets) : 0;
+      el.innerHTML = `<span style="color:#c60;">● 수집중</span> 상세 ${s.total_done}/${s.total_targets} (${pct}%) · 누적 고객 ${s.unique_customers}`;
+    }
+    // 새 데이터 자동 반영 (검색 중이 아닐 때)
+    if (s.unique_customers > CUSTOMERS.length) {
+      const r2 = await fetch("data/customers.json?ts=" + Date.now());
+      CUSTOMERS = await r2.json();
+      render();
+    }
+  } catch (e) {
+    document.getElementById("harvestStatus").textContent = "";
+  }
+}
+
+function render() {
+  const f  = document.getElementById("filterField").value;
+  const q  = document.getElementById("filterText").value.trim();
+  FILTERED = CUSTOMERS.filter(r => {
+    if (q) {
+      const v = (r[f] || "").toLowerCase();
+      if (!v.includes(q.toLowerCase())) return false;
+    }
+    return true;
+  });
+  CURRENT_PAGE = 1;
+  drawRows();
+  drawStats();
+}
+
+const ORDER_NO_CACHE = {};
+async function ensureOrderNos(seqs) {
+  if (!window.SB_CONFIGURED) return;
+  const need = [...new Set(seqs.filter(s => s && !(String(s) in ORDER_NO_CACHE)))];
+  if (!need.length) return;
+  const m = (typeof window.dbOrderNoBySeqs === "function") ? await window.dbOrderNoBySeqs(need) : {};
+  for (const s of need) ORDER_NO_CACHE[String(s)] = m[s] || "";
+}
+
+async function drawRows() {
+  const tb = document.getElementById("custBody");
+  if (!FILTERED.length) {
+    tb.innerHTML = "<tr><td colspan='9'>검색 결과가 없습니다.</td></tr>";
+    document.getElementById("pageInfo").textContent = "";
+    document.getElementById("pager").innerHTML = "";
+    return;
+  }
+  const total = FILTERED.length;
+  const totalPages = Math.max(1, Math.ceil(total / PAGE_SIZE));
+  if (CURRENT_PAGE > totalPages) CURRENT_PAGE = totalPages;
+  const start = (CURRENT_PAGE - 1) * PAGE_SIZE;
+  const slice = FILTERED.slice(start, start + PAGE_SIZE);
+
+  await ensureOrderNos(slice.map(r => r.last_seq).filter(Boolean));
+
+  tb.innerHTML = slice.map((r, i) => {
+    const orderNo = r.last_seq ? (ORDER_NO_CACHE[String(r.last_seq)] || `#${r.last_seq}`) : "";
+    return `
+    <tr>
+      <td>${start + i + 1}</td>
+      <td><b style="color:${(r.order_count||0)>=100?'#c00':'#069'};">${(r.order_count||0).toLocaleString()}</b></td>
+      <td style="text-align:left;"><b>${esc(r.cu_name)}</b>${window.rentalBadgeSuffix ? window.rentalBadgeSuffix(r.cu_name) : ''}</td>
+      <td>${esc(r.cu_mobile)}</td>
+      <td>${esc(r.cu_tel)}</td>
+      <td style="text-align:left;">${esc(r.cu_mail)}</td>
+      <td class="addr" style="text-align:left;">
+        ${r.zipcode1 ? "<span class='pill'>" + esc(r.zipcode1) + "</span> " : ""}
+        ${esc(r.address1)} ${esc(r.address2)}
+      </td>
+      <td>${r.last_seq ? `<a href="order-detail.html?seq_no=${r.last_seq}">${esc(orderNo)}</a>` : ""}</td>
+      <td>
+        <a href="javascript:editCustomer('${esc(r.cu_number)}')">수정</a><span class="admin-del">&nbsp;|&nbsp;<a href="javascript:deleteCustomer('${esc(r.cu_number)}','${esc(r.cu_name)}')" style="color:#c00;">삭제</a></span>
+      </td>
+    </tr>
+  `;}).join("");
+  document.getElementById("pageInfo").textContent =
+    `${start + 1}-${Math.min(start + PAGE_SIZE, total)} / 검색 ${total} 명 / 전체 ${CUSTOMERS.length} 명`;
+  drawPager(totalPages);
+}
+
+function drawPager(total) {
+  const p = document.getElementById("pager");
+  if (total <= 1) { p.innerHTML = ""; return; }
+  let html = "";
+  const cur = CURRENT_PAGE;
+  const win = 5;
+  const from = Math.max(1, cur - win);
+  const to   = Math.min(total, cur + win);
+  if (cur > 1) html += `<a href="javascript:goPage(1)">[처음]</a> <a href="javascript:goPage(${cur-1})">[이전]</a> `;
+  for (let i = from; i <= to; i++) {
+    html += i === cur ? ` <b style="color:#0000ff">${i}</b> ` : ` <a href="javascript:goPage(${i})">${i}</a> `;
+  }
+  if (cur < total) html += ` <a href="javascript:goPage(${cur+1})">[다음]</a> <a href="javascript:goPage(${total})">[맨끝]</a>`;
+  p.innerHTML = html;
+}
+
+function goPage(n) {
+  CURRENT_PAGE = n;
+  drawRows();
+  window.scrollTo(0, 0);
+}
+
+function drawStats() {
+  document.getElementById("cnt-total").textContent = CUSTOMERS.length.toLocaleString();
+  const vip100 = CUSTOMERS.filter(r => (r.order_count||0) >= 100).length;
+  const vip10  = CUSTOMERS.filter(r => (r.order_count||0) >= 10 && (r.order_count||0) < 100).length;
+  const lt10   = CUSTOMERS.filter(r => (r.order_count||0) > 0 && (r.order_count||0) < 10).length;
+  const zero   = CUSTOMERS.filter(r => (r.order_count||0) === 0).length;
+  document.getElementById("cnt-by-kind").innerHTML =
+    `<span style="margin-right:14px;color:#c00;">100회+: <b>${vip100}</b></span>` +
+    `<span style="margin-right:14px;">10회+: <b>${vip10}</b></span>` +
+    `<span style="margin-right:14px;">1~9회: <b>${lt10}</b></span>` +
+    `<span style="margin-right:14px;color:#888;">0회: <b>${zero}</b></span>`;
+}
+
+function esc(s) {
+  return (s == null ? "" : String(s))
+    .replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;");
+}
+function resetFilter() {
+  document.getElementById("filterField").value = "cu_name";
+  document.getElementById("filterText").value = "";
+  render();
+}
+/* ==================== 신규 / 수정 모달 ==================== */
+let EDIT_TARGET = null;  // null = 신규, 객체 = 수정
+
+function openCustEdit(target) {
+  EDIT_TARGET = target;
+  document.getElementById("ceTitle").textContent = target ? "고객 수정" : "신규 고객 등록";
+  document.getElementById("ceMsg").textContent = "";
+  const f = document.forms.ceForm;
+  f.cu_name.value   = target?.cu_name   || "";
+  f.cu_kind.value   = target?.cu_kind   || "";  // 임대제품
+  f.co_name.value   = target?.co_name   || "";  // 주판매
+  f.cu_mobile.value = target?.cu_mobile || "";
+  f.cu_tel.value    = target?.cu_tel    || "";
+  f.co_tel.value    = formatBizNo(target?.co_tel || "");
+  f.co_fax.value    = target?.co_fax    || "";
+  f.cu_mail.value   = target?.cu_mail   || "";
+  f.zipcode1.value  = target?.zipcode1  || "";
+  f.address1.value  = target?.address1  || "";
+  f.address2.value  = target?.address2  || "";
+  document.getElementById("ceModal").classList.add("show");
+  setTimeout(() => f.cu_name.focus(), 50);
+}
+function closeCustEdit() { document.getElementById("ceModal").classList.remove("show"); }
+window.closeCustEdit = closeCustEdit;
+
+async function submitCustEdit() {
+  const f = document.forms.ceForm;
+  const msg = document.getElementById("ceMsg");
+  const cu_name = f.cu_name.value.trim();
+  if (!cu_name) { msg.textContent = "고객명은 필수"; msg.style.color="#c00"; return; }
+  const payload = {
+    cu_name,
+    cu_kind:   f.cu_kind.value.trim(),  // 임대제품
+    co_name:   f.co_name.value.trim(),  // 주판매
+    cu_mobile: f.cu_mobile.value.trim(),
+    cu_tel:    f.cu_tel.value.trim(),
+    co_tel:    f.co_tel.value.trim(),
+    co_fax:    f.co_fax.value.trim(),
+    cu_mail:   f.cu_mail.value.trim(),
+    zipcode1:  f.zipcode1.value.trim(),
+    address1:  f.address1.value.trim(),
+    address2:  f.address2.value.trim(),
+  };
+  document.getElementById("ceBtn").disabled = true;
+  msg.textContent = "처리 중..."; msg.style.color = "#888";
+  let res;
+  if (EDIT_TARGET) {
+    res = await window.dbCustomerUpdate(EDIT_TARGET.cu_number, payload);
+  } else {
+    payload.cu_number = "U_" + Date.now(); // 신규 고객 식별자 (U_ prefix)
+    payload.last_seq  = null;
+    payload.order_count = 0;
+    res = await window.dbCustomerInsert(payload);
+  }
+  document.getElementById("ceBtn").disabled = false;
+  if (res?.error) { msg.textContent = "실패: " + res.error; msg.style.color = "#c00"; return; }
+  msg.textContent = "저장 완료"; msg.style.color = "#080";
+  // 데이터 새로 로드
+  CUSTOMERS = (await window.dbCustomersAll()) || [];
+  render();
+  setTimeout(closeCustEdit, 500);
+}
+window.submitCustEdit = submitCustEdit;
+
+function editCustomer(cu_number) {
+  const c = CUSTOMERS.find(x => x.cu_number === cu_number);
+  if (!c) { alert("고객을 찾을 수 없음"); return; }
+  openCustEdit(c);
+}
+function addCustomer() { openCustEdit(null); }
+window.editCustomer = editCustomer;
+window.addCustomer  = addCustomer;
+
+async function deleteCustomer(cu_number, cu_name) {
+  if (!confirm(`정말 [${cu_name}] 고객을 삭제하시겠습니까?\n(접수내역과는 별개로 고객 행만 삭제됩니다)`)) return;
+  if (window.SB_CONFIGURED) {
+    const res = await window.dbCustomerDelete(cu_number);
+    if (res?.error) { alert("삭제 실패: " + res.error); return; }
+  }
+  CUSTOMERS = CUSTOMERS.filter(c => c.cu_number !== cu_number);
+  alert("삭제되었습니다.");
+  render();
+}
+window.deleteCustomer = deleteCustomer;
+
+function downloadCsv() {
+  const cols = ["cu_number","cu_kind","cu_name","co_name","cu_mobile","cu_tel",
+                "co_tel","co_fax","cu_mail","zipcode1","address1","address2","last_seq"];
+  const rows = [cols.join(",")];
+  FILTERED.forEach(r => {
+    rows.push(cols.map(c => `"${(r[c] || "").toString().replace(/"/g, '""')}"`).join(","));
+  });
+  const blob = new Blob(["﻿" + rows.join("\n")], { type: "text/csv;charset=utf-8" });
+  const a = document.createElement("a");
+  a.href = URL.createObjectURL(blob);
+  a.download = "customers.csv";
+  a.click();
+}
+
+document.addEventListener("DOMContentLoaded", async () => {
+  load();
+  if (typeof window.currentIsAdmin === "function") {
+    try {
+      if (await window.currentIsAdmin()) document.body.classList.add("is-admin");
+    } catch (e) {}
+  }
+});
+document.addEventListener("keydown", e => {
+  if (e.key === "Enter" && document.activeElement.id === "filterText") render();
+});
+</script>
+
+<!-- ===== 고객 신규/수정 모달 ===== -->
+<style>
+  .ce-modal { position: fixed; inset: 0; background: rgba(0,0,0,0.45); display:none; z-index:9000; }
+  .ce-modal.show { display:flex; align-items:center; justify-content:center; }
+  .ce-box { background:#fff; width: 480px; max-width: 92vw; border-radius:6px; overflow:hidden; }
+  .ce-head { background:#000068; color:#fff; padding:10px 14px; display:flex; justify-content:space-between; align-items:center; font-weight:bold; }
+  .ce-head .x { background:none; border:0; color:#fff; font-size:20px; cursor:pointer; }
+  .ce-body { padding: 14px; }
+  .ce-body table { width: 100%; border-collapse: collapse; }
+  .ce-body td { padding: 5px 4px; font-size: 13px; }
+  .ce-body td.lbl { width: 90px; color: #555; }
+  .ce-body input { width: 100%; padding: 5px 8px; box-sizing: border-box; border: 1px solid #ccc; border-radius: 3px; font-size:13px; }
+  .ce-foot { padding: 10px 14px; border-top:1px solid #eee; text-align:right; }
+  .ce-foot button { padding: 6px 14px; font-size:13px; cursor: pointer; margin-left: 6px; }
+</style>
+<div id="ceModal" class="ce-modal" onclick="if(event.target===this)closeCustEdit()">
+  <div class="ce-box">
+    <div class="ce-head"><span id="ceTitle">신규 고객</span><button class="x" type="button" onclick="closeCustEdit()">×</button></div>
+    <div class="ce-body">
+      <form name="ceForm" onsubmit="event.preventDefault();submitCustEdit();">
+        <table>
+          <tr><td class="lbl">고객명 *</td><td><input type="text" name="cu_name" autofocus></td></tr>
+          <tr><td class="lbl">임대제품</td><td><input type="text" name="cu_kind" placeholder="임대 중인 제품"></td></tr>
+          <tr><td class="lbl">주판매</td><td><input type="text" name="co_name" placeholder="자주 구매하는 제품"></td></tr>
+          <tr><td class="lbl">휴대폰</td><td><input type="text" name="cu_mobile" placeholder="010-0000-0000"></td></tr>
+          <tr><td class="lbl">일반전화</td><td><input type="text" name="cu_tel" placeholder="053-000-0000"></td></tr>
+          <tr><td class="lbl">사업자번호</td><td><input type="text" name="co_tel" maxlength="12" placeholder="123-45-67890" oninput="this.value=formatBizNo(this.value);"></td></tr>
+          <tr><td class="lbl">팩스</td><td><input type="text" name="co_fax"></td></tr>
+          <tr><td class="lbl">이메일</td><td><input type="email" name="cu_mail"></td></tr>
+          <tr><td class="lbl">우편번호</td><td><input type="text" name="zipcode1"></td></tr>
+          <tr><td class="lbl">주소</td><td><input type="text" name="address1"></td></tr>
+          <tr><td class="lbl">상세주소</td><td><input type="text" name="address2"></td></tr>
+        </table>
+      </form>
+      <div id="ceMsg" style="margin-top:8px;font-size:12px;min-height:16px;"></div>
+    </div>
+    <div class="ce-foot">
+      <button type="button" onclick="closeCustEdit()">취소</button>
+      <button type="button" id="ceBtn" onclick="submitCustEdit()">저장</button>
+    </div>
+  </div>
+</div>
+</body>
+</html>

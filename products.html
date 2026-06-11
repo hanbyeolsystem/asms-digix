@@ -1,0 +1,189 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>A/S Admin - 부품/상품관리</title>
+<link rel="stylesheet" href="css/style.css">
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<script src="js/supabase-config.js"></script>
+<script src="js/supabase-client.js"></script>
+<script src="css/partials.js"></script>
+</head>
+<body>
+<div class="app">
+  <header class="app-header" id="app-header"></header>
+
+  <main class="app-main">
+    <div class="content-wrap">
+      <div class="page-title">부품 / 상품 관리</div>
+
+      <table class="outer-table"><tr><td>
+        <table class="search-box">
+          <form name="frm1" id="frm1" method="get" action="products.html">
+          <tr>
+            <td style="text-align:left;">
+              <a href="products.html?kind=상품">상품</a> &nbsp;
+              <a href="products.html?kind=부품">부품</a>
+            </td>
+            <td>
+              <select name="f_name" id="f_name">
+                <option value="mo_number">부품/상품 번호</option>
+                <option value="mo_engname">부품/상품 명</option>
+              </select>
+              <input type="text" name="f_value" id="f_value">
+              <input type="submit" value="검색" name="submit">
+              <input type="button" value="신규입력" onclick="location.href='product-detail.html?new=1&_='+Date.now()">
+            </td>
+            <td><a href="products.html">[처음으로]</a></td>
+          </tr>
+          </form>
+          <tr>
+            <td colspan="3" class="alt right">검색된 게시물수 : <b id="totalCount">0</b>건</td>
+          </tr>
+        </table>
+
+        <table class="data-table">
+          <thead>
+            <tr>
+              <th>구분</th>
+              <th>택배</th>
+              <th>부품/상품 번호</th>
+              <th>부품/상품 명</th>
+              <th>A/S 횟수</th>
+              <th>입력/수정일</th>
+              <th>삭제</th>
+            </tr>
+          </thead>
+          <tbody id="productsBody">
+            <tr><td colspan="7" style="text-align:center;padding:20px;">불러오는 중...</td></tr>
+          </tbody>
+        </table>
+
+        <div class="center" style="margin-top:10px;" id="pager"></div>
+
+      </td></tr></table>
+    </div>
+  </main>
+
+  <footer class="app-footer" id="app-footer"></footer>
+</div>
+
+<script>
+const PAGE_SIZE = 20;
+
+function getQuery() {
+  const p = new URLSearchParams(location.search);
+  return {
+    kind:    p.get("kind") || "",
+    f_name:  p.get("f_name") || "mo_number",
+    f_value: p.get("f_value") || "",
+    page:    parseInt(p.get("page") || "1", 10),
+  };
+}
+
+function escapeHtml(s) {
+  return String(s ?? "").replace(/[&<>"']/g, c => ({
+    "&":"&amp;","<":"&lt;",">":"&gt;","\"":"&quot;","'":"&#39;",
+  }[c]));
+}
+
+async function godel(seq_no) {
+  if (!confirm("정말로 삭제하시겠습니까??")) return;
+  if (window.SB_CONFIGURED) {
+    const res = await window.dbProductDelete(seq_no);
+    if (res?.error) { alert("삭제 실패: " + res.error); return; }
+  }
+  alert("삭제되었습니다.");
+  init();
+}
+window.godel = godel;
+
+function applyFilter(rows, q) {
+  let out = rows;
+  if (q.kind) out = out.filter(r => r.kind === q.kind);
+  if (q.f_value) {
+    const v = q.f_value.toLowerCase();
+    const key = q.f_name === "mo_engname" ? "name" : "code";
+    out = out.filter(r => String(r[key] || "").toLowerCase().includes(v));
+  }
+  return out;
+}
+
+function renderRows(rows, page) {
+  const tbody = document.getElementById("productsBody");
+  if (rows.length === 0) {
+    tbody.innerHTML = '<tr><td colspan="7" style="text-align:center;padding:20px;">검색 결과가 없습니다.</td></tr>';
+    return;
+  }
+  const start = (page - 1) * PAGE_SIZE;
+  const slice = rows.slice(start, start + PAGE_SIZE);
+  tbody.innerHTML = slice.map(r => {
+    const link = `product-detail.html?seq_no=${r.seq_no}`;
+    return `<tr>
+      <td>${escapeHtml(r.kind)}</td>
+      <td>${escapeHtml(r.courier)}</td>
+      <td><a href="${link}">${escapeHtml(r.code)}</a></td>
+      <td><a href="${link}">${escapeHtml(r.name)}</a></td>
+      <td>${escapeHtml(r.as_count)}</td>
+      <td>${escapeHtml(r.date)}</td>
+      <td><a href="javascript:godel('${r.seq_no}');">삭제</a></td>
+    </tr>`;
+  }).join("");
+}
+
+function renderPager(totalRows, page, q) {
+  const pager = document.getElementById("pager");
+  const totalPages = Math.max(1, Math.ceil(totalRows / PAGE_SIZE));
+  const buildHref = (p) => {
+    const u = new URLSearchParams();
+    if (q.kind) u.set("kind", q.kind);
+    if (q.f_value) { u.set("f_name", q.f_name); u.set("f_value", q.f_value); }
+    u.set("page", p);
+    return "products.html?" + u.toString();
+  };
+  const first = `<a href="${buildHref(1)}">처음</a>`;
+  const prev  = `<a href="${buildHref(Math.max(1, page - 1))}">이전</a>`;
+  const next  = `<a href="${buildHref(Math.min(totalPages, page + 1))}">다음</a>`;
+  const last  = `<a href="${buildHref(totalPages)}">맨끝</a>`;
+  const win = 5;
+  const startP = Math.max(1, page - Math.floor(win / 2));
+  const endP   = Math.min(totalPages, startP + win - 1);
+  let nums = "";
+  for (let i = startP; i <= endP; i++) {
+    nums += i === page ? `<b>${i}</b> ` : `<a href="${buildHref(i)}">${i}</a> `;
+  }
+  pager.innerHTML = `[${first}] [${prev}] ${nums} [${next}] [${last}]`;
+}
+
+function syncForm(q) {
+  if (q.f_name) document.getElementById("f_name").value = q.f_name;
+  if (q.f_value) document.getElementById("f_value").value = q.f_value;
+}
+
+async function init() {
+  const q = getQuery();
+  syncForm(q);
+  let products;
+  try {
+    if (window.SB_CONFIGURED) {
+      products = await window.dbProductsAll() || [];
+    } else {
+      const res = await fetch("data/products.json", { cache: "no-cache" });
+      products = await res.json();
+    }
+  } catch (e) {
+    document.getElementById("productsBody").innerHTML =
+      '<tr><td colspan="7" style="text-align:center;padding:20px;color:#c00;">데이터 로드 실패: ' + escapeHtml(e.message) + '</td></tr>';
+    return;
+  }
+  const filtered = applyFilter(products, q);
+  document.getElementById("totalCount").textContent = filtered.length;
+  renderRows(filtered, q.page);
+  renderPager(filtered.length, q.page, q);
+}
+
+init();
+</script>
+</body>
+</html>
