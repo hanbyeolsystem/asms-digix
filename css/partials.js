@@ -13,7 +13,7 @@
     <div class="top-bar">
       <div class="top-bar-row1">
         <div class="brand">
-          <a href="orders.html"><span class="brand-logo">{회사명}</span></a>
+          <a href="orders.html"><span class="brand-logo">디직스코리아</span></a>
           <span class="branch-tag">[관리자]</span>
         </div>
         <div class="top-menu-wrap">

@@ -73,7 +73,7 @@ window.SUPABASE_ANON = "eyJ..."; // anon public key (RLS 적용되어 안전)
 
 ## 브랜드 커스터마이징
 
-`login.html`, `css/partials.js` 의 `{회사명}` 부분을 원하는 회사명으로 치환하세요.
+브랜드명은 `login.html` 의 `<title>`/`.login-logo`, `css/partials.js` 의 `.brand-logo` 세 곳에 들어있습니다.
 
 ## 배포
 
