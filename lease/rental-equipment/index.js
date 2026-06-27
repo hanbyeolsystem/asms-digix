@@ -380,7 +380,7 @@
             title="${collectorId ? '더블클릭으로 거래처 변경' : ''}"
             style="min-width:90px;max-width:130px;overflow:hidden;white-space:nowrap;text-overflow:ellipsis;"
             >${custCellContent}</td>
-        <td class="desktop-only-td"><button class="btn-hide" type="button" data-hide="${escapeHtml(d.id)}" title="이 장비를 실시간 목록에서 삭제 (한별 제품 아님 등)">✕</button></td>
+        <td class="desktop-only-td"><button class="btn-hide" type="button" data-hide="${escapeHtml(d.id)}" title="이 장비를 실시간 목록에서 삭제 (디직스코리아 제품 아님 등)">✕</button></td>
       </tr>`;
   }
 
@@ -397,7 +397,7 @@
       tbody.innerHTML = `<tr><td class="live-empty" colspan="15">
         등록된 실시간 장비가 없습니다.<br>
         <span style="font-size:11.5px;color:#94a3b8;">
-          고객 PC 의 <strong>한별 카운터 수집기</strong> → 트레이 → LAN 스캔 → 한별 제품 체크 → "선택 항목 업로드" 로 등록됩니다.
+          고객 PC 의 <strong>디직스코리아 카운터 수집기</strong> → 트레이 → LAN 스캔 → 디직스코리아 제품 체크 → "선택 항목 업로드" 로 등록됩니다.
         </span>
       </td></tr>`;
       latestEl.textContent = '–';
@@ -1265,7 +1265,7 @@
 
   // ---------- 카운터 엑셀 다운로드 ----------
   // 실시간 수집기 데이터를 임대카운터(rental-counters/index.js)의 엑셀 업로드가
-  // 그대로 받을 수 있는 "한별카운터_YYYY_MM_DD-HH_MM_SS.xlsx" 포맷으로 내보냄.
+  // 그대로 받을 수 있는 "디직스카운터_YYYY_MM_DD-HH_MM_SS.xlsx" 포맷으로 내보냄.
   // 컬럼 규약(임대카운터 파서 기준): 9행부터 데이터, 열0 거래처 / 2 모델 / 3 일련 / 5 자산 / 6 IP / 9 일자 / 12 합계 / 13 흑백 / 14 컬러
   function exportCounterXlsx() {
     if (typeof XLSX === 'undefined') {
@@ -1323,7 +1323,7 @@
     const next1st = new Date(now.getFullYear(), now.getMonth() + 1, 1);
     const ymd = `${next1st.getFullYear()}_${pad2(next1st.getMonth()+1)}_${pad2(next1st.getDate())}`;
     const hms = `${pad2(now.getHours())}_${pad2(now.getMinutes())}_${pad2(now.getSeconds())}`;
-    const fileName = `한별카운터_${ymd}-${hms}.xlsx`;
+    const fileName = `디직스카운터_${ymd}-${hms}.xlsx`;
 
     // 8행 헤더 블록 (임대카운터 파서가 9행부터 읽음 — 헤더 내용은 자유)
     const header = [

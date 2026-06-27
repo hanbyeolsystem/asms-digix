@@ -1590,8 +1590,8 @@ async function handleExcelFile(file) {
   }
 
   // ★ 한별로 시작하는 파일만 허용
-  if (!/^한별/.test(file.name)) {
-    toast('한별로 시작하는 엑셀 파일만 업로드 가능합니다.\n(현재 파일: ' + file.name + ')', true);
+  if (!/^(디직스|한별)/.test(file.name)) {
+    toast('디직스카운터 엑셀 파일만 업로드 가능합니다.\n(현재 파일: ' + file.name + ')', true);
     return;
   }
 
