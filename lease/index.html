@@ -1,0 +1,168 @@
+<!doctype html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<script>location.replace('asms.html');</script>
+<title>이동 중…</title>
+<link rel="stylesheet" href="styles.css">
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<script src="config.js?v=20260611"></script>
+<script src="auth.js"></script>
+</head>
+<body>
+
+<button class="mobile-menu-btn" id="mobile-menu-btn" aria-label="메뉴">☰</button>
+
+<div class="app-layout">
+
+  <aside class="sidebar" id="sidebar">
+    <a href="index.html" class="sidebar-brand">
+      <span class="brand-mark">🖨</span>
+      <span class="brand-text">디직스 임대</span>
+    </a>
+    <div class="sidebar-section-label">임대 관리</div>
+    <nav class="sidebar-nav">
+      <a href="index.html" class="active"><span class="nav-icon">🏠</span><span>임대홈</span></a>
+      <a href="customers.html"><span class="nav-icon">👥</span><span>임대거래처</span></a>
+      <a href="counters.html"><span class="nav-icon">🖨</span><span>임대카운터</span></a>
+      <a href="billing.html"><span class="nav-icon">💰</span><span>임대추가요금청구</span></a>
+      <a href="prices.html"><span class="nav-icon">💵</span><span>가격표</span></a>
+      <a href="meetings.html"><span class="nav-icon">🎙</span><span>음성미팅관리</span></a>
+      <a href="archive.html"><span class="nav-icon">📁</span><span>소프트웨어고객자료실</span></a>
+    </nav>
+    <div class="sidebar-foot">디직스코리아</div>
+  </aside>
+  <div class="sidebar-backdrop" id="sidebar-backdrop"></div>
+
+  <div class="main-area">
+    <main class="container home-page">
+
+      <div class="page-head">
+        <div>
+          <h1>🏠 임대 현황</h1>
+          <p class="muted" style="margin:2px 0 0 0;">전체 거래처와 수익 구조 한눈에 보기</p>
+        </div>
+        <div class="page-head-actions">
+          <a href="customers.html" class="btn ghost">👥 거래처</a>
+          <a href="contracts.html" class="btn ghost">📋 계약서</a>
+          <a href="counters.html" class="btn ghost">🖨 카운터</a>
+        </div>
+      </div>
+
+      <!-- 통계 카드 -->
+      <section class="stats">
+        <div class="stat-card">
+          <div class="stat-label">활성 거래처</div>
+          <div class="stat-value" id="s-cust">—</div>
+          <div class="stat-sub muted" id="s-cust-sub">로드 중…</div>
+        </div>
+        <div class="stat-card">
+          <div class="stat-label">매칭 시리얼</div>
+          <div class="stat-value" id="s-serial">—</div>
+          <div class="stat-sub muted" id="s-serial-sub">로드 중…</div>
+        </div>
+        <div class="stat-card">
+          <div class="stat-label">월 기본료 합계</div>
+          <div class="stat-value primary" id="s-rev">—</div>
+          <div class="stat-sub muted" id="s-rev-sub">로드 중…</div>
+        </div>
+        <div class="stat-card">
+          <div class="stat-label">최신월 카운터</div>
+          <div class="stat-value" id="s-latest">—</div>
+          <div class="stat-sub muted" id="s-latest-sub">로드 중…</div>
+        </div>
+        <div class="stat-card">
+          <div class="stat-label">평균 수익률</div>
+          <div class="stat-value" id="s-profit-rate">—</div>
+          <div class="stat-sub muted" id="s-profit-rate-sub">로드 중…</div>
+        </div>
+        <div class="stat-card">
+          <div class="stat-label">적자 거래처</div>
+          <div class="stat-value" id="s-loss" style="color:#dc2626;">—</div>
+          <div class="stat-sub muted" id="s-loss-sub">로드 중…</div>
+        </div>
+      </section>
+
+      <!-- 거래처 한눈에 -->
+      <section class="card" style="padding:14px; margin-top:14px;">
+        <div style="display:flex; justify-content:space-between; align-items:center; gap:10px; flex-wrap:wrap; margin-bottom:10px;">
+          <h3 style="margin:0; display:flex; align-items:center; gap:6px;">
+            거래처 한눈에 <span class="muted-small" id="cust-table-count" style="font-weight:400;"></span>
+          </h3>
+          <div style="display:flex; gap:8px; flex-wrap:wrap; align-items:center;">
+            <input type="text" id="home-search" placeholder="🔍 회사명·대표자·주소 검색" style="padding:6px 10px; border:1px solid var(--border); border-radius:6px; font-size:13px; min-width:200px;">
+            <select id="home-sort" style="padding:6px 10px; border:1px solid var(--border); border-radius:6px; font-size:13px;">
+              <option value="fee">기본료 많은순</option>
+              <option value="profit">월 순익 많은순</option>
+              <option value="rate-desc">수익률 높은순</option>
+              <option value="rate-asc">수익률 낮은순 (적자 위)</option>
+              <option value="serials">시리얼 많은순</option>
+              <option value="name">이름순</option>
+              <option value="recent">최근 등록순</option>
+            </select>
+            <label style="display:flex; align-items:center; gap:4px; font-size:12.5px; cursor:pointer;">
+              <input type="checkbox" id="home-only-active"> 활성만 (시리얼≥1)
+            </label>
+          </div>
+        </div>
+        <div style="overflow-x:auto;">
+          <table id="home-cust-table" style="width:100%; border-collapse:collapse; font-size:13px;">
+            <thead>
+              <tr style="background:#f8fafc; text-align:left;">
+                <th style="padding:8px 10px; border-bottom:1px solid var(--border);">회사명</th>
+                <th style="padding:8px 10px; border-bottom:1px solid var(--border);">대표자</th>
+                <th style="padding:8px 10px; border-bottom:1px solid var(--border); text-align:right;">월 기본료</th>
+                <th style="padding:8px 10px; border-bottom:1px solid var(--border); text-align:right;">월 순익</th>
+                <th style="padding:8px 10px; border-bottom:1px solid var(--border); text-align:right;">수익률</th>
+                <th style="padding:8px 10px; border-bottom:1px solid var(--border); text-align:right;">시리얼</th>
+                <th style="padding:8px 10px; border-bottom:1px solid var(--border); text-align:right;">최신 BW</th>
+                <th style="padding:8px 10px; border-bottom:1px solid var(--border); text-align:right;">최신 CO</th>
+              </tr>
+            </thead>
+            <tbody id="home-cust-tbody"></tbody>
+          </table>
+        </div>
+      </section>
+
+      <!-- 수익 구조 -->
+      <section class="card" style="padding:14px; margin-top:14px;">
+        <h3 style="margin:0 0 12px 0;">💰 수익 구조</h3>
+        <div style="display:grid; grid-template-columns:repeat(auto-fit, minmax(280px, 1fr)); gap:18px;">
+          <div>
+            <h4 style="margin:0 0 8px 0; font-size:13px; color:var(--muted);">기본료 구간 분포</h4>
+            <div id="home-rev-bins"></div>
+          </div>
+          <div>
+            <h4 style="margin:0 0 8px 0; font-size:13px; color:var(--muted);">기본료 Top 10</h4>
+            <div id="home-rev-top"></div>
+          </div>
+        </div>
+      </section>
+
+    </main>
+
+    <footer class="footer">
+      <div class="footer-inner muted">
+        디직스코리아 · 경상북도 문경시 점촌동 141-9
+      </div>
+    </footer>
+  </div>
+</div>
+
+<script>
+document.getElementById('mobile-menu-btn')?.addEventListener('click', () => {
+  document.getElementById('sidebar').classList.toggle('open');
+  document.getElementById('sidebar-backdrop').classList.toggle('show');
+});
+document.getElementById('sidebar-backdrop')?.addEventListener('click', () => {
+  document.getElementById('sidebar').classList.remove('open');
+  document.getElementById('sidebar-backdrop').classList.remove('show');
+});
+</script>
+<script src="db.js"></script>
+<script src="db-supa.js"></script>
+<script src="app.js"></script>
+<script src="index.js"></script>
+</body>
+</html>

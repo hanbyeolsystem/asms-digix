@@ -264,6 +264,10 @@ function populate(o, listOrder) {
   set("mo_srfr",     o.mo_srfr);
 
   set("cu_want",     o.cu_want);
+  if (f.cu_want) {
+    f.cu_want.style.height = "auto";
+    f.cu_want.style.height = f.cu_want.scrollHeight + "px";
+  }
   set("re_content",  o.re_content);
   set("re_content2", "");
   const view = document.getElementById("reContentView");
@@ -511,7 +515,7 @@ document.addEventListener("DOMContentLoaded", async () => {
         </tr>
         <tr>
           <th>고객 요청사항</th>
-          <td colspan="3"><textarea name="cu_want" rows="6" style="width:100%;background:#f8f8f8;border:1px solid #e0e0e0;color:#333;" readonly></textarea></td>
+          <td colspan="3"><textarea name="cu_want" rows="2" style="width:100%;background:#f8f8f8;border:1px solid #e0e0e0;color:#333;overflow:hidden;resize:none;" readonly></textarea></td>
         </tr>
 
         <tr><th colspan="4" style="background:#bbbbff;">처리정보</th></tr>

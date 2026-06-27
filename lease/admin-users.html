@@ -1,0 +1,135 @@
+<!doctype html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>사용자 관리 — 디직스코리아 임대관리</title>
+<link rel="stylesheet" href="styles.css">
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<script src="config.js?v=20260611"></script>
+<script src="auth.js"></script>
+<script src="archive-badge.js" defer></script>
+</head>
+<body>
+
+<button class="mobile-menu-btn" id="mobile-menu-btn" aria-label="메뉴">☰</button>
+
+<div class="app-layout">
+
+  <aside class="sidebar" id="sidebar">
+    <a href="index.html" class="sidebar-brand">
+      <span class="brand-mark">🖨</span>
+      <span class="brand-text">디직스코리아</span>
+    </a>
+    <a href="asms.html" class="sidebar-tool">
+      <span class="nav-icon">🛠</span><span>접수관리툴</span>
+    </a>
+    <a href="errorcode.html" class="sidebar-tool">
+      <span class="nav-icon">🔧</span><span>에러코드</span>
+    </a>
+    <div class="sidebar-section-label">임대 관리</div>
+    <nav class="sidebar-nav">
+      <a href="lease/index.html"><span class="nav-icon">🏠</span><span>임대홈</span></a>
+      <a href="lease/customers.html"><span class="nav-icon">👥</span><span>임대거래처</span></a>
+      <a href="lease/counters.html"><span class="nav-icon">🖨</span><span>임대카운터</span></a>
+      <a href="billing.html"><span class="nav-icon">💰</span><span>임대추가요금청구</span></a>
+      <a href="lease/prices.html"><span class="nav-icon">💵</span><span>가격표</span></a>
+      <a href="lease/meetings.html"><span class="nav-icon">🎙</span><span>음성미팅관리</span></a>
+      <a href="lease/archive.html"><span class="nav-icon">📁</span><span>소프트웨어고객자료실</span></a>
+      <a href="admin-users.html" class="active" data-role-only="admin"><span class="nav-icon">👑</span><span>사용자 관리</span></a>
+    </nav>
+    <div class="sidebar-foot">디직스코리아</div>
+  </aside>
+  <div class="sidebar-backdrop" id="sidebar-backdrop"></div>
+
+  <div class="main-area">
+    <main class="container admin-users-page">
+      <div class="page-head">
+        <div>
+          <h1>👑 사용자 관리</h1>
+          <p class="muted" style="margin:2px 0 0 0;">관리자가 엔지니어 계정을 생성·삭제할 수 있습니다.</p>
+        </div>
+        <div class="page-head-actions">
+          <button class="btn primary" id="btn-add-user">+ 엔지니어 추가</button>
+        </div>
+      </div>
+
+      <section class="card user-list-card">
+        <table class="user-table">
+          <thead>
+            <tr>
+              <th>아이디</th>
+              <th>이름</th>
+              <th>역할</th>
+              <th>상태</th>
+              <th>등록일</th>
+              <th></th>
+            </tr>
+          </thead>
+          <tbody id="user-tbody">
+            <tr><td colspan="6" class="muted-small" style="text-align:center; padding:20px;">로딩 중…</td></tr>
+          </tbody>
+        </table>
+      </section>
+    </main>
+  </div>
+</div>
+
+<!-- 모달 -->
+<div id="modal-backdrop" class="modal-backdrop hidden">
+  <div class="modal-box" id="modal-box"></div>
+</div>
+
+<template id="tpl-add-user">
+  <h3>+ 엔지니어 추가</h3>
+  <p class="muted-small" style="margin:0 0 14px 0;">새 사용자의 아이디·비밀번호를 정하고, 마지막에 관리자 secret 키로 인증합니다.</p>
+  <form id="add-user-form" autocomplete="off">
+    <div class="form-row two">
+      <label><span>아이디 *</span><input name="display_id" required minlength="3" placeholder="영문/숫자, 3자 이상"></label>
+      <label><span>이름</span><input name="full_name" placeholder="(옵션)"></label>
+    </div>
+    <div class="form-row two">
+      <label><span>비밀번호 *</span><input name="password" type="password" required minlength="6" placeholder="6자 이상"></label>
+      <label><span>역할 *</span>
+        <select name="role" required>
+          <option value="engineer">엔지니어</option>
+          <option value="admin">관리자</option>
+        </select>
+      </label>
+    </div>
+    <fieldset style="margin-top:8px;">
+      <legend>관리자 인증 (Supabase Secret Key)</legend>
+      <p class="muted-small" style="margin:0 0 8px 0;">
+        Supabase Auth의 admin API 호출은 service_role 권한이 필요합니다.<br>
+        키는 이 모달에서만 사용되고 어디에도 저장되지 않습니다 (sessionStorage 옵션 시 브라우저 닫으면 사라짐).
+      </p>
+      <label class="form-row">
+        <span>Secret Key (sb_secret_… 또는 eyJ…)</span>
+        <input name="secret_key" type="password" required placeholder="supabase 대시보드 → Settings → API Keys" style="font-family: ui-monospace, Menlo, Consolas, monospace;">
+      </label>
+      <label style="display:flex;align-items:center;gap:6px;font-size:12.5px;margin-top:6px;">
+        <input type="checkbox" name="remember" id="ck-remember"> 이번 세션에 키 기억하기
+      </label>
+    </fieldset>
+    <div id="add-user-msg" class="muted-small" style="color:var(--danger); margin-top:8px;"></div>
+    <div class="modal-actions">
+      <button class="btn ghost" type="button" data-close>취소</button>
+      <button class="btn primary" type="submit" id="add-user-submit">생성</button>
+    </div>
+  </form>
+</template>
+
+<script>
+document.getElementById('mobile-menu-btn')?.addEventListener('click', () => {
+  document.getElementById('sidebar').classList.toggle('open');
+  document.getElementById('sidebar-backdrop').classList.toggle('show');
+});
+document.getElementById('sidebar-backdrop')?.addEventListener('click', () => {
+  document.getElementById('sidebar').classList.remove('open');
+  document.getElementById('sidebar-backdrop').classList.remove('show');
+});
+</script>
+<script src="admin-users.js"></script>
+
+</body>
+</html>

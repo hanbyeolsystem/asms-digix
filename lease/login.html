@@ -1,0 +1,89 @@
+<!doctype html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<meta name="theme-color" content="#0d6efd">
+<title>로그인 — 디직스코리아 임대관리</title>
+<link rel="stylesheet" href="styles.css">
+</head>
+<body class="login-body">
+
+<main class="login-main">
+  <form class="login-card" id="login-form" autocomplete="off">
+    <div class="login-brand">
+      <span class="login-mark">🖨</span>
+      <div>
+        <h1>디직스코리아</h1>
+        <p class="muted">임대 통합 관리</p>
+      </div>
+    </div>
+
+    <label class="login-field">
+      <span>아이디</span>
+      <input type="text" id="login-id" name="id" autocomplete="username" required autofocus inputmode="text" placeholder="예: hanbyeol2">
+    </label>
+    <label class="login-field">
+      <span>비밀번호</span>
+      <input type="password" id="login-pw" name="password" autocomplete="current-password" required placeholder="비밀번호">
+    </label>
+
+    <button class="btn primary login-submit" type="submit" id="login-btn">로그인</button>
+
+    <div class="login-msg" id="login-msg" role="alert" aria-live="polite"></div>
+
+    <div class="login-foot muted-small">
+      <p>디직스코리아 임대관리 / 카운터 / 계약서 / 자료실</p>
+    </div>
+  </form>
+</main>
+
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<script src="config.js?v=20260611"></script>
+<script>
+(function(){
+  const supa = supabase.createClient(window.TOTALAS.URL, window.TOTALAS.PUBLISHABLE, {
+    auth: { storageKey: 'digix-lease-auth', persistSession: true, autoRefreshToken: true }
+  });
+
+  // 이미 로그인 되어있으면 next 또는 임대홈으로 즉시 리다이렉트
+  (async () => {
+    const { data: { session } } = await supa.auth.getSession();
+    if (session) {
+      const params = new URLSearchParams(location.search);
+      location.replace(params.get('next') || 'asms.html');
+    }
+  })();
+
+  const form = document.getElementById('login-form');
+  const msg  = document.getElementById('login-msg');
+  const btn  = document.getElementById('login-btn');
+
+  form.addEventListener('submit', async (e) => {
+    e.preventDefault();
+    const id = document.getElementById('login-id').value.trim().toLowerCase();
+    const pw = document.getElementById('login-pw').value;
+    if (!id || !pw) return;
+
+    msg.textContent = '';
+    btn.disabled = true;
+    btn.textContent = '로그인 중…';
+
+    try {
+      const email = `${id}@asms.local`;
+      const { data, error } = await supa.auth.signInWithPassword({ email, password: pw });
+      if (error) throw error;
+      const params = new URLSearchParams(location.search);
+      location.replace(params.get('next') || 'asms.html');
+    } catch (err) {
+      msg.textContent = '아이디 또는 비밀번호가 올바르지 않습니다.';
+      msg.classList.add('error');
+      btn.disabled = false;
+      btn.textContent = '로그인';
+      console.error(err);
+    }
+  });
+})();
+</script>
+</body>
+</html>

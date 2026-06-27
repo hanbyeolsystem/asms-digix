@@ -1,0 +1,1157 @@
+<!doctype html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<!-- 브라우저 캐시 무효화 — 토너 막대 등 UI 변경 즉시 반영 -->
+<meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate">
+<meta http-equiv="Pragma" content="no-cache">
+<meta http-equiv="Expires" content="0">
+<title>임대장비관리 — 디직스코리아</title>
+<link rel="stylesheet" href="../styles.css">
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
+<script src="../config.js?v=20260611"></script>
+<script src="../auth.js"></script>
+<style>
+  /* ===== 장비관리 — 자산 단위 종합 리스트 ===== */
+  .eq-stats {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+    gap: 10px;
+    margin-bottom: 14px;
+  }
+  .eq-stats .stat-card { padding: 12px 14px; }
+  .eq-stats .stat-label { font-size: 11.5px; }
+  .eq-stats .stat-value {
+    font-size: 22px; font-weight: 700; letter-spacing: -.4px;
+    margin-top: 2px; font-variant-numeric: tabular-nums;
+  }
+  .eq-stats .stat-sub { font-size: 11px; color: var(--muted); margin-top: 2px; }
+
+  .filter-bar {
+    display: flex; flex-wrap: wrap; gap: 8px; align-items: center;
+    margin: 0 0 12px 0;
+  }
+  .filter-bar input[type="search"],
+  .filter-bar select {
+    padding: 7px 10px;
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    background: #fff;
+    font-size: 13px;
+    min-width: 130px;
+    font-family: inherit;
+    color: var(--text);
+  }
+  .filter-bar input[type="search"] { min-width: 280px; flex: 1 1 320px; }
+  .filter-bar input[type="search"]:focus,
+  .filter-bar select:focus {
+    outline: none; border-color: var(--primary);
+  }
+  .filter-bar .count-pill {
+    margin-left: auto;
+    font-size: 12px; color: var(--muted);
+    background: #f1f5f9;
+    padding: 4px 10px; border-radius: 999px;
+    font-variant-numeric: tabular-nums;
+  }
+
+  .eq-table-wrap {
+    background: var(--card);
+    border: 1px solid var(--border);
+    border-radius: 12px;
+    box-shadow: var(--shadow);
+    overflow: hidden;
+  }
+  .scroll-x {
+    overflow-x: auto;
+    /* max-height / overflow-y 제거 — 페이지 전체 스크롤로 통일 */
+  }
+  table.data-table {
+    width: 100%; border-collapse: collapse; font-size: 13px;
+  }
+  table.data-table th,
+  table.data-table td {
+    text-align: left; padding: 8px 10px;
+    border-bottom: 1px solid var(--border);
+    vertical-align: middle;
+  }
+  table.data-table th {
+    background: #f8fafc;
+    font-weight: 600; color: var(--muted);
+    font-size: 11.5px; text-transform: uppercase; letter-spacing: .3px;
+    position: sticky; top: 0; z-index: 1;
+  }
+  table.data-table td.num,
+  table.data-table th.num {
+    text-align: right; font-variant-numeric: tabular-nums;
+  }
+  table.data-table tr:hover td { background: #fafbfc; }
+  table.data-table tr:last-child td { border-bottom: none; }
+
+  .serial-cell { font-family: 'Consolas','Menlo',monospace; font-size: 12.5px; }
+  .model-sub   { color: var(--muted); font-size: 11.5px; margin-top: 1px; }
+
+  .status-tag {
+    display: inline-block; padding: 2px 8px; border-radius: 999px;
+    font-size: 11px; font-weight: 600;
+  }
+  .status-tag.active   { background: #ecfdf5; color: #047857; }
+  .status-tag.replaced { background: #f1f5f9; color: #475569; }
+  .status-tag.returned { background: #fef3c7; color: #92400e; }
+  .status-tag.lost     { background: #fee2e2; color: #b91c1c; }
+
+  /* 토너 잔량 bar */
+  .toner-cell {
+    cursor: pointer;
+    display: inline-flex; align-items: center; gap: 8px;
+    min-width: 110px;
+    padding: 3px 6px; border-radius: 6px;
+    transition: background .12s;
+  }
+  .toner-cell:hover { background: var(--primary-soft, #eff6ff); }
+  .toner-bar {
+    flex: 1; height: 8px;
+    background: #f1f5f9; border-radius: 999px; overflow: hidden;
+    min-width: 50px;
+  }
+  .toner-bar .toner-fill {
+    height: 100%; border-radius: 999px;
+    transition: width .25s;
+  }
+  .toner-fill.ok   { background: #10b981; }
+  .toner-fill.warn { background: #f59e0b; }
+  .toner-fill.bad  { background: #ef4444; }
+  .toner-text {
+    font-variant-numeric: tabular-nums;
+    font-weight: 600; font-size: 12.5px;
+    width: 38px; text-align: right;
+  }
+  .toner-text.ok   { color: #047857; }
+  .toner-text.warn { color: #92400e; }
+  .toner-text.bad  { color: #b91c1c; }
+  .toner-text.none { color: #94a3b8; font-weight: 500; }
+
+  .toner-input {
+    width: 60px; padding: 3px 6px;
+    border: 1px solid var(--primary); border-radius: 6px;
+    font-size: 13px; text-align: right;
+    font-variant-numeric: tabular-nums;
+    font-family: inherit;
+  }
+  .toner-input:focus { outline: none; }
+
+  .last-cell .last-ym {
+    font-weight: 600; font-variant-numeric: tabular-nums;
+  }
+  .last-cell .last-sum {
+    color: var(--muted); font-size: 11.5px; margin-top: 1px;
+    font-variant-numeric: tabular-nums;
+  }
+  .last-cell.stale .last-ym { color: #b91c1c; }
+
+  .muted-cell { color: var(--muted); }
+  .empty-row {
+    padding: 28px;
+    text-align: center; color: var(--muted); font-size: 13px;
+  }
+
+  /* 토스트 */
+  .toast {
+    position: fixed; left: 50%; bottom: 24px; transform: translateX(-50%);
+    background: #0f172a; color: #fff;
+    padding: 9px 16px; border-radius: 8px;
+    font-size: 13px; z-index: 2000;
+    box-shadow: 0 8px 24px rgba(0,0,0,.25);
+    opacity: 0; pointer-events: none;
+    transition: opacity .15s;
+  }
+  .toast.show { opacity: 1; }
+
+  /* ===== 수집기 안내 패널 ===== */
+  .collector-panel {
+    margin-bottom: 14px;
+    padding: 14px 16px;
+    background: linear-gradient(180deg, #f0f9ff, #eff6ff);
+    border: 1px solid #bfdbfe;
+    border-radius: 12px;
+  }
+  .collector-panel .cp-head {
+    display: flex; align-items: center; gap: 10px;
+    flex-wrap: wrap;
+  }
+  .collector-panel .cp-title {
+    font-weight: 700; font-size: 14px; color: #1e40af;
+    display: inline-flex; align-items: center; gap: 6px;
+  }
+  .collector-panel .cp-stats {
+    display: flex; gap: 14px; margin-left: auto;
+    font-size: 12.5px; flex-wrap: wrap;
+  }
+  .collector-panel .cp-stat {
+    display: inline-flex; align-items: center; gap: 4px;
+    font-variant-numeric: tabular-nums;
+  }
+  .collector-panel .cp-stat .dot {
+    width: 8px; height: 8px; border-radius: 50%;
+  }
+  .cp-stat .dot.online  { background: #10b981; }
+  .cp-stat .dot.offline { background: #ef4444; }
+  .cp-stat .dot.pending { background: #f59e0b; }
+  /* 오프라인 카운트가 1 이상이면 빨간색 강조 (눈에 띄게) */
+  #cp-offline.alert {
+    color: #dc2626; font-weight: 800;
+    background: #fee2e2; padding: 1px 7px; border-radius: 6px;
+    box-shadow: 0 0 0 1px #fecaca inset;
+  }
+
+  .collector-panel .cp-body {
+    display: grid;
+    grid-template-columns: 1fr auto;
+    gap: 12px;
+    align-items: center;
+    margin-top: 10px;
+  }
+  .collector-panel .cp-code-box {
+    font-size: 12px; color: #475569;
+  }
+  .collector-panel .cp-code {
+    display: inline-block;
+    padding: 4px 12px;
+    background: #1e40af;
+    color: #fff;
+    border-radius: 6px;
+    font-family: 'Consolas','Menlo',monospace;
+    font-weight: 700;
+    font-size: 14px;
+    letter-spacing: 1px;
+    margin: 0 6px;
+    cursor: pointer;
+    user-select: all;
+  }
+  .collector-panel .cp-actions {
+    display: flex; gap: 8px;
+  }
+  .btn-primary-soft {
+    padding: 7px 14px;
+    border: 1px solid #1e40af;
+    background: #fff;
+    color: #1e40af;
+    border-radius: 8px;
+    font-size: 12.5px;
+    font-weight: 600;
+    cursor: pointer;
+    font-family: inherit;
+  }
+  .btn-primary-soft:hover { background: #1e40af; color: #fff; }
+
+  /* ===== 실시간 수집기 데이터 섹션 ===== */
+  .live-section {
+    margin-bottom: 14px;
+    background: var(--card);
+    border: 1px solid var(--border);
+    border-radius: 12px;
+    box-shadow: var(--shadow);
+    overflow: hidden;
+  }
+  .live-head {
+    padding: 10px 14px;
+    background: linear-gradient(180deg, #f8fafc, #fff);
+    border-bottom: 1px solid var(--border);
+    display: flex; align-items: center; gap: 10px;
+    flex-wrap: wrap;
+  }
+  .live-head .lh-title {
+    font-weight: 700; font-size: 14px;
+    display: inline-flex; align-items: center; gap: 6px;
+  }
+  .live-head .lh-meta {
+    margin-left: auto;
+    font-size: 12px; color: var(--muted);
+    display: flex; gap: 12px; flex-wrap: wrap;
+  }
+  .live-head .lh-meta .lh-num {
+    color: var(--text); font-weight: 600;
+    font-variant-numeric: tabular-nums;
+  }
+  .live-head .lh-btn {
+    padding: 4px 10px;
+    border: 1px solid var(--border);
+    background: #fff;
+    border-radius: 6px;
+    font-size: 11.5px; cursor: pointer;
+    font-family: inherit;
+  }
+  .live-head .lh-btn:hover { background: #f1f5f9; }
+
+  /* 실시간 수집기 검색 바 */
+  .live-search-bar {
+    padding: 8px 14px;
+    border-bottom: 1px solid var(--border);
+    background: #fafbfc;
+    display: flex; align-items: center; gap: 8px;
+  }
+  .live-search-bar input[type="search"] {
+    flex: 1;
+    padding: 8px 12px;
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    font-size: 13px;
+    font-family: inherit;
+    color: var(--text);
+    background: #fff;
+    min-width: 0;
+  }
+  .live-search-bar input[type="search"]:focus {
+    outline: none;
+    border-color: var(--primary, #2563eb);
+    box-shadow: 0 0 0 2px rgba(37,99,235,.12);
+  }
+  .live-search-bar .lsb-clear {
+    padding: 6px 10px;
+    border: 1px solid var(--border);
+    background: #fff;
+    border-radius: 6px;
+    font-size: 12px;
+    cursor: pointer;
+    color: var(--muted);
+    font-family: inherit;
+    display: none;
+  }
+  .live-search-bar .lsb-clear.visible { display: inline-block; }
+  .live-search-bar .lsb-clear:hover { background: #f1f5f9; color: var(--text); }
+  .live-search-bar .lsb-count {
+    font-size: 12px;
+    color: var(--muted);
+    white-space: nowrap;
+    font-variant-numeric: tabular-nums;
+  }
+  .live-search-bar .lsb-count strong { color: var(--text); }
+
+  @media (max-width: 768px) {
+    .live-search-bar { padding: 8px 10px; gap: 6px; }
+    .live-search-bar input[type="search"] {
+      font-size: 15px;
+      padding: 10px 12px;
+      min-height: 44px;
+    }
+    .live-search-bar .lsb-clear { min-height: 44px; padding: 10px 12px; font-size: 13px; }
+  }
+
+  .live-body {
+    /* max-height / overflow-y 제거 — 페이지 전체 스크롤로 통일 */
+    overflow-x: auto;
+  }
+  table.live-table {
+    width: 100%;
+    border-collapse: collapse;
+    font-size: 12.5px;
+  }
+  table.live-table th,
+  table.live-table td {
+    padding: 4px 6px;
+    border-bottom: 1px solid var(--border);
+    text-align: left;
+    vertical-align: middle;
+    white-space: nowrap;
+    font-size: 12px;
+  }
+  table.live-table th {
+    background: #f8fafc;
+    color: var(--muted);
+    font-size: 10.5px;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: .3px;
+    position: sticky; top: 0; z-index: 1;
+  }
+  /* 데스크탑 컬럼 폭 — 가로 스크롤 방지용 */
+  table.live-table .num { width: 50px; min-width: 50px; }
+  table.live-table .st-col { width: 78px; min-width: 78px; }
+  table.live-table th:first-child,
+  table.live-table td:first-child { max-width: 220px; overflow: hidden; text-overflow: ellipsis; }
+  table.live-table td.num,
+  table.live-table th.num {
+    text-align: right;
+    font-variant-numeric: tabular-nums;
+  }
+  /* 카운터 숫자(흑백/컬러/합계) — 굵게 + 살짝 크게 */
+  table.live-table td.num {
+    font-weight: 700;
+    font-size: 13.5px;
+    color: #0f172a;
+  }
+  table.live-table tr:hover td { background: #fafbfc; }
+
+  .live-table .tonr {
+    display: inline-block;
+    padding: 1px 5px;
+    border-radius: 4px;
+    font-size: 10.5px;
+    font-weight: 700;
+    font-variant-numeric: tabular-nums;
+  }
+  .live-table .tonr.ok   { background: #ecfdf5; color: #047857; }
+  .live-table .tonr.warn { background: #fef3c7; color: #92400e; }
+  .live-table .tonr.bad  { background: #fee2e2; color: #b91c1c; }
+  .live-table .tonr.na   { background: #f1f5f9; color: #94a3b8; }
+
+  /* 막대 + % 오버레이 (토너 본연 색) */
+  .live-table th.tonr-col,
+  .live-table td.tonr-col {
+    width: 86px;
+    min-width: 86px;
+  }
+  /* K/C, M/Y 2줄 묶음 셀 — 라벨/퍼센트/색상막대를 가로로 정렬 */
+  .live-table th.tonr-col-pair,
+  .live-table td.tonr-col-pair {
+    width: 88px;
+    min-width: 88px;
+    padding: 3px 5px;
+    vertical-align: middle;
+  }
+  .live-table th.tonr-col-pair {
+    font-size: 11px;
+    letter-spacing: 0.5px;
+  }
+  .live-table .tonr-cell {
+    position: relative;
+    display: block;
+    width: 100%;
+    height: 18px;
+  }
+  .live-table .tonr-bar {
+    position: absolute; inset: 0;
+    background: #eef2f7;
+    border-radius: 4px;
+    overflow: hidden;
+    box-shadow: inset 0 0 0 1px rgba(0,0,0,.06);
+  }
+  .live-table .tonr-fill {
+    height: 100%;
+    border-radius: 4px 0 0 4px;
+    transition: width .25s;
+  }
+  /* 토너 본연 색상 */
+  .live-table .tonr-fill.K { background: #1f2937; }
+  .live-table .tonr-fill.C { background: #06b6d4; }
+  .live-table .tonr-fill.M { background: #ec4899; }
+  .live-table .tonr-fill.Y { background: #eab308; }
+  /* 막대 위 % 텍스트 오버레이 — 흰색 외곽선으로 어느 색 위에서도 읽힘 */
+  .live-table .tonr-text {
+    position: absolute; inset: 0;
+    display: flex; align-items: center; justify-content: center;
+    font-size: 11px;
+    font-weight: 800;
+    font-variant-numeric: tabular-nums;
+    color: #0f172a;
+    text-shadow:
+      -1px -1px 0 rgba(255,255,255,.95),
+       1px -1px 0 rgba(255,255,255,.95),
+      -1px  1px 0 rgba(255,255,255,.95),
+       1px  1px 0 rgba(255,255,255,.95),
+       0    0   3px rgba(255,255,255,.6);
+    pointer-events: none;
+  }
+  .live-table .tonr-cell.na .tonr-text { color: #94a3b8; font-weight: 600; text-shadow: none; }
+  .live-table .tonr-cell.na .tonr-fill { width: 0 !important; }
+
+  /* 상태 배지 컬럼 */
+  .live-table th.st-col,
+  .live-table td.st-col {
+    width: 130px;
+    min-width: 120px;
+  }
+  .live-table .st-tag {
+    display: inline-flex;
+    align-items: center;
+    gap: 3px;
+    font-size: 10.5px;
+    font-weight: 700;
+    padding: 1px 7px;
+    border-radius: 999px;
+    margin-right: 3px;
+    white-space: nowrap;
+  }
+  .live-table .st-tag .st-dot {
+    width: 6px; height: 6px; border-radius: 50%;
+  }
+  .live-table .st-tag.online   { background: #ecfdf5; color: #047857; }
+  .live-table .st-tag.online   .st-dot { background: #10b981; }
+  .live-table .st-tag.offline  { background: #f1f5f9; color: #64748b; }
+  .live-table .st-tag.offline  .st-dot { background: #94a3b8; }
+  .live-table .st-tag.warn     { background: #fef3c7; color: #92400e; }
+  .live-table .st-tag.warn     .st-dot { background: #f59e0b; }
+  .live-table .st-tag.danger   { background: #fee2e2; color: #b91c1c; }
+  .live-table .st-tag.danger   .st-dot { background: #ef4444; }
+
+  .live-table .src-tag {
+    display: inline-block;
+    padding: 1px 6px;
+    border-radius: 4px;
+    font-size: 10.5px;
+    font-weight: 600;
+  }
+  .live-table .src-tag.SNMP { background: #dbeafe; color: #1d4ed8; }
+  .live-table .src-tag.PORT { background: #fef3c7; color: #92400e; }
+  .live-table .src-tag.USB  { background: #ede9fe; color: #5b21b6; }
+
+  .live-table .live-empty {
+    padding: 26px;
+    text-align: center;
+    color: var(--muted);
+  }
+  .live-table .ts-stale { color: #b91c1c; }
+
+  /* 인라인 편집 가능 셀 시각 힌트 */
+  .live-table td[data-edit] {
+    cursor: pointer;
+    transition: background .12s;
+  }
+  .live-table td[data-edit]:hover {
+    background: #eff6ff;
+    box-shadow: inset 0 0 0 1px #93c5fd;
+  }
+  .live-table td[data-edit]::after {
+    content: '✎';
+    opacity: 0;
+    color: #94a3b8;
+    margin-left: 4px;
+    font-size: 10px;
+    transition: opacity .12s;
+  }
+  .live-table td[data-edit]:hover::after { opacity: 1; }
+  .live-table .inline-edit {
+    width: 100%;
+    padding: 3px 6px;
+    border: 1px solid #2563eb;
+    border-radius: 4px;
+    font-size: 12.5px;
+    font-family: inherit;
+    background: #fff;
+    outline: none;
+  }
+
+  /* 거래처 그룹 헤더 행 */
+  .live-table tr.group-row td {
+    background: linear-gradient(180deg, #eff6ff, #dbeafe);
+    color: #1e3a8a;
+    font-weight: 800;
+    font-size: 13px;
+    padding: 8px 14px;
+    border-top: 2px solid #93c5fd;
+    border-bottom: 1px solid #bfdbfe;
+    position: sticky;
+    z-index: 2;
+  }
+  .live-table tr.group-row .group-icon { margin-right: 6px; }
+  .live-table tr.group-row .group-count {
+    font-weight: 600;
+    font-size: 11.5px;
+    color: #475569;
+    background: rgba(255,255,255,.7);
+    padding: 1px 8px;
+    border-radius: 999px;
+    margin-left: 8px;
+    font-variant-numeric: tabular-nums;
+  }
+  /* 모델 셀 안에 상태 배지를 모델 이름 아래 줄로 — 배지가 많아지면 자동 2줄 */
+  .live-table td.model-with-status {
+    padding-top: 4px;
+    padding-bottom: 4px;
+    line-height: 1.25;
+  }
+  .live-table td.model-with-status .model-name {
+    font-weight: 600;
+  }
+  .live-table td.model-with-status .model-status-row {
+    margin-top: 3px;
+    display: flex;
+    flex-wrap: wrap;
+    gap: 3px;
+    max-width: 100%;
+  }
+  .live-table td.model-with-status .model-status-row:empty {
+    display: none;
+  }
+
+  /* 그룹 헤더 옆에 나열되는 💻 PC 이름 칩 (collector 별) */
+  .live-table tr.group-row .group-pc-chip {
+    display: inline-block;
+    margin-left: 8px;
+    padding: 2px 9px;
+    background: rgba(255,255,255,.9);
+    border: 1px dashed transparent;
+    border-radius: 999px;
+    font-size: 11px;
+    font-weight: 700;
+    color: #1e3a8a;
+    cursor: text;
+    font-variant-numeric: tabular-nums;
+  }
+  .live-table tr.group-row .group-pc-chip:hover {
+    border-color: #1e40af;
+    background: #fff;
+  }
+  .live-table tr.group-row.unmapped .group-pc-chip {
+    color: #9a3412;
+  }
+  .live-table tr.group-row.unmapped .group-pc-chip:hover {
+    border-color: #c2410c;
+  }
+
+  .live-table tr.group-row .group-edit-btn {
+    margin-left: 10px; padding: 2px 8px;
+    font-size: 11px; font-weight: 700;
+    color: #1e40af; background: #fff;
+    border: 1px solid #c7d2fe; border-radius: 4px;
+    cursor: pointer; transition: background .12s;
+  }
+  .live-table tr.group-row .group-edit-btn:hover {
+    background: #eef2ff;
+  }
+  .live-table tr.group-row.unmapped .group-edit-btn {
+    color: #9a3412; border-color: #fdba74;
+  }
+  .live-table tr.group-row.unmapped .group-edit-btn:hover {
+    background: #fff7ed;
+  }
+  .live-table tr.group-row.unmapped td {
+    background: linear-gradient(180deg, #fff7ed, #fed7aa);
+    color: #9a3412;
+    border-top-color: #fb923c;
+    border-bottom-color: #fed7aa;
+  }
+  .live-table .btn-hide {
+    border: none;
+    background: transparent;
+    color: #94a3b8;
+    cursor: pointer;
+    font-size: 14px;
+    padding: 2px 6px;
+    border-radius: 4px;
+    transition: all .12s;
+  }
+  .live-table .btn-hide:hover {
+    background: #fee2e2;
+    color: #b91c1c;
+  }
+  .live-table .pc-cell  { font-weight: 600; }
+  .live-table .cust-cell { font-weight: 500; }
+  .live-table .cust-cell.unmapped { color: #94a3b8; font-style: italic; }
+
+  /* 신규 수집기 알림 배너 */
+  .new-collector-banner {
+    margin-bottom: 12px;
+    padding: 10px 14px;
+    background: #fff7ed;
+    border: 1px solid #fdba74;
+    border-radius: 10px;
+    display: flex; align-items: center; gap: 10px;
+    font-size: 13px; color: #9a3412;
+  }
+  .new-collector-banner .ncb-icon { font-size: 18px; }
+  .new-collector-banner .ncb-action {
+    margin-left: auto;
+    padding: 5px 12px;
+    background: #ea580c; color: #fff; border: none;
+    border-radius: 6px; font-size: 12px; font-weight: 600;
+    cursor: pointer; font-family: inherit;
+  }
+  .new-collector-banner .ncb-action:hover { background: #c2410c; }
+
+  /* 신규 수집기 매핑 모달 */
+  .pair-modal-backdrop {
+    position: fixed; inset: 0;
+    background: rgba(15,23,42,.55);
+    display: none;
+    align-items: center; justify-content: center;
+    z-index: 1500;
+    padding: 16px;
+  }
+  .pair-modal-backdrop.show { display: flex; }
+  .pair-modal {
+    background: #fff;
+    border-radius: 14px;
+    max-width: 640px; width: 100%;
+    max-height: 90vh;
+    display: flex; flex-direction: column;
+    box-shadow: 0 24px 60px rgba(0,0,0,.3);
+    overflow: hidden;
+  }
+  .pair-modal-head {
+    padding: 14px 18px;
+    border-bottom: 1px solid var(--border);
+    display: flex; justify-content: space-between; align-items: center;
+    background: linear-gradient(180deg, #f8fafc, #fff);
+  }
+  .pair-modal-body {
+    padding: 14px 18px; overflow-y: auto; flex: 1;
+  }
+  .pair-modal-foot {
+    padding: 10px 18px;
+    border-top: 1px solid var(--border);
+    background: #fafbfc;
+    display: flex; justify-content: flex-end; gap: 8px;
+  }
+  .pair-table { width: 100%; border-collapse: collapse; font-size: 13px; }
+  .pair-table th, .pair-table td {
+    padding: 8px 10px; border-bottom: 1px solid var(--border);
+    text-align: left; vertical-align: middle;
+  }
+  .pair-table th {
+    background: #f8fafc; font-size: 11.5px; color: var(--muted);
+    text-transform: uppercase; letter-spacing: .3px;
+  }
+  .pair-table select {
+    padding: 5px 8px; border: 1px solid var(--border);
+    border-radius: 6px; font-size: 12.5px; max-width: 220px;
+    font-family: inherit;
+  }
+  .pair-table .pc-name { font-weight: 600; }
+  .pair-table .pc-meta {
+    font-size: 11px; color: var(--muted); margin-top: 1px;
+  }
+
+  /* 모바일 전용 td — 모든 화면 크기에서 영구 숨김 (테이블 뷰 통일) */
+  .mobile-only-td { display: none !important; }
+  .desktop-only-td { /* 항상 정상 표시 */ }
+
+  /* ── 모바일 카드 내부 요소 (데스크탑에서도 정의해두되 display:none td 안에 있어 무해) ── */
+  .mob-l1-top {
+    display: flex;
+    flex-wrap: nowrap;
+    align-items: center;
+    gap: 6px;
+    width: 100%;
+    min-width: 0;
+  }
+  .mob-cust-asset {
+    display: flex;
+    align-items: center;
+    gap: 0;
+    flex-shrink: 0;
+    white-space: nowrap;
+    overflow: hidden;
+    max-width: 55%;
+  }
+  .mob-cust-name {
+    font-size: 14px;
+    font-weight: 700;
+    color: #1e40af;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+  .mob-sep {
+    font-size: 13px;
+    color: #94a3b8;
+    flex-shrink: 0;
+  }
+  .mob-asset {
+    font-size: 13px;
+    font-weight: 600;
+    white-space: nowrap;
+  }
+  .mob-status {
+    flex: 1 1 auto;
+    min-width: 0;
+    display: flex;
+    gap: 3px;
+    flex-wrap: nowrap;
+    justify-content: flex-end;
+    align-items: center;
+    overflow: hidden;
+  }
+  .mob-model {
+    margin-top: 3px;
+    font-size: 13px;
+    font-weight: 500;
+    color: #475569;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    max-width: 100%;
+  }
+
+  /* ===== 모바일 인라인 편집 모달 ===== */
+  .mobile-edit-modal-backdrop {
+    position: fixed; inset: 0;
+    background: rgba(15,23,42,.6);
+    display: none;
+    align-items: flex-end; justify-content: center;
+    z-index: 3000;
+    padding: 0;
+  }
+  .mobile-edit-modal-backdrop.show { display: flex; }
+  .mobile-edit-modal {
+    background: #fff;
+    border-radius: 20px 20px 0 0;
+    width: 100%;
+    max-width: 100%;
+    padding: 20px 20px 36px 20px;
+    box-shadow: 0 -8px 32px rgba(0,0,0,.18);
+  }
+  .mobile-edit-modal .mem-label {
+    font-size: 12px; color: var(--muted);
+    font-weight: 600; text-transform: uppercase;
+    letter-spacing: .4px; margin-bottom: 8px;
+  }
+  .mobile-edit-modal input,
+  .mobile-edit-modal select {
+    width: 100%;
+    padding: 14px 16px;
+    border: 2px solid #2563eb;
+    border-radius: 10px;
+    font-size: 16px; /* iOS zoom 방지 */
+    font-family: inherit;
+    background: #fff;
+    color: var(--text);
+    outline: none;
+    box-sizing: border-box;
+  }
+  .mobile-edit-modal .mem-btns {
+    display: flex; gap: 10px; margin-top: 14px;
+  }
+  .mobile-edit-modal .mem-btns button {
+    flex: 1; padding: 14px;
+    border-radius: 10px;
+    font-size: 15px; font-weight: 700;
+    border: none; cursor: pointer;
+    font-family: inherit;
+  }
+  .mobile-edit-modal .mem-btn-save   { background: #2563eb; color: #fff; }
+  .mobile-edit-modal .mem-btn-cancel { background: #f1f5f9; color: #475569; }
+  .mobile-edit-modal .mem-btn-save:active   { background: #1d4ed8; }
+  .mobile-edit-modal .mem-btn-cancel:active { background: #e2e8f0; }
+
+  /* ===== 거래처 검색 콤보박스 ===== */
+  /* 인라인 편집 셀 (.custmap-combo) 과 그룹 헤더 편집 (.group-cust-combo),
+     페어링 모달 (.pair-combo) 에 공통 적용되는 드롭다운 아이템 hover 색상 */
+  .custmap-item:hover,
+  .group-cust-item:hover,
+  .pair-cust-item:hover {
+    background: #eff6ff !important;
+    color: #1e40af;
+  }
+  /* 모바일 모달 내 거래처 리스트 아이템 */
+  .mem-cust-item:hover,
+  .mem-cust-item:active {
+    background: #eff6ff !important;
+  }
+  /* 드롭다운 리스트 — iOS 스크롤 부드럽게 */
+  .custmap-list,
+  .group-cust-list,
+  .pair-cust-list,
+  #mem-cust-list {
+    -webkit-overflow-scrolling: touch;
+  }
+  /* 모바일에서 pair-modal 내 combobox 크기 확대 */
+  @media (max-width: 768px) {
+    .pair-cust-input {
+      padding: 12px 10px !important;
+      font-size: 15px !important;
+      min-height: 44px;
+    }
+    .pair-cust-item {
+      padding: 12px 14px !important;
+      font-size: 15px !important;
+      min-height: 44px;
+      display: flex; align-items: center;
+    }
+  }
+
+  /* ===== UA 모바일 강제 클래스 — 테이블 카드화 규칙 제거됨 (데스크탑 테이블 뷰 통일) ===== */
+  /* is-mobile-force 는 JS에서 더 이상 설정하지 않으므로 이 블록은 비어 있음 */
+
+  @media (max-width: 768px) {
+    /* ---------- 기본 레이아웃 ---------- */
+    .page-head h1 { font-size: 18px; }
+    .container { padding: 0 6px 24px; }
+
+    /* ---------- 요약 카드 ---------- */
+    .eq-stats { grid-template-columns: repeat(2, 1fr); gap: 8px; }
+    .eq-stats .stat-value { font-size: 18px; }
+
+    /* ---------- 수집기 안내 패널 ---------- */
+    .collector-panel .cp-body {
+      grid-template-columns: 1fr;
+    }
+    .collector-panel .cp-stats {
+      margin-left: 0; gap: 10px;
+    }
+    .collector-panel .cp-actions {
+      flex-direction: column;
+    }
+    .collector-panel .cp-actions .btn-primary-soft {
+      width: 100%;
+      padding: 13px 14px;
+      font-size: 14px;
+      min-height: 44px;
+      text-align: center;
+    }
+    .collector-panel .cp-code {
+      font-size: 16px;
+      padding: 8px 16px;
+    }
+
+    /* ---------- 신규 수집기 배너 ---------- */
+    .new-collector-banner {
+      flex-wrap: wrap;
+      gap: 8px;
+    }
+    .new-collector-banner .ncb-action {
+      width: 100%; padding: 12px;
+      font-size: 14px; min-height: 44px;
+    }
+
+    /* ---------- 필터 바 ---------- */
+    .filter-bar { gap: 8px; }
+    .filter-bar .count-pill { margin-left: 0; width: 100%; text-align: center; }
+    .filter-bar input[type="search"] { min-width: 100%; flex: 1 1 100%; }
+    .filter-bar input[type="search"],
+    .filter-bar select {
+      min-height: 44px;
+      font-size: 15px;
+      padding: 10px 12px;
+    }
+    .filter-bar select { flex: 1 1 calc(50% - 4px); min-width: 0; }
+
+    /* ---------- 자산 마스터 표 — 가로 스크롤 유지 (카드 변환 없음) ---------- */
+    .scroll-x {
+      overflow-x: auto;
+      max-height: none;
+      overflow-y: visible;
+      -webkit-overflow-scrolling: touch;
+    }
+    /* 모바일에서 테이블 폰트를 살짝 줄여 가로 스크롤 최소화 */
+    table.data-table { font-size: 11.5px; }
+    table.data-table th, table.data-table td { padding: 6px 7px; }
+
+    /* ---------- 실시간 수집기 표 — 가로 스크롤 유지 (카드 변환 없음) ---------- */
+    .live-body {
+      max-height: none;
+      overflow-y: visible;
+      overflow-x: auto;
+      -webkit-overflow-scrolling: touch;
+    }
+    table.live-table { font-size: 11px; }
+    table.live-table th, table.live-table td { padding: 4px 5px; }
+
+    /* ✕ 버튼 터치 영역 확대 */
+    .live-table .btn-hide {
+      padding: 8px 14px !important;
+      font-size: 16px !important;
+    }
+
+    /* 새로고침 버튼 */
+    #btn-refresh {
+      min-height: 44px;
+      padding: 0 14px;
+      font-size: 13px;
+    }
+
+    /* ======================================================
+       페어링 모달 — 모바일 최적화
+       ====================================================== */
+    .pair-modal-backdrop {
+      align-items: flex-end;
+      padding: 0;
+    }
+    .pair-modal {
+      border-radius: 20px 20px 0 0;
+      max-height: 85vh;
+      max-width: 100%;
+    }
+    .pair-modal-body { padding: 12px 14px; }
+
+    /* pair-table → 카드 */
+    .pair-table thead { display: none; }
+    .pair-table,
+    .pair-table tbody,
+    .pair-table tr,
+    .pair-table td { display: block; width: 100%; }
+    .pair-table tbody tr {
+      border: 1px solid var(--border);
+      border-radius: 10px;
+      margin-bottom: 10px;
+      padding: 10px 12px;
+    }
+    .pair-table tbody td {
+      border: none;
+      padding: 4px 0;
+    }
+    .pair-table select {
+      width: 100%;
+      max-width: 100%;
+      padding: 12px 10px;
+      font-size: 15px;
+      min-height: 44px;
+      margin-top: 6px;
+    }
+
+    /* 저장/취소 버튼 */
+    .pair-modal-foot {
+      gap: 10px;
+      padding: 12px 14px 20px;
+    }
+    .pair-modal-foot .btn {
+      flex: 1;
+      min-height: 44px;
+      font-size: 14px;
+    }
+  }
+</style>
+</head>
+<body>
+<main class="container">
+
+  <!-- ===== 페이지 헤더 ===== -->
+  <div class="page-head">
+    <div>
+      <h1>🖥 임대장비관리</h1>
+      <p class="muted" style="margin:2px 0 0 0;">자산 단위 — 카운터 · 토너 · 상태 한눈에</p>
+    </div>
+    <div class="page-head-actions">
+      <button class="btn ghost small" id="btn-refresh" title="다시 불러오기">↻ 새로고침</button>
+    </div>
+  </div>
+
+  <!-- ===== 수집기 안내 패널 ===== -->
+  <div class="collector-panel" id="collector-panel">
+    <div class="cp-head">
+      <span class="cp-title">🔌 한별 수집기 (실시간 카운터)</span>
+      <div class="cp-stats">
+        <span class="cp-stat"><span class="dot online"></span>온라인 <strong id="cp-online">–</strong></span>
+        <span class="cp-stat"><span class="dot offline"></span>오프라인 <strong id="cp-offline">–</strong></span>
+        <span class="cp-stat"><span class="dot pending"></span>매핑대기 <strong id="cp-pending">–</strong></span>
+      </div>
+    </div>
+    <div class="cp-body">
+      <div class="cp-actions">
+        <a class="btn-primary-soft" id="btn-collector-download" href="../downloads/hanbyeol-collector.zip" download="hanbyeol-collector.zip" title="고객 PC에 설치하는 카운터 자동수집 프로그램 (ZIP) · 압축 풀고 안의 EXE 더블클릭 · 페어링 코드: hanbyeol · 안랩 V3 차단 시 LocalAppData\HanbyeolCollector 폴더 예외 등록">⬇ 고객 카운터프로그램 (ZIP)</a>
+        <button class="btn-primary-soft" id="btn-open-pair" type="button">🔗 신규 매핑</button>
+        <button class="btn-primary-soft" id="btn-export-counter-xlsx" type="button" title="실시간 카운터를 한별카운터 엑셀 포맷으로 다운로드 → 임대카운터에 그대로 업로드 가능">📥 카운터 엑셀</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- ===== 실시간 수집기 데이터 ===== -->
+  <section class="live-section" id="live-section">
+    <div class="live-head">
+      <span class="lh-title">🖨 실시간 수집기 데이터</span>
+      <div class="lh-meta">
+        <span>장비 <span class="lh-num" id="lh-dev">–</span>대</span>
+        <span>최근 갱신 <span class="lh-num" id="lh-latest">–</span></span>
+        <button class="lh-btn" id="lh-refresh" type="button">↻ 새로고침</button>
+      </div>
+    </div>
+    <div class="live-search-bar">
+      <input type="search" id="live-search" placeholder="거래처 / 모델 / 자산번호 검색…" autocomplete="off" autocorrect="off" spellcheck="false">
+      <button type="button" class="lsb-clear" id="live-search-clear">✕ 초기화</button>
+      <span class="lsb-count" id="live-search-count" style="display:none;"></span>
+    </div>
+    <div class="live-body">
+      <table class="live-table" id="live-table">
+        <thead>
+          <tr>
+            <th>모델 / 상태</th>
+            <th>🏷 자산번호</th>
+            <th class="tonr-col-pair">K / C</th>
+            <th class="tonr-col-pair">M / Y</th>
+            <th class="num">흑백</th>
+            <th class="num">컬러</th>
+            <th class="num">합계</th>
+            <th class="hide-mobile">마지막 갱신</th>
+            <th class="hide-mobile">IP</th>
+            <th style="min-width:90px;">거래처</th>
+            <th style="width:36px;"></th>
+          </tr>
+        </thead>
+        <tbody></tbody>
+      </table>
+    </div>
+  </section>
+
+  <!-- ===== 신규 수집기 알림 배너 (자동 표시) ===== -->
+  <div class="new-collector-banner" id="new-collector-banner" style="display:none;">
+    <span class="ncb-icon">🆕</span>
+    <span><strong id="ncb-count">0</strong>개 거래처에서 신규 수집기 연결됨 — 거래처 매핑이 필요합니다.</span>
+    <button class="ncb-action" id="ncb-open-pair" type="button">매핑하기 →</button>
+  </div>
+
+  <div class="toast" id="toast"></div>
+
+  <!-- ===== 모바일 인라인 편집 모달 (PC명 / 모델명 / 거래처) ===== -->
+  <div class="mobile-edit-modal-backdrop" id="mobile-edit-modal">
+    <div class="mobile-edit-modal">
+      <div class="mem-label" id="mem-label">편집</div>
+      <div id="mem-input-wrap">
+        <!-- JS가 input 또는 select 로 동적 주입 -->
+      </div>
+      <div class="mem-btns">
+        <button class="mem-btn-cancel" id="mem-cancel" type="button">취소</button>
+        <button class="mem-btn-save"   id="mem-save"   type="button">저장</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- ===== 신규 수집기 매핑 모달 ===== -->
+  <div class="pair-modal-backdrop" id="pair-modal">
+    <div class="pair-modal">
+      <div class="pair-modal-head">
+        <strong>🔗 신규 수집기 거래처 매핑</strong>
+        <button class="btn ghost small" id="btn-close-pair" type="button">✕</button>
+      </div>
+      <div class="pair-modal-body">
+        <p class="muted-small" style="margin:0 0 10px 0;">
+          페어링 코드 <code>hanbyeol</code> 로 등록된 수집기들입니다. 각 PC가 어느 거래처에 속하는지 선택하고 저장하세요.
+        </p>
+        <table class="pair-table" id="pair-table">
+          <thead>
+            <tr>
+              <th>PC 이름</th>
+              <th>등록일</th>
+              <th>거래처 선택</th>
+            </tr>
+          </thead>
+          <tbody></tbody>
+        </table>
+      </div>
+      <div class="pair-modal-foot">
+        <button class="btn ghost small" id="btn-cancel-pair" type="button">취소</button>
+        <button class="btn primary small" id="btn-save-pair" type="button">저장</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- ===== 실시간 장비 삭제 확인 모달 ===== -->
+  <div class="pair-modal-backdrop" id="confirm-hide-modal">
+    <div class="pair-modal" style="max-width:420px;">
+      <div class="pair-modal-head">
+        <strong>🗑 실시간 목록에서 삭제</strong>
+        <button class="btn ghost small" id="btn-close-hide" type="button">✕</button>
+      </div>
+      <div class="pair-modal-body">
+        <p style="margin:0 0 8px 0; font-size:15px; font-weight:600; color:#0f172a;">정말로 삭제하시겠습니까?</p>
+        <p class="muted-small" style="margin:0;">한별 제품이 아닌 경우 등에 사용합니다. 다음 폴링에도 재등장하지 않습니다.</p>
+      </div>
+      <div class="pair-modal-foot">
+        <button class="btn ghost small" id="btn-cancel-hide" type="button">취소</button>
+        <button class="btn small" id="btn-confirm-hide" type="button" style="background:#dc2626;color:#fff;border-color:#dc2626;">삭제</button>
+      </div>
+    </div>
+  </div>
+
+</main>
+<script>
+// 캐시 우회 동적 로딩 — 매 페이지 로드마다 새 timestamp 로 index.js 요청
+(function(){
+  var s = document.createElement('script');
+  s.src = 'index.js?ts=' + Date.now() + '_' + Math.random().toString(36).slice(2, 10);
+  document.body.appendChild(s);
+})();
+</script>
+</body>
+</html>

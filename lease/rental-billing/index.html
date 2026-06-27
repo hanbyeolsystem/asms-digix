@@ -1,0 +1,992 @@
+<!doctype html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>임대추가요금청구 — 디직스코리아</title>
+<link rel="stylesheet" href="../styles.css">
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/html2pdf.js@0.10.1/dist/html2pdf.bundle.min.js"></script>
+<script src="../config.js?v=20260611"></script>
+<script src="../auth.js"></script>
+<style>
+  /* ── 화면 전용 스타일 ── */
+  .rb-toolbar {
+    display: flex; flex-wrap: wrap; gap: 10px; align-items: center;
+    margin-bottom: 14px;
+  }
+  .rb-toolbar input[type=month] {
+    padding: 7px 10px; font-size: 13px;
+    border: 1px solid var(--border-strong); border-radius: 8px;
+    background: #fff; font-family: inherit;
+  }
+  .rb-stats {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(170px, 1fr));
+    gap: 12px; margin-bottom: 18px;
+  }
+  .rb-layout {
+    display: grid; grid-template-columns: 260px 1fr; gap: 14px;
+    align-items: start;
+  }
+  @media (max-width: 920px) {
+    .rb-layout { grid-template-columns: 1fr; }
+  }
+  .rb-list-wrap {
+    background: var(--card); border: 1px solid var(--border);
+    border-radius: 14px; padding: 0; box-shadow: var(--shadow);
+    display: flex; flex-direction: column;
+    max-height: calc(100vh - 120px); overflow: hidden;
+    position: sticky; top: 16px;
+  }
+  .rb-list-toolbar {
+    padding: 10px 12px; border-bottom: 1px solid var(--border);
+    display: flex; flex-direction: column; gap: 6px;
+  }
+  .rb-list-toolbar-row {
+    display: flex; gap: 6px; align-items: center;
+  }
+  .rb-bulk-send-bar {
+    display: flex; align-items: center; gap: 8px;
+  }
+  .rb-bulk-send-btn {
+    font-size: 12px; padding: 5px 10px; white-space: nowrap;
+  }
+  .rb-bulk-send-progress {
+    font-size: 12px; color: var(--muted);
+  }
+  .rb-list-toolbar input {
+    flex: 1; padding: 7px 10px; border: 1px solid var(--border);
+    border-radius: 7px; font-size: 13px; background: #f8fafc; outline: none;
+  }
+  .rb-list-toolbar input:focus { background: #fff; border-color: var(--primary); }
+  .rb-list { list-style: none; margin: 0; padding: 6px; overflow-y: auto; flex: 1; }
+  .rb-list-empty { padding: 28px 18px; text-align: center; font-size: 12.5px; color: var(--muted); }
+  .rb-item {
+    padding: 10px 12px; border-radius: 8px; cursor: pointer;
+    margin-bottom: 2px; border: 1px solid transparent;
+    display: grid; grid-template-columns: 1fr auto; gap: 4px;
+  }
+  .rb-item:hover { background: #f8fafc; }
+  .rb-item.selected { background: var(--primary-soft); border-color: var(--primary); }
+  .rb-item-name { font-weight: 600; font-size: 13.5px; }
+  .rb-item-meta { display: flex; align-items: center; gap: 6px; font-size: 11.5px; color: var(--muted); margin-top: 2px; }
+  .rb-item-total {
+    font-size: 13px; font-weight: 600; align-self: center;
+    font-variant-numeric: tabular-nums; color: var(--text);
+  }
+  .rb-detail {
+    background: var(--card); border: 1px solid var(--border);
+    border-radius: 14px; padding: 22px 24px; box-shadow: var(--shadow);
+    min-height: 500px;
+  }
+  .rb-detail-empty {
+    display: flex; align-items: center; justify-content: center;
+    height: 100%; min-height: 400px; color: var(--muted); font-size: 13px;
+  }
+  .rb-detail-head {
+    display: flex; flex-wrap: wrap; gap: 10px; align-items: center;
+    justify-content: space-between; margin-bottom: 12px;
+  }
+  .rb-detail-head h2 { margin: 0; font-size: 17px; font-weight: 700; }
+  .rb-detail-actions { display: flex; gap: 6px; flex-wrap: wrap; }
+  .rb-meta-row { color: var(--muted); font-size: 12px; margin-top: 2px; }
+  .rb-loading { padding: 30px; text-align: center; color: var(--muted); font-size: 13px; }
+
+  /* status badge */
+  .badge.status-draft { background: #e2e8f0; color: #475569; }
+  .badge.status-sent  { background: #dbeafe; color: #1d4ed8; }
+  .badge.status-paid  { background: #dcfce7; color: #15803d; }
+  .badge.status-void  { background: #f1f5f9; color: #94a3b8; text-decoration: line-through; }
+
+  .rb-toast {
+    position: fixed; left: 50%; bottom: 22px; transform: translateX(-50%);
+    background: #0f172a; color: #fff; padding: 10px 16px;
+    border-radius: 8px; font-size: 13px; z-index: 9999;
+    box-shadow: 0 4px 14px rgba(0,0,0,.25);
+    opacity: 0; transition: opacity .15s;
+  }
+  .rb-toast.show { opacity: 1; }
+  .rb-list-group-header { list-style: none; }
+
+  /* ── 체크박스 커스텀 ── */
+  .rb-item-cb {
+    width: 16px; height: 16px; flex-shrink: 0;
+    margin-right: 2px; cursor: pointer; accent-color: var(--primary);
+  }
+  .rb-item-cb:disabled {
+    cursor: not-allowed; opacity: 0.4;
+  }
+  .rb-group-cb {
+    width: 14px; height: 14px; flex-shrink: 0;
+    cursor: pointer; accent-color: var(--primary);
+    vertical-align: middle; margin-right: 4px;
+  }
+
+  /* ── 인라인 편집 override ── */
+  .rb-ov-wrap {
+    display: inline-flex; align-items: center; gap: 3px; flex-wrap: wrap;
+    justify-content: flex-end;
+  }
+  .rb-ov-input {
+    padding: 2px 5px; font-size: 12px; font-family: inherit;
+    border: 1px solid var(--border); border-radius: 5px;
+    background: #fff; text-align: right;
+    font-variant-numeric: tabular-nums;
+    transition: border-color .15s;
+  }
+  .rb-ov-input:focus {
+    outline: none; border-color: var(--primary); background: #f0f9ff;
+  }
+  .rb-ov-badge {
+    font-size: 10px; font-weight: 700; color: #fff;
+    background: var(--primary); border-radius: 3px; padding: 1px 4px;
+    vertical-align: middle; white-space: nowrap;
+  }
+  .rb-ov-orig {
+    font-size: 10.5px; color: var(--muted); white-space: nowrap;
+  }
+  .rb-ov-revert {
+    font-size: 11px; cursor: pointer; background: none; border: none;
+    color: var(--muted); padding: 1px 3px; border-radius: 3px;
+    line-height: 1;
+  }
+  .rb-ov-revert:hover { color: #dc2626; background: #fee2e2; }
+
+  /* ── 청구서 미리보기 (화면용) ── */
+  .invoice-preview {
+    background: #fff;
+    border: 1px solid #ddd;
+    border-radius: 4px;
+    overflow-x: auto;
+  }
+
+  /* ── 청구서 테이블 공통 ── */
+  .inv-wrap {
+    width: 100%;
+    min-width: 900px;
+    font-family: 'Malgun Gothic', '맑은 고딕', sans-serif;
+    font-size: 11px;
+    background: #fff;
+    padding: 8px 10px 14px;
+    box-sizing: border-box;
+  }
+
+  /* 상단 헤더 영역 */
+  .inv-header {
+    position: relative;
+    height: 76px;
+    margin-bottom: 0;
+  }
+  .inv-logo {
+    position: absolute;
+    left: 0; top: 0;
+    height: 68px;
+    width: auto;
+    object-fit: contain;
+    object-position: left center;
+  }
+  .inv-stamps {
+    position: absolute;
+    right: 0; top: 0;
+    display: flex;
+    align-items: center;
+    gap: 4px;
+    height: 68px;
+  }
+  .inv-stamps img {
+    height: 60px;
+    width: auto;
+    object-fit: contain;
+  }
+
+  /* 제목 행 */
+  .inv-title-row {
+    border-top: 2px solid #000;
+    border-bottom: 2px solid #000;
+    padding: 6px 4px;
+    text-align: left;
+    font-size: 18px;
+    font-weight: bold;
+    line-height: 1.3;
+    min-height: 44px;
+    display: flex;
+    align-items: center;
+  }
+  .inv-title-customer {
+    font-weight: bold;
+    text-decoration: underline;
+    font-size: 18px;
+    font-family: 'Nanum Barun Gothic', '나눔바른고딕', 'Malgun Gothic', sans-serif;
+  }
+  .inv-title-counter {
+    font-weight: bold;
+    font-size: 18px;
+    font-family: 'Nanum Barun Gothic', '나눔바른고딕', 'Malgun Gothic', sans-serif;
+  }
+  .inv-title-billing {
+    font-weight: bold;
+    font-size: 18px;
+    font-family: 'Gulim', '굴림', sans-serif;
+  }
+
+  /* 공통 테이블 스타일 */
+  .inv-table {
+    width: 100%;
+    border-collapse: collapse;
+    table-layout: fixed;
+  }
+  .inv-table th, .inv-table td {
+    border: 1px solid #999;
+    padding: 3px 4px;
+    text-align: center;
+    vertical-align: middle;
+    font-size: 11px;
+    word-break: break-all;
+    overflow: hidden;
+  }
+  .inv-table th {
+    background: #f0f0f0;
+    font-weight: bold;
+  }
+
+  /* 상품표 */
+  .inv-product-table th, .inv-product-table td {
+    height: 28px;
+  }
+  .inv-product-table td.prod-name {
+    text-align: left;
+    padding-left: 6px;
+  }
+  .inv-product-table td.num {
+    text-align: right;
+    padding-right: 4px;
+    font-variant-numeric: tabular-nums;
+  }
+
+  /* 카운터표 */
+  .inv-counter-wrap {
+    margin-top: 8px;
+  }
+  .inv-counter-table th {
+    font-size: 9px;
+    height: 20px;
+    white-space: nowrap;
+    word-break: normal;
+  }
+  .inv-counter-table .th-group {
+    background: #e8e8e8;
+    font-size: 11px;
+    font-weight: bold;
+  }
+  .inv-counter-table td {
+    padding-top: 5px;
+    padding-bottom: 5px;
+    font-size: 10.5px;
+    line-height: 1.3;
+  }
+  .inv-counter-table td.model-cell {
+    text-align: center;
+    vertical-align: middle;
+    font-size: 10px;
+    line-height: 1.4;
+  }
+  .inv-counter-table td.model-cell .model-name {
+    font-weight: bold;
+    font-size: 11px;
+    font-family: 'Gulim', '굴림', sans-serif;
+  }
+  .inv-counter-table td.model-cell .model-period {
+    font-size: 9px;
+    color: #333;
+  }
+  .inv-counter-table td.num {
+    text-align: right;
+    padding-top: 2px;
+    padding-bottom: 2px;
+    padding-right: 3px;
+    font-variant-numeric: tabular-nums;
+    font-size: 9px;
+    line-height: 1.1;
+    white-space: nowrap;
+    word-break: normal;
+  }
+  .inv-counter-table td.overage {
+    color: #c00;
+    font-weight: bold;
+  }
+  .inv-counter-table td.zero {
+    color: #888;
+  }
+
+  /* 합계 영역 — 본문 표와 2라인 간격 */
+  .inv-summary {
+    margin-top: 48px;
+    display: flex;
+    justify-content: flex-end;
+  }
+  .inv-summary-table {
+    width: 320px;
+    border-collapse: collapse;
+  }
+  .inv-summary-table td {
+    border: 1px solid #888;
+    padding: 4px 8px;
+    font-size: 11px;
+    height: 24px;
+    vertical-align: middle;
+  }
+  .inv-summary-table td.sum-label {
+    text-align: center;
+    background: #f0f0f0;
+    font-weight: 600;
+    width: 60%;
+  }
+  .inv-summary-table td.sum-label.total {
+    font-weight: bold;
+    font-size: 12px;
+  }
+  .inv-summary-table td.sum-amount {
+    text-align: right;
+    font-variant-numeric: tabular-nums;
+    font-weight: 600;
+    width: 40%;
+  }
+  .inv-summary-table td.sum-amount.total {
+    font-weight: bold;
+    font-size: 12px;
+    color: #c00;
+  }
+  .sum-vat-inline {
+    font-size: 10px;
+    font-weight: 500;
+    color: #666;
+    margin-left: 4px;
+  }
+  .sum-unit {
+    font-size: 0.9em;
+    font-weight: 500;
+    color: #555;
+    margin-left: 3px;
+  }
+
+  /* 화면용 상세 패널 보조 */
+  .rb-inv-section {
+    margin-top: 0;
+  }
+
+  /* ── 발송수단 선택 모달 ── */
+  .rb-modal-overlay {
+    position: fixed; inset: 0;
+    background: rgba(0,0,0,.45);
+    z-index: 10000;
+    display: flex; align-items: center; justify-content: center;
+  }
+  .rb-modal {
+    background: #fff; border-radius: 14px;
+    padding: 28px 28px 22px;
+    min-width: 300px; max-width: 380px; width: 90%;
+    box-shadow: 0 8px 32px rgba(0,0,0,.22);
+  }
+  .rb-modal h3 {
+    margin: 0 0 16px; font-size: 16px; font-weight: 700;
+  }
+  .rb-modal .rb-via-options {
+    display: flex; flex-direction: column; gap: 8px; margin-bottom: 22px;
+  }
+  .rb-via-option {
+    display: flex; align-items: center; gap: 10px;
+    padding: 11px 14px; border: 1.5px solid var(--border);
+    border-radius: 9px; cursor: pointer; font-size: 14px;
+    transition: border-color .12s, background .12s;
+  }
+  .rb-via-option:hover { background: #f0f9ff; border-color: var(--primary); }
+  .rb-via-option input[type=radio] { accent-color: var(--primary); width: 16px; height: 16px; }
+  .rb-via-option.selected { background: var(--primary-soft); border-color: var(--primary); font-weight: 600; }
+  .rb-modal-actions {
+    display: flex; justify-content: flex-end; gap: 8px;
+  }
+
+  /* ── 거래처 정보 푸터 ── */
+  .inv-customer-footer {
+    margin-top: 32px;
+    border: 1px solid #aaa;
+    border-radius: 4px;
+    padding: 8px 12px 10px;
+    background: #fafafa;
+    page-break-inside: avoid;
+  }
+  .inv-cf-title {
+    font-size: 11px;
+    font-weight: 700;
+    color: #444;
+    border-bottom: 1px solid #ccc;
+    padding-bottom: 4px;
+    margin-bottom: 7px;
+    letter-spacing: 0.04em;
+  }
+  .inv-cf-line {
+    display: flex;
+    gap: 18px;
+    align-items: baseline;
+    padding: 3px 0;
+    font-size: 10.5px;
+    line-height: 1.6;
+    border-bottom: 1px dotted #ddd;
+  }
+  .inv-cf-line:last-child { border-bottom: none; padding-bottom: 0; }
+  .inv-cf-item {
+    display: inline-flex;
+    align-items: baseline;
+    gap: 5px;
+    white-space: nowrap;
+  }
+  .inv-cf-item-grow {
+    flex: 1;
+    min-width: 0;
+    white-space: normal;
+    word-break: break-all;
+  }
+  .inv-cf-label {
+    font-weight: 600;
+    color: #333;
+    font-size: 10px;
+    flex-shrink: 0;
+  }
+  .inv-cf-value {
+    color: #111;
+  }
+  .inv-cf-empty {
+    color: #bbb;
+  }
+
+  /* ── 청구 주기별 그룹 헤더 ── */
+  .rb-period-header {
+    list-style: none;
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    padding: 8px 12px 4px;
+    font-size: 12px;
+    font-weight: 700;
+    color: var(--text);
+    background: #f1f5f9;
+    border-radius: 7px;
+    margin: 6px 6px 2px;
+    cursor: pointer;
+    user-select: none;
+    border: 1px solid var(--border);
+  }
+  .rb-period-header:hover { background: #e2e8f0; }
+  .rb-period-toggle {
+    margin-left: auto;
+    font-size: 10px;
+    color: var(--muted);
+    flex-shrink: 0;
+  }
+  .rb-period-cb {
+    width: 14px; height: 14px; flex-shrink: 0;
+    cursor: pointer; accent-color: var(--primary);
+    vertical-align: middle;
+  }
+  .rb-period-badge {
+    font-size: 10px;
+    font-weight: 600;
+    background: var(--primary-soft);
+    color: var(--primary);
+    border-radius: 10px;
+    padding: 1px 7px;
+    margin-left: 2px;
+  }
+  .rb-sub-group-header {
+    list-style: none;
+    padding: 4px 14px 2px 22px;
+    font-size: 11px;
+    font-weight: 600;
+    display: flex;
+    align-items: center;
+    gap: 5px;
+  }
+  .rb-period-section { }
+  .rb-period-section.collapsed > .rb-period-items { display: none; }
+
+  /* ═══════════════════════════════════════════════════════════
+     모바일 최적화 — @media (max-width: 768px)
+     데스크탑 레이아웃은 일절 변경하지 않음
+     변환 대상:
+       1) inv-product-table  → 카드 스택 (품목명/수량/단가/금액)
+       2) inv-counter-table  → 카드 스택 (기기별 흑백·컬러 초과 상세)
+       3) inv-summary-table  → 라벨:값 2열 표 (너비 100%)
+       4) rb-layout          → 단일 열 (거래처 목록 → 상세 순)
+       5) 버튼/입력 터치 영역 확대 (44px 높이)
+       6) 사이드 패딩 축소 (16px)
+  ═══════════════════════════════════════════════════════════ */
+  @media (max-width: 768px) {
+
+    /* ── 전체 컨테이너 패딩 축소 ── */
+    .container {
+      padding-left: 12px !important;
+      padding-right: 12px !important;
+    }
+
+    /* ── 툴바 ── */
+    .rb-toolbar {
+      gap: 8px;
+    }
+    .rb-toolbar input[type=month] {
+      min-height: 44px;
+      font-size: 14px;
+      padding: 8px 10px;
+      max-width: 100%;    /* input 이 화면 폭을 넘지 않도록 */
+    }
+    .rb-toolbar label {
+      min-height: 44px;
+      display: flex;
+      align-items: center;
+      white-space: nowrap;  /* "전체 보기" 레이블 줄바꿈 방지 */
+    }
+    /* 청구월 wrapper(flex column) 도 화면 폭 내로 제한 */
+    .rb-toolbar > div {
+      min-width: 0;
+      max-width: 100%;
+    }
+
+    /* ── 통계 카드: 2열 유지, 글자 크기 축소 ── */
+    .rb-stats {
+      grid-template-columns: repeat(2, 1fr);
+      gap: 8px;
+    }
+
+    /* ── 레이아웃: 목록 → 상세 단일 열 (920px 이미 처리됨, 보강) ── */
+    .rb-layout {
+      grid-template-columns: 1fr;
+    }
+
+    /* ── 거래처 목록 패널 ── */
+    .rb-list-wrap {
+      position: static;         /* sticky 해제 */
+      max-height: 44vh;
+      border-radius: 10px;
+    }
+    .rb-list-toolbar input {
+      min-height: 44px;
+      font-size: 14px;
+    }
+    .rb-bulk-send-btn {
+      min-height: 44px;
+      font-size: 13px;
+      padding: 0 14px;
+    }
+    .rb-item {
+      padding: 12px 10px;
+    }
+    .rb-item-name {
+      font-size: 14px;
+    }
+
+    /* ── 상세 패널 패딩 축소 ── */
+    .rb-detail {
+      padding: 14px 12px;
+      border-radius: 10px;
+    }
+
+    /* ── 액션 버튼 최소 터치 영역 ── */
+    .btn {
+      min-height: 44px;
+      padding: 0 14px;
+      font-size: 13px;
+      white-space: nowrap;  /* 버튼 텍스트 내부 줄바꿈 방지 */
+    }
+    .rb-detail-actions {
+      gap: 6px;
+      flex-wrap: wrap;
+    }
+
+    /* ── 청구서 미리보기 컨테이너 ── */
+    .invoice-preview {
+      /* hidden → auto: 카드 변환 후에도 콘텐츠가 잘리지 않게 세로 스크롤만 허용 */
+      overflow-x: hidden;
+      overflow-y: auto;
+    }
+    .inv-wrap {
+      min-width: 0 !important;
+      width: 100% !important;
+      padding: 8px 8px 12px !important;
+      font-size: 12px;
+      /* 혹시 남아있는 자식 요소의 min-width 가 폭을 뚫지 못하도록 봉쇄 */
+      overflow-x: hidden;
+    }
+    /* colgroup은 display:block 된 table에서 무시되도록 처리 */
+    .inv-product-table colgroup,
+    .inv-counter-table colgroup {
+      display: none;
+    }
+
+    /* ── 헤더 로고/도장 비율 유지 ── */
+    .inv-header {
+      height: auto;
+      min-height: 48px;
+      margin-bottom: 6px;
+      position: relative;
+    }
+    .inv-logo {
+      height: 44px;
+    }
+    .inv-stamps {
+      height: 44px;
+    }
+    .inv-stamps img {
+      height: 36px;
+    }
+
+    /* ── 제목 행 폰트 축소 ── */
+    .inv-title-row {
+      font-size: 13px !important;
+      padding: 4px;
+      flex-wrap: wrap;
+      gap: 2px;
+    }
+    .inv-title-customer,
+    .inv-title-counter,
+    .inv-title-billing {
+      font-size: 13px !important;
+    }
+
+    /* ══════════════════════════════════════════════
+       1) 상품표 (inv-product-table) → 카드 변환
+       품목명 / 수량 / 단가 / 금액  각 1행씩
+    ══════════════════════════════════════════════ */
+    .inv-product-table thead {
+      display: none;           /* 헤더 숨김 */
+    }
+    .inv-product-table,
+    .inv-product-table tbody,
+    .inv-product-table tr {
+      display: block;
+      width: 100%;
+    }
+    .inv-product-table td {
+      display: flex;
+      align-items: baseline;
+      gap: 6px;
+      border: none;
+      border-bottom: 1px solid #e5e7eb;
+      padding: 6px 4px;
+      font-size: 12px;
+      text-align: left !important;
+    }
+    .inv-product-table tr {
+      border: 1px solid #d1d5db;
+      border-radius: 8px;
+      margin-bottom: 8px;
+      background: #fff;
+      overflow: hidden;
+    }
+    .inv-product-table tr:last-child {
+      margin-bottom: 0;
+    }
+    /* 숨겨진 헤더 텍스트를 ::before 로 라벨 재생성 */
+    .inv-product-table td:nth-child(1)::before { content: "품목"; font-weight: 700; color: #374151; min-width: 42px; flex-shrink: 0; }
+    .inv-product-table td:nth-child(2)::before { content: "수량"; font-weight: 700; color: #374151; min-width: 42px; flex-shrink: 0; }
+    .inv-product-table td:nth-child(3)::before { content: "단가"; font-weight: 700; color: #374151; min-width: 42px; flex-shrink: 0; }
+    .inv-product-table td:nth-child(4)::before { content: "금액"; font-weight: 700; color: #374151; min-width: 42px; flex-shrink: 0; }
+    /* colspan 다열 td 는 단일 td 처럼 처리 */
+    .inv-product-table td[colspan] {
+      display: flex;
+    }
+    /* 빈 셀(수량/단가 '-') 은 흐림 처리 */
+    .inv-product-table td.num {
+      color: #374151;
+      justify-content: flex-start;
+    }
+
+    /* ══════════════════════════════════════════════
+       2) 카운터표 (inv-counter-table) → 카드 변환
+       15열 헤더 → 기기 1개당 카드 1장,
+       흑백/컬러 항목을 각 1행으로 표시
+    ══════════════════════════════════════════════ */
+    .inv-counter-wrap {
+      margin-top: 10px;
+    }
+    .inv-counter-table thead {
+      display: none;           /* 헤더 2행 모두 숨김 */
+    }
+    .inv-counter-table,
+    .inv-counter-table tbody {
+      display: block;
+      width: 100%;
+    }
+    /* 각 데이터 행 → 카드 */
+    .inv-counter-table tr {
+      display: block;
+      border: 1px solid #d1d5db;
+      border-radius: 8px;
+      margin-bottom: 10px;
+      background: #fff;
+      overflow: hidden;
+      padding: 0;
+    }
+    .inv-counter-table tr.inv-counter-row-group {
+      border-left: 3px solid #3b82f6;
+    }
+    /* 카드 내 각 td → 라벨:값 행 */
+    .inv-counter-table td {
+      display: flex;
+      align-items: baseline;
+      gap: 6px;
+      border: none;
+      border-bottom: 1px solid #f3f4f6;
+      padding: 5px 10px;
+      font-size: 12px;
+      text-align: left !important;
+      word-break: break-all;
+      overflow: visible;
+      white-space: normal;
+    }
+    .inv-counter-table td:last-child {
+      border-bottom: none;
+    }
+    /* model-cell (기기명): 카드 헤더 스타일 */
+    .inv-counter-table td.model-cell {
+      background: #f0f9ff;
+      font-size: 13px;
+      padding: 8px 10px;
+      border-bottom: 1px solid #bae6fd;
+      display: block;          /* 내부 div 그대로 세로 배열 */
+      text-align: center !important;
+    }
+    /* 흑백 컬럼 (열 2~8: 전월/당월/기본/월카/추가/단가/추가료)
+       min-width: 96px → 72px: 414px 화면에서 라벨+값이 한 줄에 들어오도록 축소 */
+    .inv-counter-table td:nth-child(2)::before  { content: "BW 전월COUNT"; font-weight: 700; color: #374151; min-width: 72px; flex-shrink: 0; }
+    .inv-counter-table td:nth-child(3)::before  { content: "BW 당월COUNT"; font-weight: 700; color: #374151; min-width: 72px; flex-shrink: 0; }
+    .inv-counter-table td:nth-child(4)::before  { content: "BW 기본매수"; font-weight: 700; color: #374151; min-width: 72px; flex-shrink: 0; }
+    .inv-counter-table td:nth-child(5)::before  { content: "BW 월카운터"; font-weight: 700; color: #374151; min-width: 72px; flex-shrink: 0; }
+    .inv-counter-table td:nth-child(6)::before  { content: "BW 추가카운터"; font-weight: 700; color: #374151; min-width: 72px; flex-shrink: 0; }
+    .inv-counter-table td:nth-child(7)::before  { content: "BW 단가"; font-weight: 700; color: #374151; min-width: 72px; flex-shrink: 0; }
+    .inv-counter-table td:nth-child(8)::before  { content: "BW 추가사용료"; font-weight: 700; color: #e53e3e; min-width: 72px; flex-shrink: 0; }
+    /* 컬러 컬럼 (열 9~15) */
+    .inv-counter-table td:nth-child(9)::before  { content: "CO 전월COUNT"; font-weight: 700; color: #374151; min-width: 72px; flex-shrink: 0; }
+    .inv-counter-table td:nth-child(10)::before { content: "CO 당월COUNT"; font-weight: 700; color: #374151; min-width: 72px; flex-shrink: 0; }
+    .inv-counter-table td:nth-child(11)::before { content: "CO 기본매수"; font-weight: 700; color: #374151; min-width: 72px; flex-shrink: 0; }
+    .inv-counter-table td:nth-child(12)::before { content: "CO 월카운터"; font-weight: 700; color: #374151; min-width: 72px; flex-shrink: 0; }
+    .inv-counter-table td:nth-child(13)::before { content: "CO 추가카운터"; font-weight: 700; color: #374151; min-width: 72px; flex-shrink: 0; }
+    .inv-counter-table td:nth-child(14)::before { content: "CO 단가"; font-weight: 700; color: #374151; min-width: 72px; flex-shrink: 0; }
+    .inv-counter-table td:nth-child(15)::before { content: "CO 추가사용료"; font-weight: 700; color: #e53e3e; min-width: 72px; flex-shrink: 0; }
+    /* 카드형 num 셀: white-space:nowrap 이 데스크톱 기준으로 설정돼 있어
+       카드 폭에서 값이 잘릴 수 있음 → 줄바꿈 허용 */
+    .inv-counter-table td.num {
+      white-space: normal;
+      word-break: break-all;
+    }
+    /* 초과/0 색상 유지 */
+    .inv-counter-table td.overage { color: #c00; font-weight: bold; }
+    .inv-counter-table td.zero    { color: #888; }
+
+    /* ══════════════════════════════════════════════
+       3) 합계표 (inv-summary-table) → 너비 100%
+    ══════════════════════════════════════════════ */
+    .inv-summary {
+      justify-content: stretch;
+      margin-top: 16px;
+    }
+    .inv-summary-table {
+      width: 100%;
+    }
+    .inv-summary-table td {
+      font-size: 13px;
+      height: 38px;
+    }
+    .inv-summary-table td.sum-label.total,
+    .inv-summary-table td.sum-amount.total {
+      font-size: 15px;
+    }
+
+    /* ══════════════════════════════════════════════
+       4) 거래처 정보 푸터 — 세로 배열
+    ══════════════════════════════════════════════ */
+    .inv-customer-footer {
+      margin-top: 16px;
+      padding: 10px 10px 12px;
+    }
+    .inv-cf-line {
+      flex-direction: column;
+      gap: 4px;
+      padding: 4px 0;
+    }
+    .inv-cf-item,
+    .inv-cf-item-grow {
+      width: 100%;
+      white-space: normal;
+    }
+
+    /* ══════════════════════════════════════════════
+       5) 모달 패딩 축소 + 액션 버튼 줄바꿈
+    ══════════════════════════════════════════════ */
+    .rb-modal {
+      padding: 20px 16px 16px;
+      border-radius: 12px;
+    }
+    .rb-modal-actions {
+      /* 버튼이 두 개 이상일 때 화면 폭 초과하면 줄바꿈 */
+      flex-wrap: wrap;
+      gap: 8px;
+    }
+    .rb-modal-actions .btn {
+      flex: 1 1 auto;
+      min-width: 80px;
+      text-align: center;
+    }
+    .rb-via-option {
+      min-height: 44px;
+    }
+
+    /* ── 페이지 헤드 ── */
+    .page-head h1 {
+      font-size: 16px;
+    }
+    .page-head p {
+      font-size: 12px;
+    }
+
+  } /* end @media 768px */
+
+  /* ── 인쇄/PDF ── */
+  @media print {
+    @page {
+      size: A4 landscape;
+      margin: 8mm 10mm 8mm 10mm;
+    }
+    html, body { height: auto !important; overflow: visible !important; background: #fff !important; }
+    * { print-color-adjust: exact; -webkit-print-color-adjust: exact; }
+    .no-print, .sidebar, .sidebar-backdrop, .mobile-menu-btn,
+    .rb-toolbar, .rb-stats, .rb-list-wrap, .rb-detail-actions,
+    .page-head-actions, .page-head { display: none !important; }
+    .rb-layout { display: block !important; }
+    .rb-detail {
+      border: none !important;
+      box-shadow: none !important;
+      padding: 0 !important;
+      min-height: 0 !important;
+    }
+    .container { padding: 0 !important; max-width: none !important; }
+    .invoice-preview {
+      border: none !important;
+      overflow: visible !important;
+      page-break-inside: avoid;
+      page-break-after: avoid;
+    }
+    /* 인쇄 시 모바일 카드 변환 되돌리기 — 테이블 원래 구조 복원 */
+    .inv-product-table colgroup,
+    .inv-counter-table colgroup { display: table-column-group !important; }
+    .inv-product-table,
+    .inv-product-table tbody,
+    .inv-product-table tr,
+    .inv-product-table td { display: revert !important; }
+    .inv-counter-table,
+    .inv-counter-table tbody,
+    .inv-counter-table tr { display: revert !important; }
+    .inv-counter-table td { display: revert !important; }
+    .inv-counter-table thead { display: revert !important; }
+    .inv-product-table thead { display: revert !important; }
+    .inv-product-table td::before,
+    .inv-counter-table td::before { content: none !important; }
+    .inv-counter-table td.model-cell { display: revert !important; }
+
+    /* 무조건 한 장에 강제 — A4 가로 1페이지에 수렴, 글씨 가독성 보강 */
+    .inv-wrap {
+      min-width: 0 !important;
+      width: 100% !important;
+      zoom: 0.95;
+      page-break-inside: avoid;
+      page-break-after: avoid;
+      padding: 4px 6px 6px !important;
+      font-size: 13px !important;
+    }
+    .inv-table th, .inv-table td { font-size: 13px !important; }
+    .inv-summary-table td { font-size: 13px !important; }
+    .inv-summary-table td.sum-label.total,
+    .inv-summary-table td.sum-amount.total { font-size: 14px !important; }
+    .rb-detail-head { display: none !important; }
+    /* 페이지 구분(여러 기기 그룹)도 한 장 안에 — 강제 우회 */
+    .inv-counter-row-group + .inv-counter-row-group {
+      border-top: 2px solid #000;
+      page-break-before: avoid !important;
+    }
+    /* 거래처 정보 푸터 인쇄 보강 */
+    .inv-customer-footer {
+      margin-top: 32px;
+      border: 1px solid #888;
+      background: #f8f8f8 !important;
+      padding: 5px 8px 6px;
+      page-break-inside: avoid;
+      page-break-before: avoid !important;
+    }
+    .inv-cf-title { font-size: 12.5px; font-weight: 700; margin-bottom: 4px; padding-bottom: 3px; }
+    .inv-cf-line  { font-size: 12.5px; gap: 16px; padding: 3px 0; }
+    .inv-cf-label { font-size: 12px; }
+    .inv-cf-value { font-size: 12.5px; }
+    /* 헤더/제목 간격 축소로 세로 공간 추가 확보 */
+    .inv-header { height: 64px !important; margin-bottom: 0 !important; }
+    .inv-logo   { height: 58px !important; }
+    .inv-stamps { height: 58px !important; }
+    .inv-stamps img { height: 50px !important; }
+    .inv-title-row { min-height: 36px !important; padding: 4px 4px !important; }
+  }
+</style>
+</head>
+<body>
+<main class="container">
+  <div class="page-head no-print">
+    <div>
+      <h1>임대추가요금청구</h1>
+      <p class="muted" style="margin:2px 0 0 0;">고정 임대료 + 사용량 초과 과금 통합 청구서. <span style="color:#2563eb;">거래처 더블클릭 → 임대카운터 카운터오버에서 추가요금 할인 입력.</span></p>
+    </div>
+    <div class="page-head-actions">
+    </div>
+  </div>
+
+  <div class="rb-toolbar no-print">
+    <label style="font-size:13px; font-weight:500;">청구월</label>
+    <div style="display:flex; flex-direction:column; gap:2px;">
+      <input type="month" id="rb-ym">
+      <span id="rb-data-ym" style="font-size:11px; color:var(--muted); padding-left:2px;"></span>
+    </div>
+    <label style="font-size:13px; display:flex; align-items:center; gap:5px; cursor:pointer; user-select:none;">
+      <input type="checkbox" id="rb-show-all" style="cursor:pointer;">
+      <span>전체 보기</span>
+    </label>
+    <span id="rb-filter-count" class="muted" style="font-size:12px;"></span>
+    <span id="rb-status" class="muted" style="font-size:12px;"></span>
+  </div>
+
+  <div class="rb-stats no-print" id="rb-stats">
+    <!-- stat cards 동적 생성 -->
+  </div>
+
+  <div class="rb-layout">
+    <div class="rb-list-wrap no-print">
+      <div class="rb-list-toolbar">
+        <div class="rb-list-toolbar-row">
+          <input type="text" id="rb-search" placeholder="거래처명 / 사업자번호 검색">
+        </div>
+        <div class="rb-bulk-send-bar" id="rb-bulk-send-bar">
+          <button class="btn primary rb-bulk-send-btn" id="rb-bulk-send" disabled>선택 항목 일괄 발송 (0개)</button>
+          <span class="rb-bulk-send-progress" id="rb-bulk-progress"></span>
+        </div>
+      </div>
+      <ul class="rb-list" id="rb-list">
+        <li class="rb-list-empty">로딩 중…</li>
+      </ul>
+    </div>
+
+    <div class="rb-detail" id="rb-detail">
+      <div class="rb-detail-empty">좌측에서 거래처를 선택하세요.</div>
+    </div>
+  </div>
+</main>
+
+<div id="rb-toast" class="rb-toast"></div>
+<script src="index.js?v=20260529f"></script>
+</body>
+</html>

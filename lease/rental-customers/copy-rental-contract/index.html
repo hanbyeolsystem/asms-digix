@@ -1,0 +1,1721 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>디직스코리아 임대계약서 발행</title>
+<style>
+/* ===== RESET & VARIABLES ===== */
+*,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
+:root{
+  --blue:#1a56db;--blue-d:#1e3a8a;--blue-l:#e8f0fe;--blue-m:#3b82f6;
+  --green:#059669;--red:#dc2626;--orange:#d97706;--purple:#7c3aed;
+  --gray:#6b7280;--gray-l:#f8fafc;--border:#e2e8f0;--white:#fff;
+  --shadow:0 1px 3px rgba(0,0,0,.1);--shadow-md:0 4px 12px rgba(0,0,0,.15);
+}
+body{font-family:'Malgun Gothic','맑은 고딕',sans-serif;background:#f1f5f9;color:#1e293b;font-size:13px}
+
+/* ===== HEADER ===== */
+header{
+  background:linear-gradient(135deg,#0f172a 0%,#7c3aed 100%);
+  color:#fff;height:54px;display:flex;align-items:center;
+  padding:0 16px;gap:10px;position:fixed;top:0;left:0;right:0;z-index:200;
+  box-shadow:0 2px 10px rgba(0,0,0,.3)
+}
+.hd-logo{font-size:16px;font-weight:800;letter-spacing:-0.5px;white-space:nowrap}
+.hd-sep{color:rgba(255,255,255,.3);margin:0 4px}
+.hd-btns{display:flex;gap:6px;margin-left:auto;flex-shrink:0}
+.hd-btn{
+  padding:5px 12px;border-radius:6px;border:1px solid rgba(255,255,255,.3);
+  background:rgba(255,255,255,.1);color:#fff;cursor:pointer;font-size:12px;
+  font-family:inherit;transition:all .15s;white-space:nowrap
+}
+.hd-btn:hover{background:rgba(255,255,255,.25);border-color:rgba(255,255,255,.6)}
+.hd-btn.primary{background:var(--purple);border-color:var(--purple)}
+.hd-btn.success{background:var(--green);border-color:var(--green)}
+.hd-btn.warning{background:var(--orange);border-color:var(--orange)}
+
+/* ===== LAYOUT ===== */
+.layout{display:flex;height:calc(100vh - 54px);margin-top:54px;overflow:hidden}
+.left-panel{
+  width:380px;flex-shrink:0;overflow-y:auto;background:var(--white);
+  border-right:1px solid var(--border);display:flex;flex-direction:column
+}
+.right-panel{flex:1;display:flex;flex-direction:column;overflow:hidden;background:#f8fafc}
+
+/* ===== LEFT PANEL ===== */
+.section{border-bottom:1px solid var(--border)}
+.section-hd{
+  padding:10px 14px;background:var(--gray-l);cursor:pointer;
+  display:flex;align-items:center;justify-content:space-between;
+  font-weight:700;font-size:12px;color:#374151;user-select:none;
+  border-bottom:1px solid var(--border)
+}
+.section-hd:hover{background:#eef2f7}
+.section-hd .arrow{transition:transform .2s;font-size:10px}
+.section-hd.open .arrow{transform:rotate(180deg)}
+.section-body{padding:12px 14px;display:none}
+.section-body.open{display:block}
+
+/* ===== FORM ===== */
+.frow{display:grid;gap:6px;margin-bottom:6px}
+.frow.c2{grid-template-columns:1fr 1fr}
+.frow.c3{grid-template-columns:1fr 1fr 1fr}
+.frow.c1{grid-template-columns:1fr}
+label{font-size:11px;color:var(--gray);display:block;margin-bottom:2px}
+input[type=text],input[type=date],input[type=number],select.field,textarea{
+  width:100%;padding:6px 8px;border:1px solid var(--border);border-radius:5px;
+  font-size:12px;font-family:inherit;background:#fafafa;transition:border .15s
+}
+input:focus,select.field:focus,textarea:focus{outline:none;border-color:var(--blue);background:#fff}
+textarea{resize:vertical;min-height:52px}
+
+/* ===== BUTTONS ===== */
+.btn{
+  padding:7px 14px;border:none;border-radius:6px;font-size:12px;font-weight:700;
+  cursor:pointer;font-family:inherit;transition:opacity .15s;display:inline-flex;
+  align-items:center;gap:4px
+}
+.btn:hover{opacity:.85}
+.btn-blue{background:var(--blue);color:#fff}
+.btn-green{background:var(--green);color:#fff}
+.btn-red{background:var(--red);color:#fff}
+.btn-gray{background:#e5e7eb;color:#374151}
+.btn-sm{padding:4px 10px;font-size:11px}
+.btn-row{display:flex;gap:6px;margin-top:8px;flex-wrap:wrap}
+.add-row-btn{
+  width:100%;padding:6px;background:var(--blue-l);color:var(--blue);
+  border:1px dashed var(--blue);border-radius:5px;cursor:pointer;
+  font-size:12px;font-family:inherit;font-weight:700
+}
+.add-row-btn:hover{background:#d1dffe}
+.del-btn{background:var(--red);color:#fff;border:none;border-radius:3px;padding:2px 6px;cursor:pointer;font-size:10px}
+
+/* ===== PREVIEW ===== */
+.preview-area{flex:1;overflow-y:auto;padding:20px}
+.preview-wrap{background:var(--white);border-radius:8px;box-shadow:var(--shadow-md);overflow:hidden}
+.preview-bar{
+  background:#1e293b;color:#fff;padding:8px 16px;
+  display:flex;align-items:center;justify-content:space-between;font-size:12px
+}
+
+/* ===== ACTION BAR ===== */
+.action-bar{
+  background:var(--white);border-top:1px solid var(--border);
+  padding:10px 16px;display:flex;gap:8px;align-items:center;flex-shrink:0;flex-wrap:wrap
+}
+.action-bar .sep{width:1px;height:24px;background:var(--border);margin:0 4px}
+
+/* ===== MODALS ===== */
+.modal-bg{
+  display:none;position:fixed;inset:0;background:rgba(0,0,0,.5);
+  z-index:1000;align-items:center;justify-content:center
+}
+.modal-bg.open{display:flex}
+.modal{
+  background:var(--white);border-radius:12px;width:90%;max-width:560px;
+  max-height:90vh;overflow:hidden;display:flex;flex-direction:column;
+  box-shadow:0 20px 60px rgba(0,0,0,.3)
+}
+.modal-hd{
+  padding:14px 18px;background:var(--blue-d);color:#fff;
+  display:flex;align-items:center;justify-content:space-between;flex-shrink:0
+}
+.modal-hd h2{font-size:15px}
+.modal-close{background:none;border:none;color:#fff;font-size:20px;cursor:pointer;padding:0 4px;line-height:1}
+.modal-body{padding:18px;overflow-y:auto;flex:1}
+.modal-footer{padding:12px 18px;border-top:1px solid var(--border);display:flex;gap:8px;justify-content:flex-end;flex-shrink:0}
+
+/* ===== DOC TITLE BADGE ===== */
+.doc-num-input{
+  display:flex;align-items:center;gap:8px;padding:8px 14px;
+  background:#f8fafc;border-bottom:1px solid var(--border)
+}
+.doc-num-input label{font-size:11px;color:var(--gray);white-space:nowrap}
+.doc-num-input input{
+  width:140px;padding:4px 8px;border:1px solid var(--border);
+  border-radius:5px;font-size:12px;font-family:inherit
+}
+.doc-num-input input:focus{outline:none;border-color:var(--blue)}
+
+/* ===== RENTAL ITEMS TABLE ===== */
+.items-wrap{overflow-x:auto;margin-bottom:6px}
+.ri-tbl{width:100%;border-collapse:collapse;font-size:11px;min-width:560px}
+.ri-tbl th{background:#1e3a8a;color:#fff;padding:5px 4px;text-align:center;border:1px solid #1e3a8a}
+.ri-tbl td{border:1px solid var(--border);padding:2px 3px}
+.ri-tbl td input{border:none;background:transparent;padding:3px 4px;font-size:11px;width:100%;font-family:inherit}
+.ri-tbl td input:focus{outline:1px solid var(--blue-m);border-radius:2px}
+.ri-tbl .ri-install input{text-align:center}
+.ri-tbl .ri-num{text-align:center}
+
+/* ===== RENTAL DOCUMENT STYLES ===== */
+.rental-doc{font-size:9.5pt;line-height:1.5;color:#000}
+.rental-outer-box{border:2px solid #000;margin-bottom:0}
+.rental-title-bar{background:#1e3a8a;color:#fff;text-align:center;padding:8px;font-size:16pt;font-weight:900;letter-spacing:6px}
+.rental-notice{background:#fff3cd;border-bottom:2px solid #000;text-align:center;padding:5px;font-size:9pt;font-weight:700;color:#856404}
+.rental-section{border-bottom:1px solid #999}
+.rental-section:last-child{border-bottom:none}
+.rental-section-title{background:#e8f0fe;font-size:8.5pt;font-weight:700;padding:4px 10px;border-bottom:1px solid #999;display:flex;align-items:center;gap:6px}
+.rental-section-body{padding:8px 10px}
+.rental-field-grid{display:grid;grid-template-columns:1fr 1fr;gap:4px 12px;font-size:8.5pt}
+.rental-field-row{display:flex;gap:4px;margin-bottom:3px;align-items:baseline}
+.rfl{color:#444;min-width:72px;flex-shrink:0;font-size:8pt}
+.rfv{font-weight:500;flex:1;border-bottom:1px dotted #999;min-height:14px;padding-bottom:1px}
+.rental-contract-tbl{width:100%;border-collapse:collapse;font-size:8.5pt}
+.rental-contract-tbl th{background:#1e3a8a;color:#fff;padding:5px 4px;text-align:center;border:1px solid #1e3a8a}
+.rental-contract-tbl td{padding:4px 5px;border:1px solid #ccc;text-align:center}
+.rental-contract-tbl td.rctl{text-align:left;padding-left:6px}
+.rental-term-row{display:flex;align-items:flex-start;gap:8px;padding:4px 0;border-bottom:1px solid #eee;font-size:8.5pt}
+.rental-term-row:last-child{border-bottom:none}
+.rental-check{color:#1e3a8a;font-size:10pt;font-weight:700;flex-shrink:0}
+.rental-confirm{font-size:8pt;color:#333;margin-left:auto;white-space:nowrap;background:#f0f4ff;padding:2px 8px;border-radius:3px}
+.rental-sig-row{display:grid;grid-template-columns:auto 1fr auto 1fr;gap:0 16px;align-items:center;font-size:8.5pt;margin-top:4px}
+.rental-sig-label{color:#555}
+.rental-sig-line{border-bottom:1px solid #333;height:22px}
+.rental-info-box{background:#f8fafc;border:1px solid #ddd;padding:6px 10px;font-size:8pt;margin-top:8px}
+.rental-clause-art{margin-bottom:10px}
+.rental-clause-art h3{font-size:9pt;font-weight:700;border-bottom:1px solid #ccc;padding-bottom:3px;margin-bottom:4px;color:#1e3a8a}
+.rental-clause-art p,.rental-clause-art ol{font-size:8.5pt;line-height:1.75;color:#222}
+.rental-clause-art ol{padding-left:16px}
+.rental-clause-art li{margin-bottom:2px}
+/* CMS form table styles */
+.cms-section-title{font-size:9pt;font-weight:700;background:#1e3a8a;color:#fff;padding:3px 8px;margin:5px 0 0 0}
+.cms-table{width:100%;border-collapse:collapse;font-size:8.5pt;margin-bottom:0}
+.cms-table td,.cms-table th{border:1px solid #333;padding:3px 6px;vertical-align:middle}
+.cms-table th{background:#dde3f0;font-weight:700;text-align:center}
+.cms-label{font-weight:600;background:#f0f4f8;white-space:nowrap}
+.cms-terms-block{border:1px solid #333;padding:6px 8px;font-size:8pt;line-height:1.75;margin:4px 0;white-space:pre-wrap;word-break:break-word}
+.cms-consent-title{font-size:8.5pt;font-weight:700;background:#e8edf5;padding:3px 8px;border:1px solid #333;margin-top:5px}
+.page-separator{border:none;border-top:3px dashed #ccd;margin:24px 0;position:relative}
+.page-separator::after{content:'▼ 다음 페이지';position:absolute;left:50%;transform:translateX(-50%);top:-8px;background:#f1f5f9;padding:0 8px;font-size:11px;color:#94a3b8}
+
+/* ===== SIGNATURE PAD ===== */
+.sig-canvas-wrap{
+  position:relative;border:2px dashed #94a3b8;border-radius:6px;
+  background:repeating-linear-gradient(45deg,#fafafa 0,#fafafa 10px,#f5f5f5 10px,#f5f5f5 20px);
+  overflow:hidden
+}
+#sigCanvas{display:block;width:100%;height:200px;cursor:crosshair;touch-action:none}
+.sig-hint{
+  position:absolute;top:50%;left:50%;transform:translate(-50%,-50%);
+  color:#cbd5e1;font-size:14px;pointer-events:none;user-select:none;
+  font-weight:700
+}
+.sig-hint.hidden{display:none}
+
+/* ===== RESPONSIVE ===== */
+@media (max-width: 1023px) {
+  .left-panel{width:300px}
+  .hd-logo{font-size:14px}
+  .hd-sub,.hd-sep{display:none}
+  .hd-btn{padding:5px 9px;font-size:11px}
+  .preview-area{padding:14px}
+}
+
+@media (max-width: 767px) {
+  body{font-size:13px}
+  header{position:sticky;top:0;height:auto;flex-wrap:wrap;padding:8px 10px;gap:6px}
+  .hd-logo{font-size:13px}
+  .hd-btns{width:100%;margin-left:0;gap:4px;display:grid;grid-template-columns:repeat(3,1fr)}
+  .hd-btn{padding:7px 6px;font-size:10.5px;width:100%;text-align:center;white-space:normal;line-height:1.25}
+  .layout{flex-direction:column;height:auto;min-height:auto;margin-top:0;overflow:visible}
+  .left-panel{width:100%;flex-shrink:1;overflow:visible;border-right:none;border-bottom:3px solid var(--purple)}
+  .right-panel{width:100%;overflow:visible;min-height:60vh}
+  .preview-area{flex:none;overflow-y:visible;overflow-x:auto;padding:10px}
+  .preview-wrap{overflow:auto;border-radius:6px}
+  .preview-bar{padding:6px 10px;font-size:11px}
+  .doc-num-input{padding:6px 10px}
+  .doc-num-input input{flex:1}
+  #docPreview{min-width:0}
+  .action-bar{flex-wrap:wrap;padding:8px 10px;gap:6px;position:sticky;bottom:0;z-index:50}
+  .action-bar .sep{display:none}
+  .action-bar .btn{font-size:11px;padding:7px 10px;flex:1 1 auto;min-width:46%}
+  .modal{width:96%;max-width:96%;max-height:92vh}
+  .modal-body{padding:12px}
+  .modal-hd{padding:10px 14px}
+  .modal-hd h2{font-size:14px}
+  .items-wrap,.ri-tbl{font-size:10.5px}
+  .frow.c2,.frow.c3{grid-template-columns:1fr}
+  .section-hd{padding:11px 12px;font-size:12px}
+  .section-body{padding:12px}
+}
+
+@media (max-width: 380px) {
+  .hd-btns{grid-template-columns:repeat(2,1fr)}
+  .hd-btn{font-size:10px;padding:6px 4px}
+}
+
+/* ===== PRINT ===== */
+@media print{
+  body *{visibility:hidden}
+  #printMount,#printMount *{visibility:visible}
+  #printMount{position:fixed;left:0;top:0;width:210mm;padding:12mm 14mm;background:#fff}
+}
+</style>
+</head>
+<body>
+
+<!-- ===== MODALS ===== -->
+
+<!-- ✍ 전자 서명 입력 -->
+<div class="modal-bg" id="modalSignature">
+  <div class="modal" style="max-width:560px">
+    <div class="modal-hd">
+      <h2 id="sigTitle">✍ 서명 입력</h2>
+      <button class="modal-close" onclick="closeModal('modalSignature')">✕</button>
+    </div>
+    <div class="modal-body">
+      <p style="font-size:12px;color:#666;margin-bottom:8px" id="sigHelp">아래 영역에 마우스 또는 손가락으로 서명을 그려주세요. 그린 그대로 문서에 삽입됩니다.</p>
+      <div class="sig-canvas-wrap">
+        <canvas id="sigCanvas"></canvas>
+        <div class="sig-hint" id="sigHint">↳ 여기에 서명해주세요</div>
+      </div>
+      <div style="display:flex;gap:8px;align-items:center;margin-top:8px;flex-wrap:wrap">
+        <button class="btn btn-sm btn-gray" onclick="sigClear()">🧹 다시 그리기</button>
+        <label style="font-size:11px;color:#64748b;margin-left:auto">또는 PNG/JPG 업로드:</label>
+        <input type="file" id="sigUpload" accept="image/png,image/jpeg" onchange="sigUploadFile(event)" style="font-size:11px;max-width:180px">
+      </div>
+    </div>
+    <div class="modal-footer">
+      <button class="btn btn-red btn-sm" onclick="sigDelete()" id="sigDeleteBtn" style="margin-right:auto">🗑 서명 삭제</button>
+      <button class="btn btn-gray" onclick="closeModal('modalSignature')">취소</button>
+      <button class="btn btn-blue" onclick="sigSave()">💾 저장</button>
+    </div>
+  </div>
+</div>
+
+<!-- ===== HEADER ===== -->
+<header>
+  <div class="hd-logo">📑 디직스코리아</div>
+  <span class="hd-sep">|</span>
+  <span class="hd-sub" style="font-size:12px;opacity:.7">임대계약서 발행</span>
+  <div class="hd-btns">
+    <button class="hd-btn success" onclick="saveToParent()" title="임대거래처(부모 페이지)의 활성 거래처에 저장">💾 저장</button>
+    <button class="hd-btn warning" onclick="printRentalAll()">📤 임대계약서 3장 출력</button>
+  </div>
+</header>
+
+<!-- ===== MAIN LAYOUT ===== -->
+<div class="layout">
+
+  <!-- ===== LEFT PANEL ===== -->
+  <div class="left-panel">
+
+    <!-- 문서 번호/날짜 -->
+    <div class="doc-num-input">
+      <label>문서번호</label>
+      <input type="text" id="docNum" placeholder="2026-001" oninput="renderAll()">
+      <label style="margin-left:8px">일자</label>
+      <input type="date" id="docDate" oninput="renderAll()" style="width:130px">
+    </div>
+
+    <!-- 거래처 · 임대 신청정보 (통합) -->
+    <div class="section">
+      <div class="section-hd open" onclick="toggleSection(this)">
+        <span>👥 거래처 · 임대 신청정보</span><span class="arrow">▼</span>
+      </div>
+      <div class="section-body open">
+        <div class="frow c2">
+          <div><label>사업자상호 *</label><input type="text" id="c-name" placeholder="사업자등록증 기준 상호" oninput="renderAll();syncSameName()"></div>
+          <div><label>사업자번호</label><input type="text" id="c-reg" placeholder="000-00-00000" oninput="renderAll()"></div>
+        </div>
+        <div class="frow c1">
+          <div>
+            <label style="display:flex;align-items:center;gap:6px;">
+              거래처상호
+              <span style="font-weight:400;font-size:11px;color:#6b7280;">(별칭/지점명)</span>
+              <label style="display:inline-flex;align-items:center;gap:3px;font-size:11px;color:#6b7280;margin-left:auto;font-weight:400;">
+                <input type="checkbox" id="ct-chk-same-name" onchange="toggleSameName(this)" style="margin:0;cursor:pointer;">
+                사업자상호와 동일
+              </label>
+            </label>
+            <input type="text" id="c-trade-name" placeholder="거래처 통상 호칭 (비어두면 사업자상호 사용)" oninput="renderAll()">
+          </div>
+        </div>
+        <div class="frow c2">
+          <div><label>대표자</label><input type="text" id="c-ceo" placeholder="대표자명" oninput="renderAll()"></div>
+          <div><label>요청자 성함</label><input type="text" id="c-person" placeholder="요청자 성함" oninput="renderAll()"></div>
+        </div>
+        <div class="frow c2">
+          <div><label>업태</label><input type="text" id="c-biz" placeholder="제조업" oninput="renderAll()"></div>
+          <div><label>종목</label><input type="text" id="c-item" placeholder="전자부품,프린터" oninput="renderAll()"></div>
+        </div>
+        <div class="frow c1">
+          <div><label>사업자주소</label><input type="text" id="c-addr" placeholder="사업자등록증 기준 주소" oninput="renderAll();syncSameAddr()"></div>
+        </div>
+        <div class="frow c1">
+          <div>
+            <label style="display:flex;align-items:center;gap:6px;">
+              설치주소
+              <span style="font-weight:400;font-size:11px;color:#6b7280;">(실제 기기 설치 위치)</span>
+              <label style="display:inline-flex;align-items:center;gap:3px;font-size:11px;color:#6b7280;margin-left:auto;font-weight:400;">
+                <input type="checkbox" id="ct-chk-same-addr" onchange="toggleSameAddr(this)" style="margin:0;cursor:pointer;">
+                사업자주소와 동일
+              </label>
+            </label>
+            <input type="text" id="c-install-addr" placeholder="설치 주소 (비어두면 사업자주소 사용)" oninput="renderAll()">
+          </div>
+        </div>
+        <div class="frow c2">
+          <div><label>전화</label><input type="text" id="c-tel" placeholder="전화번호" oninput="renderAll()"></div>
+          <div><label>팩스</label><input type="text" id="c-fax" placeholder="팩스번호" oninput="renderAll()"></div>
+        </div>
+        <div class="frow c2">
+          <div><label>핸드폰 번호</label><input type="text" id="r-mobile" placeholder="010-0000-0000" oninput="renderAll()"></div>
+          <div><label>이메일</label><input type="text" id="c-email" placeholder="이메일" oninput="renderAll()"></div>
+        </div>
+        <div class="frow c2">
+          <div>
+            <label>발행 구분</label>
+            <select class="field" id="r-billing" onchange="renderAll()">
+              <option value="전자세금계산서">전자세금계산서</option>
+              <option value="거래명세표">거래명세표</option>
+            </select>
+          </div>
+          <div><label>보증금 (원)</label><input type="number" id="r-deposit" value="0" oninput="renderAll()"></div>
+        </div>
+        <div class="frow c1">
+          <div><label>기본 계약기간 (년)</label><input type="text" id="r-period" value="3" oninput="renderAll()"></div>
+        </div>
+      </div>
+    </div>
+
+    <!-- ===== 임대 물품 ===== -->
+    <div class="section">
+      <div class="section-hd open" onclick="toggleSection(this)">
+        <span>🖨️ 임대 물품 내역</span><span class="arrow">▼</span>
+      </div>
+      <div class="section-body open">
+        <div class="items-wrap">
+          <table class="ri-tbl">
+            <thead><tr>
+              <th style="width:13%">품목</th>
+              <th style="width:17%">모델명</th>
+              <th style="width:9%">기본(흑)<br>매수</th>
+              <th style="width:9%">기본(컬)<br>매수</th>
+              <th style="width:9%">추가(흑)<br>원/장</th>
+              <th style="width:9%">추가(컬)<br>원/장</th>
+              <th style="width:6%">수량<br>(대)</th>
+              <th style="width:10%">설치비</th>
+              <th style="width:13%">월렌탈료<br>(VAT별도)</th>
+              <th style="width:5%">삭제</th>
+            </tr></thead>
+            <tbody id="riBody"></tbody>
+          </table>
+        </div>
+        <button class="add-row-btn" onclick="addRentalItem()">+ 물품 추가</button>
+        <div style="margin-top:8px;padding:6px 10px;background:#e8f0fe;border-radius:5px;font-size:12px">
+          <strong>월 합계: </strong><span id="riTotal" style="color:#1e3a8a;font-weight:700">0원</span>
+          <span style="color:#555;margin-left:8px">(VAT 별도)</span>
+          <span style="margin-left:12px"><strong>VAT포함: </strong><span id="riTotalVat" style="color:#dc2626;font-weight:700">0원</span></span>
+        </div>
+      </div>
+    </div>
+
+    <!-- ===== 자동이체 정보 ===== -->
+    <div class="section">
+      <div class="section-hd open" onclick="toggleSection(this)">
+        <span>🏦 자동이체 정보</span><span class="arrow">▼</span>
+      </div>
+      <div class="section-body open">
+        <div class="frow c2">
+          <div><label>은행명</label><input type="text" id="r-bank" placeholder="국민은행" oninput="renderAll()"></div>
+          <div><label>계좌번호</label><input type="text" id="r-account" placeholder="000-00-0000000" oninput="renderAll()"></div>
+        </div>
+        <div class="frow c2">
+          <div><label>예금주</label><input type="text" id="r-holder" placeholder="예금주명" oninput="renderAll()"></div>
+          <div><label>주민번호(앞6자리)/사업자번호</label><input type="text" id="r-resid" placeholder="000000 / 000-00-00000" oninput="renderAll()"></div>
+        </div>
+        <div class="frow c2">
+          <div><label>출금일 (매월)</label><input type="text" id="r-debitDay" placeholder="예) 25일" oninput="renderAll()"></div>
+          <div><label>출금금액 (원, VAT포함)</label><input type="number" id="r-debitAmt" placeholder="자동계산" oninput="renderAll()"></div>
+        </div>
+        <div class="frow c2">
+          <div>
+            <label>결제수단</label>
+            <select id="r-payMethod" onchange="renderAll()" style="width:100%;padding:6px;border:1px solid #d1d5db;border-radius:4px;font-size:13px">
+              <option value="account">계좌(CMS)</option>
+              <option value="card">신용카드</option>
+            </select>
+          </div>
+          <div><label>통장기재내역(6자이내)</label><input type="text" id="r-bankMemo" placeholder="디직스코리아" oninput="renderAll()"></div>
+        </div>
+        <div class="frow c2">
+          <div><label>카드유효기간 (월/년, 카드선택시)</label><input type="text" id="r-cardExp" placeholder="예) 03/27" oninput="renderAll()"></div>
+        </div>
+      </div>
+    </div>
+
+    <!-- ===== 약관 편집 ===== -->
+    <div class="section">
+      <div class="section-hd" onclick="toggleSection(this)">
+        <span>📜 약관 · 기타 편집</span><span class="arrow">▼</span>
+      </div>
+      <div class="section-body">
+        <div style="font-size:11px;color:#6b7280;margin-bottom:6px">약관 / 기타 항목 내용을 직접 수정할 수 있습니다.</div>
+        <div style="font-weight:700;font-size:12px;margin-bottom:4px;color:#374151">약 관</div>
+        <div class="frow c1"><div><label>약관 ①</label><textarea id="rt1" rows="2" oninput="renderAll()"></textarea></div></div>
+        <div class="frow c1"><div><label>약관 ②</label><textarea id="rt2" rows="2" oninput="renderAll()"></textarea></div></div>
+        <div class="frow c1"><div><label>약관 ③</label><textarea id="rt3" rows="2" oninput="renderAll()"></textarea></div></div>
+        <div class="frow c1"><div><label>약관 ④</label><textarea id="rt4" rows="2" oninput="renderAll()"></textarea></div></div>
+        <div class="frow c1"><div><label>약관 ⑤</label><textarea id="rt5" rows="2" oninput="renderAll()"></textarea></div></div>
+        <div style="font-weight:700;font-size:12px;margin:8px 0 4px;color:#374151">기 타</div>
+        <div class="frow c1"><div><label>기타 ①</label><textarea id="re1" rows="2" oninput="renderAll()"></textarea></div></div>
+        <div class="frow c1"><div><label>기타 ②</label><textarea id="re2" rows="1" oninput="renderAll()"></textarea></div></div>
+        <div class="frow c1"><div><label>기타 ③</label><textarea id="re3" rows="2" oninput="renderAll()"></textarea></div></div>
+        <div class="frow c1"><div><label>기타 ④</label><textarea id="re4" rows="2" oninput="renderAll()"></textarea></div></div>
+      </div>
+    </div>
+
+    <!-- ===== 서비스 이용약관 편집 (2페이지) ===== -->
+    <div class="section">
+      <div class="section-hd" onclick="toggleSection(this)">
+        <span>📋 서비스 이용약관 편집 (2페이지)</span><span class="arrow">▼</span>
+      </div>
+      <div class="section-body">
+        <div style="font-size:11px;color:#6b7280;margin-bottom:6px">비워두면 기본 약관이 적용됩니다. 수정 시 직접 입력하세요.</div>
+        <div class="frow c1"><div><label>제1조 (계약의 목적)</label><textarea id="rc-art1" rows="2" oninput="renderAll()" placeholder="기본값 사용"></textarea></div></div>
+        <div class="frow c1"><div><label>제2조 (계약기간)</label><textarea id="rc-art2" rows="3" oninput="renderAll()" placeholder="기본값 사용"></textarea></div></div>
+        <div class="frow c1"><div><label>제3조 (물품의 인도/철거)</label><textarea id="rc-art3" rows="4" oninput="renderAll()" placeholder="기본값 사용"></textarea></div></div>
+        <div class="frow c1"><div><label>제4조 (유지보수)</label><textarea id="rc-art4" rows="4" oninput="renderAll()" placeholder="기본값 사용"></textarea></div></div>
+        <div class="frow c1"><div><label>제5조 (준수사항)</label><textarea id="rc-art5" rows="4" oninput="renderAll()" placeholder="기본값 사용"></textarea></div></div>
+        <div class="frow c1"><div><label>제6조 (물품의 회수 및 반환)</label><textarea id="rc-art6" rows="4" oninput="renderAll()" placeholder="기본값 사용"></textarea></div></div>
+        <div class="frow c1"><div><label>제7조 (임대료)</label><textarea id="rc-art7" rows="5" oninput="renderAll()" placeholder="기본값 사용"></textarea></div></div>
+        <div class="frow c1"><div><label>제8조 (계약의 중도 해지)</label><textarea id="rc-art8" rows="5" oninput="renderAll()" placeholder="기본값 사용"></textarea></div></div>
+        <div class="frow c1"><div><label>제9조 (연체료 및 지연배상금)</label><textarea id="rc-art9" rows="3" oninput="renderAll()" placeholder="기본값 사용"></textarea></div></div>
+        <div class="frow c1"><div><label>제10조 (분쟁의 해결)</label><textarea id="rc-art10" rows="2" oninput="renderAll()" placeholder="기본값 사용"></textarea></div></div>
+        <div class="frow c1"><div><label>자동이체 약관</label><textarea id="rc-auto" rows="5" oninput="renderAll()" placeholder="기본값 사용"></textarea></div></div>
+        <div class="frow c1"><div><label>부가사항</label><textarea id="rc-extra2" rows="4" oninput="renderAll()" placeholder="기본값 사용"></textarea></div></div>
+        <div class="frow c1"><div><label>제11조 특약사항 1</label><textarea id="rc-special1" rows="2" oninput="renderAll()"></textarea></div></div>
+        <div class="frow c1"><div><label>제11조 특약사항 2</label><textarea id="rc-special2" rows="2" oninput="renderAll()"></textarea></div></div>
+      </div>
+    </div>
+
+    <!-- ===== CMS 약관 편집 (3페이지) ===== -->
+    <div class="section">
+      <div class="section-hd" onclick="toggleSection(this)">
+        <span>📋 CMS 약관 편집 (3페이지)</span><span class="arrow">▼</span>
+      </div>
+      <div class="section-body">
+        <div style="font-size:11px;color:#6b7280;margin-bottom:6px">3페이지 CMS 약관 내용을 수정할 수 있습니다.</div>
+        <div class="frow c1"><div><label>자동이체 서비스 이용 약관</label><textarea id="cms-terms" rows="6" oninput="renderAll()"></textarea></div></div>
+        <div class="frow c1"><div><label>개인정보 수집 및 이용동의</label><textarea id="cms-pi" rows="4" oninput="renderAll()"></textarea></div></div>
+        <div class="frow c1"><div><label>개인정보 취급 위탁</label><textarea id="cms-delegate" rows="3" oninput="renderAll()"></textarea></div></div>
+        <div class="frow c1"><div><label>문자(SMS)발송 동의</label><textarea id="cms-sms" rows="2" oninput="renderAll()"></textarea></div></div>
+      </div>
+    </div>
+
+  </div><!-- /left-panel -->
+
+  <!-- ===== RIGHT PANEL ===== -->
+  <div class="right-panel">
+
+    <div class="preview-area">
+      <div class="preview-wrap">
+        <div class="preview-bar">
+          <span>📑 임대계약서 미리보기</span>
+          <span style="opacity:.6;font-size:11px">입력 즉시 업데이트</span>
+        </div>
+        <div style="padding:24px">
+          <div id="docPreview"></div>
+        </div>
+      </div>
+    </div>
+
+    <div class="action-bar">
+      <button class="btn btn-gray" onclick="openSig('me')" title="활성 회사의 내 서명 등록/수정">✍ 내 서명</button>
+      <button class="btn btn-gray" onclick="openSig('customer')" title="이번 문서에 들어갈 고객 서명">✍ 고객 서명</button>
+      <div class="sep"></div>
+      <button class="btn" style="background:#7c3aed;color:#fff" onclick="printRentalPage(1)">🖨️ 1장 계약서 표지</button>
+      <button class="btn" style="background:#7c3aed;color:#fff" onclick="printRentalPage(2)">🖨️ 2장 이용약관</button>
+      <button class="btn" style="background:#7c3aed;color:#fff" onclick="printRentalPage(3)">🖨️ 3장 자동이체신청서</button>
+      <div class="sep"></div>
+      <button class="btn" style="background:#d97706;color:#fff" onclick="printRentalAll()">📤 3장 전체 출력</button>
+    </div>
+  </div><!-- /right-panel -->
+
+</div><!-- /layout -->
+
+<!-- Print mount -->
+<div id="printMount" style="display:none"></div>
+
+<script>
+// =============================================
+// STORAGE KEYS (원본과 공유 — 같은 회사 정보 사용)
+// =============================================
+const KEY_COMPANY = 'hbs_company';
+const KEY_COMPANIES = 'hbs_companies';
+const KEY_COMPANY_ACTIVE = 'hbs_company_active';
+
+// =============================================
+// STATE
+// =============================================
+let myCompany = {};
+let companies = [];
+let companyActiveIdx = 0;
+let rentalItems = [];
+
+// =============================================
+// UTILS
+// =============================================
+const $ = id => document.getElementById(id);
+const val = id => ($( id) ? $(id).value.trim() : '');
+const numVal = id => parseFloat($(id) ? $(id).value : 0) || 0;
+const esc = s => (s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+
+function fmt(n) { return Math.round(n).toLocaleString('ko-KR'); }
+function today() { return new Date().toISOString().slice(0,10); }
+function dateStr(d) { return d ? d.replace(/-/g,'.') : ''; }
+
+// =============================================
+// MY COMPANY
+// =============================================
+const _MC_DEFAULTS = { displayName:'', name:'', reg:'', ceo:'', biz:'', item:'', addr:'', tel:'', fax:'', email:'', bank:'', account:'', holder:'' };
+
+function loadMyCompany() {
+  const raw = localStorage.getItem(KEY_COMPANIES);
+  if (raw) {
+    try { companies = JSON.parse(raw) || []; } catch { companies = []; }
+  } else {
+    const oldRaw = localStorage.getItem(KEY_COMPANY);
+    if (oldRaw) {
+      try {
+        const old = JSON.parse(oldRaw);
+        if (old && (old.name||old.reg)) {
+          old.displayName = old.displayName || old.name || '내 회사';
+          companies = [old];
+          localStorage.setItem(KEY_COMPANIES, JSON.stringify(companies));
+        }
+      } catch {}
+    }
+  }
+  if (!companies.length) {
+    companies = [Object.assign({}, _MC_DEFAULTS, { name:'디직스코리아', displayName:'디직스코리아' })];
+    localStorage.setItem(KEY_COMPANIES, JSON.stringify(companies));
+  }
+  const ai = parseInt(localStorage.getItem(KEY_COMPANY_ACTIVE)||'0', 10);
+  companyActiveIdx = (ai >= 0 && ai < companies.length) ? ai : 0;
+  myCompany = Object.assign({}, _MC_DEFAULTS, companies[companyActiveIdx]||{});
+}
+
+// =============================================
+// ✍ 전자 서명 (E-SIGNATURE)
+// =============================================
+let customerSig = '';
+let _sigTarget = null;
+let _sigCtx = null;
+let _sigDrawing = false;
+let _sigEmpty = true;
+let _sigBound = false;
+
+function getSig(type) {
+  if (type === 'me') return (companies[companyActiveIdx] && companies[companyActiveIdx].signature) || '';
+  return customerSig || '';
+}
+function setSig(type, dataUrl) {
+  if (type === 'me') {
+    if (!companies[companyActiveIdx]) return;
+    if (dataUrl) companies[companyActiveIdx].signature = dataUrl;
+    else delete companies[companyActiveIdx].signature;
+    localStorage.setItem(KEY_COMPANIES, JSON.stringify(companies));
+    myCompany = Object.assign({}, _MC_DEFAULTS, companies[companyActiveIdx]);
+    localStorage.setItem(KEY_COMPANY, JSON.stringify(myCompany));
+  } else {
+    customerSig = dataUrl || '';
+  }
+}
+function sigImg(type, opts) {
+  opts = opts || {};
+  const data = getSig(type);
+  if (!data) return '';
+  const h = opts.h || '32px';
+  const w = opts.w || 'auto';
+  const align = opts.align || 'center';
+  const ml = align === 'center' ? 'auto' : '0';
+  const mr = align === 'center' ? 'auto' : '0';
+  return `<img src="${data}" alt="서명" style="display:block;height:${h};width:${w};max-width:100%;max-height:${h};object-fit:contain;margin:0 ${mr} 0 ${ml}">`;
+}
+
+function openSig(target) {
+  _sigTarget = target;
+  const isMe = target === 'me';
+  const co = companies[companyActiveIdx];
+  $('sigTitle').textContent = isMe
+    ? `✍ 내 서명 (${(co && (co.displayName||co.name)) || '활성 회사'})`
+    : `✍ 고객 서명 (${val('c-name')||'거래처'})`;
+  $('sigHelp').textContent = isMe
+    ? '한 번 등록하면 활성 회사의 모든 문서 서명란에 자동 삽입됩니다.'
+    : '이번 문서에만 적용됩니다.';
+  openModal('modalSignature');
+  setTimeout(_sigInitCanvas, 30);
+}
+
+function _sigInitCanvas() {
+  const c = $('sigCanvas');
+  if (!c) return;
+  const wrap = c.parentElement;
+  const dpr = window.devicePixelRatio || 1;
+  const cssW = wrap.clientWidth;
+  const cssH = 200;
+  c.style.width = cssW + 'px';
+  c.style.height = cssH + 'px';
+  c.width = Math.round(cssW * dpr);
+  c.height = Math.round(cssH * dpr);
+  _sigCtx = c.getContext('2d');
+  _sigCtx.setTransform(1,0,0,1,0,0);
+  _sigCtx.scale(dpr, dpr);
+  _sigCtx.lineWidth = 2.4;
+  _sigCtx.lineCap = 'round';
+  _sigCtx.lineJoin = 'round';
+  _sigCtx.strokeStyle = '#000';
+  _sigCtx.clearRect(0, 0, cssW, cssH);
+  _sigEmpty = true;
+  $('sigHint').classList.remove('hidden');
+  const existing = getSig(_sigTarget);
+  if (existing) {
+    const img = new Image();
+    img.onload = () => {
+      const ratio = Math.min(cssW/img.width, cssH/img.height, 1);
+      const w = img.width * ratio, h = img.height * ratio;
+      _sigCtx.drawImage(img, (cssW-w)/2, (cssH-h)/2, w, h);
+      _sigEmpty = false;
+      $('sigHint').classList.add('hidden');
+    };
+    img.src = existing;
+  }
+  if (!_sigBound) _bindSigEvents(c);
+}
+
+function _sigPos(e, c) {
+  const r = c.getBoundingClientRect();
+  const t = (e.touches && e.touches[0]) || e;
+  return { x: t.clientX - r.left, y: t.clientY - r.top };
+}
+function _bindSigEvents(c) {
+  const start = (e) => { if (!_sigCtx) return; _sigDrawing = true; const p = _sigPos(e, c); _sigCtx.beginPath(); _sigCtx.moveTo(p.x, p.y); $('sigHint').classList.add('hidden'); e.preventDefault(); };
+  const move = (e) => { if (!_sigDrawing || !_sigCtx) return; const p = _sigPos(e, c); _sigCtx.lineTo(p.x, p.y); _sigCtx.stroke(); _sigEmpty = false; e.preventDefault(); };
+  const end = () => { _sigDrawing = false; };
+  c.addEventListener('mousedown', start);
+  c.addEventListener('mousemove', move);
+  document.addEventListener('mouseup', end);
+  c.addEventListener('touchstart', start, {passive:false});
+  c.addEventListener('touchmove', move, {passive:false});
+  c.addEventListener('touchend', end);
+  _sigBound = true;
+}
+
+function sigClear() {
+  if (!_sigCtx) return;
+  const c = $('sigCanvas');
+  _sigCtx.clearRect(0, 0, parseFloat(c.style.width), parseFloat(c.style.height));
+  _sigEmpty = true;
+  $('sigHint').classList.remove('hidden');
+}
+function sigUploadFile(e) {
+  const f = e.target.files && e.target.files[0];
+  if (!f) return;
+  const r = new FileReader();
+  r.onload = () => {
+    const img = new Image();
+    img.onload = () => {
+      const c = $('sigCanvas');
+      const cssW = parseFloat(c.style.width), cssH = parseFloat(c.style.height);
+      _sigCtx.clearRect(0, 0, cssW, cssH);
+      const ratio = Math.min(cssW/img.width, cssH/img.height);
+      const w = img.width*ratio, h = img.height*ratio;
+      _sigCtx.drawImage(img, (cssW-w)/2, (cssH-h)/2, w, h);
+      _sigEmpty = false;
+      $('sigHint').classList.add('hidden');
+    };
+    img.src = r.result;
+  };
+  r.readAsDataURL(f);
+  e.target.value = '';
+}
+function sigSave() {
+  const c = $('sigCanvas');
+  if (_sigEmpty) {
+    setSig(_sigTarget, '');
+    showToast('빈 서명으로 저장됨 (삭제와 동일).');
+  } else {
+    const trimmed = _sigTrim(c) || c.toDataURL('image/png');
+    setSig(_sigTarget, trimmed);
+    showToast('✍ 서명이 저장되었습니다.');
+  }
+  closeModal('modalSignature');
+  renderAll();
+}
+function sigDelete() {
+  if (!confirm('현재 ' + (_sigTarget==='me'?'내':'고객') + ' 서명을 삭제하시겠습니까?')) return;
+  setSig(_sigTarget, '');
+  closeModal('modalSignature');
+  renderAll();
+  showToast('🗑 서명이 삭제되었습니다.');
+}
+function _sigTrim(srcCanvas) {
+  try {
+    const ctx = srcCanvas.getContext('2d');
+    const w = srcCanvas.width, h = srcCanvas.height;
+    const data = ctx.getImageData(0, 0, w, h).data;
+    let top=h, left=w, right=0, bottom=0;
+    for (let y=0; y<h; y++) for (let x=0; x<w; x++) {
+      const a = data[(y*w + x)*4 + 3];
+      if (a > 8) {
+        if (x<left) left=x; if (x>right) right=x;
+        if (y<top) top=y; if (y>bottom) bottom=y;
+      }
+    }
+    if (right<left || bottom<top) return null;
+    const pad = 6;
+    left = Math.max(0, left-pad); top = Math.max(0, top-pad);
+    right = Math.min(w-1, right+pad); bottom = Math.min(h-1, bottom+pad);
+    const tw = right-left+1, th = bottom-top+1;
+    const tmp = document.createElement('canvas');
+    tmp.width = tw; tmp.height = th;
+    tmp.getContext('2d').drawImage(srcCanvas, left, top, tw, th, 0, 0, tw, th);
+    return tmp.toDataURL('image/png');
+  } catch { return null; }
+}
+
+// =============================================
+// DOC DATA HELPERS
+// =============================================
+function getMe() { return myCompany; }
+function getCust() {
+  return {
+    name:         val('c-name'),
+    trade_name:   val('c-trade-name'),
+    reg:          val('c-reg'),
+    ceo:          val('c-ceo'),
+    person:       val('c-person'),
+    biz:          val('c-biz'),
+    item:         val('c-item'),
+    addr:         val('c-addr'),
+    install_addr: val('c-install-addr'),
+    tel:          val('c-tel'),
+    fax:          val('c-fax'),
+    mobile:       val('r-mobile'),
+    email:        val('c-email')
+  };
+}
+
+// =============================================
+// 동일 체크박스 — 사업자상호 <-> 거래처상호
+// =============================================
+function toggleSameName(chk) {
+  const inp = $('c-trade-name');
+  if (!inp) return;
+  if (chk.checked) {
+    inp.value = val('c-name');
+    inp.disabled = true;
+    inp.style.background = '#f1f5f9';
+    inp.style.color = '#94a3b8';
+  } else {
+    inp.disabled = false;
+    inp.style.background = '';
+    inp.style.color = '';
+  }
+  renderAll();
+}
+function syncSameName() {
+  const chk = $('ct-chk-same-name');
+  if (chk && chk.checked) {
+    const inp = $('c-trade-name');
+    if (inp) { inp.value = val('c-name'); renderAll(); }
+  }
+}
+
+// =============================================
+// 동일 체크박스 — 사업자주소 <-> 설치주소
+// =============================================
+function toggleSameAddr(chk) {
+  const inp = $('c-install-addr');
+  if (!inp) return;
+  if (chk.checked) {
+    inp.value = val('c-addr');
+    inp.disabled = true;
+    inp.style.background = '#f1f5f9';
+    inp.style.color = '#94a3b8';
+  } else {
+    inp.disabled = false;
+    inp.style.background = '';
+    inp.style.color = '';
+  }
+  renderAll();
+}
+function syncSameAddr() {
+  const chk = $('ct-chk-same-addr');
+  if (chk && chk.checked) {
+    const inp = $('c-install-addr');
+    if (inp) { inp.value = val('c-addr'); renderAll(); }
+  }
+}
+function getDocNum() { return val('docNum') || '2026-001'; }
+function getDocDate() { return val('docDate') || today(); }
+
+// =============================================
+// RENTAL CONTRACT
+// =============================================
+function addRentalItem() {
+  rentalItems.push({
+    subtype:'', name:'',
+    counter_mode:'split', total_free_count:0, total_unit_price:0,
+    bcount:500, ccount:200, bprice:10, cprice:100,
+    qty:1, install:'무료', monthly:0
+  });
+  renderRentalItemRows();
+  updateRentalTotals();
+  renderAll();
+}
+// 카운터 모드 토글 — 통합/분리 전환 시 행 재렌더
+function toggleCounterMode(i, isTotal) {
+  rentalItems[i].counter_mode = isTotal ? 'total' : 'split';
+  renderRentalItemRows();
+  renderAll();
+}
+function removeRentalItem(i) {
+  rentalItems.splice(i,1);
+  renderRentalItemRows();
+  updateRentalTotals();
+  renderAll();
+}
+// 임대거래처(rental_items.subtype)와 동일한 카테고리.
+// 부모(rental-customers) 의 ITEM_TYPES 가 있으면 우선 사용 (마스터 변경 즉시 반영).
+// window.opener 가 닫혔거나 직접 진입한 경우 백업 디폴트.
+let RI_SUBTYPES = ['흑백복사기(A3)','컬러복사기(A3)','흑백레이저/복합기(A4)','컬러레이저/복합기(A4)','잉크젯','컴퓨터','노트북','모니터','PC유지보수','웰리스','나스'];
+try {
+  const parentTypes = window.opener && window.opener.ITEM_TYPES;
+  if (parentTypes && parentTypes.length) {
+    RI_SUBTYPES = parentTypes.filter(t => t.active).map(t => t.form_label || t.label);
+  }
+} catch (e) { /* same-origin 미보장 시 무시 */ }
+
+function renderRentalItemRows() {
+  $('riBody').innerHTML = rentalItems.map((it,i) => {
+    const subOpts = ['<option value="">선택…</option>']
+      .concat(RI_SUBTYPES.map(s => `<option value="${esc(s)}" ${it.subtype===s?'selected':''}>${esc(s)}</option>`))
+      .join('');
+    const isTotal = it.counter_mode === 'total';
+    const tfc = Number(it.total_free_count) || 0;
+    const tup = Number(it.total_unit_price) || 0;
+    // 통합 모드: 기본(흑)+(컬) 셀을 한 셀(통합매수), 추가(흑)+(컬) 셀을 한 셀(초과단가)로 병합
+    const countCells = isTotal
+      ? `<td colspan="2" style="background:#eff6ff"><input type="number" value="${tfc}" style="text-align:center;width:100%" placeholder="통합매수" oninput="rentalItems[${i}].total_free_count=+this.value;renderAll()"></td>`
+      : `<td><input type="number" value="${it.bcount}" style="text-align:center" oninput="rentalItems[${i}].bcount=+this.value;renderAll()"></td>
+         <td><input type="number" value="${it.ccount}" style="text-align:center" oninput="rentalItems[${i}].ccount=+this.value;renderAll()"></td>`;
+    const rateCells = isTotal
+      ? `<td colspan="2" style="background:#eff6ff"><input type="number" value="${tup}" style="text-align:right;width:100%" placeholder="초과단가" oninput="rentalItems[${i}].total_unit_price=+this.value;renderAll()"></td>`
+      : `<td><input type="number" value="${it.bprice}" style="text-align:right" oninput="rentalItems[${i}].bprice=+this.value;renderAll()"></td>
+         <td><input type="number" value="${it.cprice}" style="text-align:right" oninput="rentalItems[${i}].cprice=+this.value;renderAll()"></td>`;
+    return `
+    <tr>
+      <td><select class="ri-sub" onchange="rentalItems[${i}].subtype=this.value;renderAll()" style="border:none;background:transparent;padding:3px 2px;font-size:11px;width:100%;font-family:inherit">${subOpts}</select></td>
+      <td>
+        <input type="text" value="${esc(it.name)}" placeholder="모델명" oninput="rentalItems[${i}].name=this.value;renderAll()">
+        <label style="display:block;font-size:9.5px;color:#555;margin-top:2px;cursor:pointer">
+          <input type="checkbox" ${isTotal?'checked':''} onchange="toggleCounterMode(${i}, this.checked)" style="vertical-align:middle;margin-right:2px"> 통합카운터
+        </label>
+      </td>
+      ${countCells}
+      ${rateCells}
+      <td class="ri-num"><input type="number" value="${it.qty}" min="1" style="text-align:center" oninput="rentalItems[${i}].qty=+this.value||1;renderAll()"></td>
+      <td class="ri-install"><input type="text" value="${esc(it.install)}" placeholder="무료" oninput="rentalItems[${i}].install=this.value;renderAll()"></td>
+      <td><input type="number" value="${it.monthly}" style="text-align:right" oninput="rentalItems[${i}].monthly=+this.value;renderAll()"></td>
+      <td style="text-align:center"><button class="del-btn" onclick="removeRentalItem(${i})">✕</button></td>
+    </tr>`;
+  }).join('') || `<tr><td colspan="10" style="text-align:center;padding:10px;color:#999">물품을 추가하세요</td></tr>`;
+}
+function calcRentalTotal() {
+  const tot = rentalItems.reduce((s,it) => s + (it.monthly * it.qty), 0);
+  return { supply: tot, vat: Math.round(tot*0.1), total: tot + Math.round(tot*0.1) };
+}
+function updateRentalTotals() {
+  const c = calcRentalTotal();
+  if($('riTotal')) $('riTotal').textContent = fmt(c.supply) + '원';
+  if($('riTotalVat')) $('riTotalVat').textContent = fmt(c.total) + '원';
+  const debitEl = $('r-debitAmt');
+  if (debitEl && !debitEl._userEdited) debitEl.placeholder = fmt(c.total) + '원 (자동)';
+}
+
+// ── 렌탈 문서 공통 CSS ──
+function getRentalDocCSS() {
+  return `
+    *,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
+    body{font-family:'Malgun Gothic','맑은 고딕',sans-serif;color:#000;font-size:9.5pt}
+    .rental-doc{font-size:9.5pt;line-height:1.5;color:#000}
+    .rental-outer-box{border:2px solid #000}
+    .rental-title-bar{background:#1e3a8a;color:#fff;text-align:center;padding:8px;font-size:16pt;font-weight:900;letter-spacing:6px}
+    .rental-notice{background:#fff3cd;border-bottom:2px solid #000;text-align:center;padding:5px;font-size:9pt;font-weight:700;color:#856404}
+    .rental-section{border-bottom:1px solid #999}
+    .rental-section:last-child{border-bottom:none}
+    .rental-section-title{background:#e8f0fe;font-size:8.5pt;font-weight:700;padding:4px 10px;border-bottom:1px solid #999}
+    .rental-section-body{padding:8px 10px}
+    .rental-field-grid{display:grid;grid-template-columns:1fr 1fr;gap:4px 12px;font-size:8.5pt}
+    .rental-field-row{display:flex;gap:4px;margin-bottom:3px;align-items:baseline}
+    .rfl{color:#444;min-width:72px;flex-shrink:0;font-size:8pt}
+    .rfv{font-weight:500;flex:1;border-bottom:1px dotted #999;min-height:14px;padding-bottom:1px}
+    .rental-contract-tbl{width:100%;border-collapse:collapse;font-size:8.5pt}
+    .rental-contract-tbl th{background:#1e3a8a;color:#fff;padding:5px 4px;text-align:center;border:1px solid #1e3a8a}
+    .rental-contract-tbl td{padding:4px 5px;border:1px solid #ccc;text-align:center}
+    .rental-contract-tbl td.rctl{text-align:left;padding-left:6px}
+    .rental-term-row{display:flex;align-items:flex-start;gap:8px;padding:4px 0;border-bottom:1px solid #eee;font-size:8.5pt}
+    .rental-term-row:last-child{border-bottom:none}
+    .rental-check{color:#1e3a8a;font-size:10pt;font-weight:700;flex-shrink:0}
+    .rental-confirm{font-size:8pt;color:#333;margin-left:auto;white-space:nowrap;background:#f0f4ff;padding:2px 8px;border-radius:3px}
+    .rental-sig-row{display:grid;grid-template-columns:auto 1fr auto 1fr;gap:0 16px;align-items:center;font-size:8.5pt;margin-top:6px}
+    .rental-sig-label{color:#555;white-space:nowrap}
+    .rental-sig-line{border-bottom:1px solid #333;height:22px}
+    .rental-info-box{background:#f8fafc;border:1px solid #ddd;padding:6px 10px;font-size:8pt;margin-top:8px;line-height:1.8}
+    .rental-clause-art{margin-bottom:10px}
+    .rental-clause-art h3{font-size:9pt;font-weight:700;border-bottom:1px solid #ccc;padding-bottom:3px;margin-bottom:4px;color:#1e3a8a}
+    .rental-clause-art p,.rental-clause-art ol{font-size:8.5pt;line-height:1.8;color:#222}
+    .rental-clause-art ol{padding-left:18px}
+    .rental-clause-art li{margin-bottom:3px}
+    .page-break{page-break-after:always}
+    .page-label{font-size:8pt;color:#888;text-align:right;margin-bottom:2px}
+    .page-fill{min-height:274mm;display:flex;flex-direction:column;position:relative}
+    .page-fill+.page-fill{margin-top:0}
+    .v-spacer{flex:1}
+    .cms-section-title{font-size:9pt;font-weight:700;background:#1e3a8a;color:#fff;padding:3px 8px;margin:5px 0 0 0}
+    .cms-table{width:100%;border-collapse:collapse;font-size:8.5pt;margin-bottom:0}
+    .cms-table td,.cms-table th{border:1px solid #333;padding:3px 6px;vertical-align:middle}
+    .cms-table th{background:#dde3f0;font-weight:700;text-align:center}
+    .cms-label{font-weight:600;background:#f0f4f8;white-space:nowrap}
+    .cms-terms-block{border:1px solid #333;padding:6px 8px;font-size:8pt;line-height:1.75;margin:4px 0;white-space:pre-wrap;word-break:break-word}
+    .cms-consent-title{font-size:8.5pt;font-weight:700;background:#e8edf5;padding:3px 8px;border:1px solid #333;margin-top:5px}
+    @media print{
+      @page{size:A4 portrait;margin:0}
+      html,body{margin:0!important;padding:0!important;width:210mm}
+      .page-fill{
+        width:210mm;
+        height:297mm;
+        padding:10mm 12mm;
+        margin:0;
+        box-sizing:border-box;
+        overflow:hidden;
+        display:flex;
+        flex-direction:column;
+        page-break-after:auto;
+        page-break-inside:avoid;
+      }
+      .page-fill + .page-fill{page-break-before:always}
+      .page-label{display:none}
+      .rental-outer-box{border:2px solid #000}
+    }
+  `;
+}
+
+// ── 1페이지: 계약서 표지 ──
+function renderRentalPage1() {
+  const me = getMe(), cu = getCust();
+  const c = calcRentalTotal();
+  const deposit = numVal('r-deposit');
+
+  const itemRows = rentalItems.length ? rentalItems.map((it,i) => {
+    const isTotal = it.counter_mode === 'total';
+    const tfc = Number(it.total_free_count) || 0;
+    const tup = Number(it.total_unit_price) || 0;
+    const nameBadge = isTotal
+      ? ` <span style="display:inline-block;padding:0 4px;background:#1e40af;color:#fff;border-radius:2px;font-size:7.5pt;font-weight:700;vertical-align:middle">통합</span>`
+      : '';
+    const countCells = isTotal
+      ? `<td colspan="2" style="background:#eff6ff">통합 ${fmt(tfc)} 장</td>`
+      : `<td>${fmt(it.bcount)} 장</td><td>${fmt(it.ccount)} 장</td>`;
+    const rateCells = isTotal
+      ? `<td colspan="2" style="background:#eff6ff">${fmt(tup)} 원/장</td>`
+      : `<td>${fmt(it.bprice)} 원</td><td>${fmt(it.cprice)} 원</td>`;
+    return `
+    <tr>
+      <td>${i+1}</td>
+      <td class="rctl">${esc(it.name)||'-'}${nameBadge}</td>
+      ${countCells}
+      ${rateCells}
+      <td>${it.qty} 대</td>
+      <td>${esc(it.install)||'-'}</td>
+      <td style="text-align:right;font-weight:600">${fmt(it.monthly)} 원</td>
+      <td style="font-size:8pt">VAT별도</td>
+    </tr>`;
+  }).join('')
+    : `<tr><td colspan="10" style="text-align:center;padding:10px;color:#999">물품 없음</td></tr>`;
+
+  const terms = [
+    ['rt1','약정기간내 중도해지시 남은 기간의 50%가 위약금으로 발생 된다.'],
+    ['rt2','중도해지시 설치비 및 철거비 5만원, 등록비 10만원 청구된다. (단, 레이져는 설치비 및 철거비 10만원, 등록비 20만원 청구)'],
+    ['rt3','기계 이전시 기본 3만원 청구된다. (단, 거리에 따라 차등적용된다.)'],
+    ['rt4','만료일 15일 이전에 계약 해지여부를 통보하지 않을 경우 본 계약과 동일한 조건으로 1년 단위로 자동연장'],
+    ['rt5','첨부된 이용약관자료를 모두 이해 하였습니다.']
+  ].map(([id,def]) => val(id)||def);
+
+  const extras = [
+    ['re1','월 제공매수 초과 시에는 초과사용 임대료가 추가 청구된다는 내용에 대해 설명받았습니다.'],
+    ['re2','프린터 사용법 및 주의사항을 안내받았습니다.'],
+    ['re3','프린터 연결 사용 시 인터넷환경, 공유기 상태에 따라 출력이 원활치 않을 수 있기 때문에 당사 서비스팀의 진단 후 A/S 진행여부가 결정된다는 내용을 설명받았습니다.'],
+    ['re4','PC포맷, 바이러스로 인한 케이블 임의 제거로 PC문제로 인한 출장시, 회당 출장비 3만원 이상의 출장비가 부과된다.']
+  ].map(([id,def]) => val(id)||def);
+
+  return `<div class="rental-doc page-fill">
+  <div class="page-label">[ 1 / 3 페이지 — 렌탈(임대) 계약서 표지 ]</div>
+  <div class="rental-outer-box" style="flex:1;display:flex;flex-direction:column;border:2px solid #000">
+    <div class="rental-title-bar">렌탈(임대) 계약서</div>
+    <div class="rental-notice">★ 모든 임대료는 선불입니다 ★</div>
+
+    <!-- 신청정보 -->
+    <div class="rental-section">
+      <div class="rental-section-title">신 청 정 보</div>
+      <div class="rental-section-body">
+        <div class="rental-field-grid">
+          <div class="rental-field-row"><span class="rfl">회사상호</span><span class="rfv">${esc(cu.name)}</span></div>
+          <div class="rental-field-row"><span class="rfl">주민등록번호<br>(사업자번호)</span><span class="rfv">${esc(cu.reg)}</span></div>
+          <div class="rental-field-row"><span class="rfl">요청자 성함</span><span class="rfv">${esc(val('c-person'))}</span></div>
+          <div class="rental-field-row"><span class="rfl">휴대폰 번호</span><span class="rfv">${esc(val('r-mobile'))}</span></div>
+          <div class="rental-field-row"><span class="rfl">설치 주소</span><span class="rfv">${esc(cu.install_addr || cu.addr)}</span></div>
+          <div class="rental-field-row"><span class="rfl">전화 / 팩스</span><span class="rfv">${esc(cu.tel)}${cu.fax?' / '+esc(cu.fax):''}</span></div>
+          <div class="rental-field-row"><span class="rfl">발행 구분</span><span class="rfv">□ ${esc(val('r-billing')||'전자세금계산서')}</span></div>
+          <div class="rental-field-row"><span class="rfl">이메일주소</span><span class="rfv">${esc(cu.email)}</span></div>
+        </div>
+      </div>
+    </div>
+
+    <!-- 계약내용 -->
+    <div class="rental-section">
+      <div class="rental-section-title">계 약 내 용</div>
+      <div class="rental-section-body">
+        <table class="rental-contract-tbl" style="margin-bottom:8px">
+          <thead><tr>
+            <th style="width:4%">#</th>
+            <th style="width:18%">렌탈물품</th>
+            <th style="width:10%">기본(흑)</th>
+            <th style="width:10%">기본(컬)</th>
+            <th style="width:10%">추가(흑)</th>
+            <th style="width:10%">추가(컬)</th>
+            <th style="width:7%">수량</th>
+            <th style="width:10%">설치비</th>
+            <th style="width:13%">월 렌탈료</th>
+            <th style="width:8%">비고</th>
+          </tr></thead>
+          <tbody>${itemRows}</tbody>
+        </table>
+        <div style="display:flex;gap:16px;font-size:8.5pt;align-items:center;flex-wrap:wrap">
+          <span>* 보증금 : <strong>${fmt(deposit)} 원</strong> (기본 2개월치)</span>
+          <span>/ 최초설치비 : <strong>${rentalItems.length && rentalItems[0].install ? esc(rentalItems[0].install) : '무료'}</strong></span>
+          <span style="margin-left:auto;font-size:10pt;font-weight:900;color:#1e3a8a">합계금액 : ${fmt(c.total)} 원 <span style="font-size:8pt;font-weight:400">(VAT포함)</span></span>
+        </div>
+        <div style="margin-top:4px;font-size:9pt;font-weight:700">기본 계약기간 : ${esc(val('r-period')||'3')} 년</div>
+      </div>
+    </div>
+
+    <!-- 약관 -->
+    <div class="rental-section">
+      <div class="rental-section-title">약 관</div>
+      <div class="rental-section-body">
+        ${terms.map(t => `
+          <div class="rental-term-row">
+            <span class="rental-check">*</span>
+            <span style="flex:1;font-size:8.5pt">${esc(t).replace(/\n/g,'<br>')}</span>
+            <span class="rental-confirm">확인함 ■</span>
+          </div>`).join('')}
+      </div>
+    </div>
+
+    <!-- 기타 -->
+    <div class="rental-section">
+      <div class="rental-section-title">기 타</div>
+      <div class="rental-section-body">
+        ${extras.map(t => `
+          <div class="rental-term-row">
+            <span class="rental-check">▪</span>
+            <span style="flex:1;font-size:8.5pt">${esc(t).replace(/\n/g,'<br>')}</span>
+            <span class="rental-confirm">확인함 ■</span>
+          </div>`).join('')}
+      </div>
+    </div>
+
+    <!-- 구비서류 -->
+    <div class="rental-section">
+      <div class="rental-section-title">구비서류 (계약 당일 제출필수)</div>
+      <div class="rental-section-body" style="font-size:8.5pt;line-height:1.8">
+        ▶ 본인인 경우: 1. 신분증 사본 &nbsp; 2. 통장사본 &nbsp; 3. 사업자등록증 사본(사업자에 한함) &nbsp; 4. 명함<br>
+        ▶ 신청인과 다른 경우: 대리인 신분증 포함<br>
+        ▶ 법인인 경우: 1. 대표자 신분증 사본 &nbsp; 2. 통장사본 &nbsp; 3. 사업자등록증 사본 &nbsp; 4. 요청자명함
+      </div>
+    </div>
+
+    <!-- 서명 -->
+    <div class="rental-section" style="flex:1;display:flex;flex-direction:column;justify-content:flex-end">
+      <div class="rental-section-body">
+        <div style="font-size:8.5pt;margin-bottom:8px;line-height:1.7">
+          ${esc(me.name||'디직스코리아')}의 이용약관, 자동이체 신청동의 및 부가사항을 읽고 확인했으며, 위와 같이 프린터 임대서비스 이용을 신청합니다.
+        </div>
+        <div style="font-size:9pt;font-weight:600;margin-bottom:10px">${dateStr(getDocDate())} &nbsp; 년 &nbsp; 월 &nbsp; 일</div>
+        <div class="rental-sig-row">
+          <span class="rental-sig-label">담당자</span>
+          ${getSig('customer')
+            ? `<div style="display:flex;align-items:flex-end;justify-content:flex-start;height:34px">${sigImg('customer',{h:'34px',align:'left'})}</div>`
+            : `<div class="rental-sig-line"></div>`}
+          <span class="rental-sig-label">&nbsp;&nbsp;${getSig('customer')?'<span style="color:#1a56db">✓ 전자서명</span>':'(인) 또는 서명'}</span>
+          <div></div>
+        </div>
+        <div class="rental-info-box" style="margin-top:10px">
+          <div style="display:flex;justify-content:space-between;align-items:center">
+            <div>
+              <strong>서비스 공급자: ${esc(me.name||'디직스코리아')}</strong><br>
+              대표번호 ${esc(me.tel||'-')} &nbsp;|&nbsp; 담당자 ${esc(me.ceo||'-')}<br>
+              ${me.bank ? `입금계좌: ${esc(me.bank)} ${esc(me.account)} (${esc(me.holder||me.name)})` : ''}
+            </div>
+            <div style="text-align:center;border:1px solid #ccc;padding:8px 16px;border-radius:4px;min-width:130px">
+              <div style="font-size:8pt;color:#666">공급자 서명</div>
+              ${getSig('me')
+                ? `<div style="height:36px;display:flex;align-items:center;justify-content:center">${sigImg('me',{h:'36px'})}</div>`
+                : `<div style="height:30px"></div>`}
+              <div style="border-top:1px solid #999;font-size:9pt;font-weight:700;padding-top:4px">${esc(me.name||'디직스코리아')} ${getSig('me')?'<span style="color:#1a56db;font-size:8pt">✓</span>':'(인)'}</div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>`;
+}
+
+// ── 2페이지: 서비스 이용약관 (A4 2장 출력) ──
+function renderRentalPage2() {
+  const me = getMe(), cu = getCust();
+
+  const DEF = {
+    art1: `"을" 소유의 컴퓨터(PC) 및 복사기를 "갑"에게 임대하고 "갑"은 이를 임차하여 임대료를 지급할 것을 약정한다.`,
+    art2: `1. 본 임대차의 계약기간은 계약서 표지에서 정한 바에 따른다.\n2. 기간만료 전 1개월 전까지 서면에 의한 계약종료의 의사표시를 하지 않는 한 계약기간은 1년간 자동적으로 갱신된다.`,
+    art3: `1. "갑"은 "을"이 지정하는 장소에서 "을" 또는 "을"이 지정하는 자에게 물품을 인도하기로 하며, 인도 및 철거에 소요되는 제비용(설치비 및 철거비 각 5만원, 등록비(자동이체/업체등록) 10만원)은 약정계약기간을 유지하는 조건으로 갑이 부담하며, 렌탈계약이 중도에 해지되는 경우 약정 면제되었던 제비용은 "을"의 부담으로 전환하며 철거 전 제비용 전액을 납부하여야 한다.\n※ 단, 레이저프린터와 복사기의 인도 및 철거에 소요되는 제비용은 설치비 및 철거비 각 10만원, 등록비 20만원으로 한다.`,
+    art4: `"을" 소유의 물품(PC 및 복사기)을 "갑"에게 임대함에 있어 계약기간 중 물품을 양호한 상태로 유지시키기 위하여 "을"의 책임 하에 다음 각 호의 유지보수와 소모품 및 부품 등을 "갑"에게 공급하는 것을 말한다.\n1. "을"은 렌탈 물품에 대한 보수 및 점검을 실시하여 소모품 및 부품의 교환 또는 수리를 하여 최상의 운용 상태와 충분한 기능을 발휘할 수 있는 상태를 유지한다.\n2. "을"은 복사용지를 제외한 부품 및 소모품을 무상공급 A/S를 한다. 단, 천재지변은 예외로 한다.\n3. 물품의 고장 등 기능 이상 시 "을"은 즉시 사용 가능한 상태로 조치한다.\n4. 유지보수 시간은 "갑"의 근무시간 내로 한다.\n5. PC의 경우, "을"이 제공하는 운영체제(OS) 및 기본 소프트웨어 라이선스 범위 내에서 사용하여야 하며, 임의 소프트웨어 설치로 인한 장애는 유지보수 범위에서 제외된다.`,
+    art5: `1. "갑"은 "을"의 물품에 대해 제3자 등 어떠한 권리도 설정하지 않을 것을 확약한다.\n2. "갑"은 물품을 임의로 개조하거나 제3자에게 대여할 수 없다.\n3. "갑"은 "을"과의 서면합의 없이 임대장소(설치장소)를 변경할 수 없다.\n4. "갑"은 회사 이전 혹은 이사로 인한 이전설치 요구 시 비용이 발생된다.\n5. PC의 경우, "갑"은 무단 소프트웨어 설치·삭제, 하드웨어 임의 변경·업그레이드를 할 수 없다.\n6. "갑"은 바이러스 감염 예방 의무를 지며, 임차인 과실로 인한 데이터 손실 및 장비 손상에 대한 책임은 "갑"이 부담한다.`,
+    art6: `1. "갑"이 물품회수를 요청할 경우, "갑"의 미납요금과 위약금 그리고 추가청구 금액 등의 미납금액이 모두 결제가 완료된 후에 물품을 회수한다. "갑"의 미납금액이 남아있어 "을"의 물품회수가 지연되는 경우, "갑"이 요청한 회수일자와 관계없이 미납금액이 전액 결제완료 될 때까지 본 계약은 지속적으로 유지되며, 그와 관련하여 소요되는 비용 또는 손해는 "갑"이 부담하여야 한다.\n2. 임대 만기 이후 보증금은 고객에게 반환된다.\n3. PC 반환 시 "갑"은 저장된 모든 데이터를 삭제하고 초기화한 상태로 반환하여야 한다. 단, "을"이 직접 초기화하는 경우 초기화 비용이 발생할 수 있다.`,
+    art7: `1. 렌탈계약서에 기재된 약정계약기간 동안 렌탈할 것을 전제로 월 렌탈료를 정한다.\n2. 초기 1회분 입금 이후 렌탈계약서에 표기된 약정일에 "갑"이 지정하는 계좌로부터 "을"의 계좌로 자동이체 한다.\n3. "갑"이 임대료의 지급을 2회 이상 연속하여 연체하였을 때에는 "을"은 사전 최고 없이 이 계약을 해지할 수 있다. 해지통지를 받았을 때 "갑"은 7일 이내에 물품을 "을"에게 반환하여야 하며, "갑"은 연체금액의 연24%에 해당하는 연체료를 "을"에게 지불해야 한다.\n4. 자동이체 미출금 시 매 2일 단위로 재출금을 요청하며 최대 3번까지 청구한다. 지정계좌에 잔액부족 및 기타 사유로 인한 렌탈료 미납 시에는 자동이체약관에 의거하여 처리한다.\n5. 임대료 선금과 추가요금 후불로 처리된다. 자동이체 출금 시 추가된 요금이 자동출금 된다.\n6. "갑"이 위 3항을 진행함과 동시에 개인정보를 제3자에게 제공한다. ①제공받는 자: 채권 추심팀 ②수집항목: 이름, 연락처, 은행명, 계좌번호, 예금주명, 주민번호앞6자리, 카드번호, 카드사, 카드유효기간, 이메일 등 ③보유 및 이용기간: 수집 이용 동의일부터 자동이체서비스 종료일까지, 해지일로부터 5년간 보존 후 파기`,
+    art8: `1. "갑"에게 다음 각호의 사유가 발생한 때에 "을"은 사전 최고 없이 계약을 해지할 수 있다.\n   1) 렌탈료의 납부를 2회 이상 연체한 때\n   2) 어음 또는 수표가 부도되어 은행의 거래정지 처분이 있거나 조세공과금의 체납으로 독촉 또는 체납처분을 받은 때\n   3) 사업이 휴업 또는 폐업되거나 회사가 해산한 때 또는 파산, 화의, 정리 등을 신청하거나 기타 신용을 상실한 때\n   4) 물품을 제3자에게 양도, 담보제공, 처분, 임대 또는 점유를 이전한 때\n   5) 이 계약의 내용을 위반하여 "갑"의 구두 또는 서면 최고를 받고도 7일 이내에 시정하지 아니한 때\n2. 계약이 중도 해지되는 경우 위약금은 [남은기간 50% + 설치비 + 철거비 + 등록비]가 청구된다. 중도 해지일이 약정기간 이내인 경우 "을"이 지불한 보증금은 "갑"에게 귀속된다.`,
+    art9: `1. 렌탈료 납부의무 이행을 지연한 경우 "을"의 법무팀 또는 채권팀에서 "갑"의 렌탈료 납부의무 이행을 촉구하기 위하여 계약서에 기재된 연락처로 연락을 취할 수 있다.\n2. "을"이 이 계약에 따라 "갑"에게 이행하여야 할 채무를 불이행할 경우 이행의무가 발생한 날부터 완제하는 날까지 채무액에 대하여 연 24%의 지연 이자를 부가하여 납부하여야 한다.\n3. 전 2항의 연체료 및 지연이자는 따로 일괄하여 일할 계산하되 1년은 365일로 하여 백원미만은 버린다.`,
+    art10: `본 계약과 관련하여 발생하는 모든 분쟁은 "갑"과 "을"이 협의하여 해결한다. 단, 본 계약으로 인한 분쟁이 발생하여 소송이 필요한 경우 주소지 관할법원에 한다.`,
+    autoTerms: `1. 예금주는 렌탈료 납입 약정일을 기준으로 대출금융기관이 지정하는 계좌이체일(휴일인 경우 익일 영업일)에 대출금융기관에서 청구하는 금액을 본인계좌에서 출금하여 납부할 것을 약속합니다.\n2. 자동납부를 위하여 지정계좌의 예금을 출금함에 있어 예금약관이나 약정시의 규정에 불구하고 예금청구나 수표 없이 금융기관이 자동 계좌 이체 절차에 의하여 출금하여도 이의가 없습니다.\n3. 약정일이 동일한 다수의 자동이체 청구가 있는 경우 출금 우선순위는 금융기관 임의로 정하여도 이의가 없습니다.\n4. 본 자동납부 신청에 의한 이체개시일은 대출금융기관의 사정에 의하여 조정될 수 있습니다.\n5. 자동납부신청에 의한 지정계좌에서 출금은 대출금융기관의 청구대로 출금하되 청구금액에 이의가 있을 경우에는 본인의 책임하에 대출금융기관과 직접 협의 조정하겠습니다.\n6. 자동납부금액은 해당 납부일에 정하여진 은행 영업시간 내에 입금된 예금에 한하여 출금 처리되며, 약정일에 지정계좌의 잔고부족 시에는 매 2일 단위로 재출금을 시도합니다.\n7. 미수금은 계약기간이 종료된 후라도 자동이체로 출금 처리됩니다.\n8. 미사용 계좌를 자동이체 신청하여 출금 오류가 2회 이상 반복될 경우 오류에 대한 책임으로써 비용을 청구할 수 있습니다.`,
+    extra: `1. 잉크젯의 경우 월 제공매수(한면)에 해당하는 기본 월 렌탈료는 월납 선불제이며 월 초과출력에 대한 초과 렌탈료는 조회 시점에 일괄 후불 청구되며 모든 렌탈료(기본 월 렌탈료 및 월 초과 렌탈료)는 CMS자동이체 신청해야 합니다.\n2. 잉크젯의 경우 월 제공매수(한면)는 기기변경·교체·A/S 방문 또는 명의변경·재계약이 진행될 경우에 조회되며, 초과출력 발생 시 비용은 일괄 청구됩니다.\n3. 복사기의 경우 매월 자동관리 프로그램으로 월별 관리가 들어가며, 추가요금 발생 시 자동이체로 추가요금이 정산됩니다.\n4. PC의 경우, 운영체제(OS) 라이선스는 정품 소프트웨어로 제공되며, 계약 종료 시 라이선스는 "을"에게 귀속됩니다.\n5. PC 임대의 경우 하드웨어 스펙 변경(업그레이드)이 필요한 경우 별도 비용이 발생하며 "갑"과 "을"이 협의하여 결정한다.`
+  };
+
+  function artLine(id, def) {
+    const t = val(id) || def;
+    return t.split('\n').filter(l=>l.trim()).map(l => {
+      const line = l.trim();
+      if (/^[0-9]+[.)]\s/.test(line)) return `<div style="padding-left:12px;line-height:1.7">${esc(line)}</div>`;
+      if (/^[①-⑩※▶]/.test(line))    return `<div style="padding-left:18px;line-height:1.65;color:#333">${esc(line)}</div>`;
+      return `<div style="line-height:1.7">${esc(line)}</div>`;
+    }).join('');
+  }
+
+  function artBlock(title, id, def) {
+    return `<div style="margin-bottom:8px;page-break-inside:avoid">
+      <div style="font-size:9pt;font-weight:700;background:#e8f0fe;border-left:3px solid #1e3a8a;padding:3px 7px;margin-bottom:3px">${title}</div>
+      <div style="font-size:8.5pt;padding:0 4px">${artLine(id,def)}</div>
+    </div>`;
+  }
+
+  const sp1 = val('rc-special1')||'', sp2 = val('rc-special2')||'';
+  const headerHtml = `
+    <div style="text-align:center;font-size:14pt;font-weight:900;letter-spacing:4px;padding:10px;background:#1e3a8a;color:#fff;margin-bottom:6px">서비스 이용약관</div>
+    <div style="font-size:9pt;padding:5px 8px;border:1px solid #ddd;background:#f8f9fa;margin-bottom:10px">
+      <strong>${esc(cu.name||'__________________')}</strong> (이하 "갑"이라 한다)와
+      <strong>${esc(me.name||'디직스코리아')}</strong>(이하 "을"이라 한다)은 "을" 소유 컴퓨터(PC) 및 복사기의 임대차계약을 다음과 같이 체결한다.
+    </div>`;
+
+  const page2a = `<div class="rental-doc page-fill">
+  <div class="page-label">[ 2 / 3 페이지 — 서비스 이용약관 (1/2) ]</div>
+  ${headerHtml}
+  ${artBlock('제1조 【계약의 목적】','rc-art1',DEF.art1)}
+  ${artBlock('제2조 【계약기간】','rc-art2',DEF.art2)}
+  ${artBlock('제3조 【물품의 인도 / 철거】','rc-art3',DEF.art3)}
+  ${artBlock('제4조 【유지보수】','rc-art4',DEF.art4)}
+  ${artBlock('제5조 【준수사항】','rc-art5',DEF.art5)}
+  ${artBlock('제6조 【물품의 회수 및 반환】','rc-art6',DEF.art6)}
+  <div class="v-spacer"></div>
+  <div style="text-align:center;font-size:8pt;color:#aaa;padding-top:6px;border-top:1px dashed #ccc">— 다음 페이지에 계속 —</div>
+</div>`;
+
+  const page2b = `<div class="rental-doc page-fill">
+  <div class="page-label">[ 2 / 3 페이지 — 서비스 이용약관 (2/2) ]</div>
+  ${artBlock('제7조 【임대료】','rc-art7',DEF.art7)}
+  ${artBlock('제8조 【계약의 중도 해지】','rc-art8',DEF.art8)}
+  ${artBlock('제9조 【연체료 및 지연배상금】','rc-art9',DEF.art9)}
+  ${artBlock('제10조 【분쟁의 해결】','rc-art10',DEF.art10)}
+  <div style="margin-top:8px;border-top:1px solid #bbb;padding-top:6px">
+    <div style="font-size:9pt;font-weight:700;background:#dde3f0;border-left:3px solid #1e3a8a;padding:3px 7px;margin-bottom:3px">■ 자동이체 약관</div>
+    <div style="font-size:8.5pt;padding:0 4px">${artLine('rc-auto',DEF.autoTerms)}</div>
+  </div>
+  <div style="margin-top:8px;border-top:1px solid #bbb;padding-top:6px">
+    <div style="font-size:9pt;font-weight:700;background:#dde3f0;border-left:3px solid #1e3a8a;padding:3px 7px;margin-bottom:3px">■ 부가사항</div>
+    <div style="font-size:8.5pt;padding:0 4px">${artLine('rc-extra2',DEF.extra)}</div>
+  </div>
+  <div style="margin-top:8px;border-top:1px solid #bbb;padding-top:6px">
+    <div style="font-size:9pt;font-weight:700;background:#dde3f0;border-left:3px solid #1e3a8a;padding:3px 7px;margin-bottom:5px">■ 제11조 【특약사항】</div>
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;padding:0 4px">
+      <div style="border:1px solid #999;padding:5px 8px;min-height:32px;font-size:8.5pt">1. ${esc(sp1)}</div>
+      <div style="border:1px solid #999;padding:5px 8px;min-height:32px;font-size:8.5pt">2. ${esc(sp2)}</div>
+    </div>
+  </div>
+  <div class="v-spacer"></div>
+  <div style="margin-top:10px;border-top:2px solid #1e3a8a;padding-top:8px">
+    <div style="font-size:8.5pt;text-align:center;margin-bottom:8px">
+      이를 증명하기 위해 "갑"과 "을"은 계약서 2통을 작성하여, 각각 서명날인 후 각 1통씩을 보관한다.
+    </div>
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:20px">
+      <div style="border:1px solid #333;padding:12px;text-align:center">
+        <div style="font-size:9pt;font-weight:700;margin-bottom:4px">갑 (임차인)</div>
+        <div style="font-size:8.5pt;color:#555;margin-bottom:8px">${esc(cu.name||'__________________')}</div>
+        ${getSig('customer')
+          ? `<div style="height:46px;display:flex;align-items:center;justify-content:center;margin-bottom:4px">${sigImg('customer',{h:'46px'})}</div>`
+          : `<div style="height:46px"></div>`}
+        <div style="border-top:1px solid #999;padding-top:6px;font-size:8.5pt">
+          서명 또는 날인 &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp; ${getSig('customer')?'<span style="color:#1a56db">✓ 전자서명</span>':'(인)'}
+        </div>
+      </div>
+      <div style="border:1px solid #333;padding:12px;text-align:center">
+        <div style="font-size:9pt;font-weight:700;margin-bottom:4px">을 (임대인)</div>
+        <div style="font-size:8.5pt;color:#555;margin-bottom:8px">${esc(me.name||'디직스코리아')}</div>
+        ${getSig('me')
+          ? `<div style="height:46px;display:flex;align-items:center;justify-content:center;margin-bottom:4px">${sigImg('me',{h:'46px'})}</div>`
+          : `<div style="height:46px"></div>`}
+        <div style="border-top:1px solid #999;padding-top:6px;font-size:8.5pt">
+          서명 또는 날인 &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp; ${getSig('me')?'<span style="color:#1a56db">✓ 전자서명</span>':'(인)'}
+        </div>
+      </div>
+    </div>
+  </div>
+</div>`;
+
+  return page2a + page2b;
+}
+
+// ── 3페이지: CMS 자동출금 이용신청서 ──
+function renderRentalPage3() {
+  const me = getMe(), cu = getCust();
+  const c = calcRentalTotal();
+  const debitAmt = numVal('r-debitAmt') || c.total;
+  const isCard = val('r-payMethod') === 'card';
+  const bankMemo = val('r-bankMemo') || (me.name||'디직스코리아');
+
+  let startDate = '';
+  const period = val('r-period') || '';
+  const pm = period.match(/(\d{4})[.\-\/년]?\s*(\d{1,2})/);
+  if (pm) startDate = pm[1] + '년 ' + pm[2] + '월';
+
+  const defTerms = `1. 이용자는 본 신청서에 서명하거나 공인인증 및 그에 준하는 전자 인증절차를 통함으로써 본 서비스를 이용할 수 있습니다.\n2. 회사는 서비스 제공을 위하여 이용자가 제출한 지급결제수단 정보를 해당 금융기관(통신사 포함)에 제공할 수 있습니다.\n3. 자동이체 개시일을 이용자가 지정하지 않은 경우 납기일을 최초 개시일로 하며, 출금은 이용업체와 협의한 날짜에 이루어 집니다.\n4. 출금이체 금액은 해당 지정 출금일 영업 시간 내에 입금된 예금에 한하여 출금 처리 되며, 이의가 있는 경우 이용업체에 협의하여 조정합니다.\n5. 납기일에 동일한 수종의 자동이체 청구가 있는 경우 이체 우선 순위는 이용자의 거래 금융기관이 정하는 바에 따릅니다.\n6. 자동이체 납부일이 영업일이 아닌 경우에는 다음 영업일을 납부일로 합니다.\n7. 이용자가 자동이체 신청(신규·해지·변경)을 원하는 경우 납기일 30일 전까지 회사에 통지해야 합니다.\n8. 지급결제수단의 잔액 부족이나 지급제한·연체 등 납부자의 과실에 의해 발생하는 손해의 책임은 이용자에게 있습니다.\n9. 금융기관 및 회사가 정하는 기간 동안 자동이체 이용 실적이 없는 경우 사전 통지 후 자동이체를 해지할 수 있습니다.\n10. 회사는 자동이체서비스 이용과 관련된 구체적인 권리·의무를 정하기 위하여 본 약관과 별도로 이용약관을 제정할 수 있습니다.`;
+  const defPi = `1. 수집·이용목적: ${me.name||'디직스코리아'} 자동이체서비스를 통한 요금 수납, 민원처리 및 상담응답\n2. 수집항목: 성명, 전화번호, 휴대폰번호, 은행명, 계좌번호, 예금주명, 주민번호앞6자리, 카드번호, 카드사, 카드유효기간, 이메일\n3. 보유·이용기간: 수집 동의일부터 자동이체서비스 종료일(해지일)까지며, 해지일로부터 5년간 보존 후 파기(관계 법령에 의거)\n4. 신청자는 개인정보 수집·이용을 거부할 수 있습니다. 단, 거부 시 자동이체서비스 신청이 처리되지 않습니다.`;
+  const defDelegate = `1. 결제(자동이체)서비스를 통한 요금 수납, 관련 민원처리 및 상담응답을 위하여 개인정보 취급 업무를 위탁·운영하고 있습니다.\n2. 위탁 계약 시 개인정보보호를 위해 위탁업무 목적 외 처리 금지, 기술적·관리적 보호조치 등 안전성 확보 조치에 관한 사항을 서면 보관합니다.\n3. 위탁 업체가 변경될 경우, 변경된 업체 명을 홈페이지·SMS·전자우편·서면 등으로 공개합니다.`;
+  const defSms = `1. 자동이체 동의 및 처리결과 안내(휴대폰 문자전송) 송부에 동의합니다.`;
+
+  const termsText    = val('cms-terms')    || defTerms;
+  const piText       = val('cms-pi')       || defPi;
+  const delegateText = val('cms-delegate') || defDelegate;
+  const smsText      = val('cms-sms')      || defSms;
+
+  function tb(text) {
+    return text.split('\n').filter(l=>l.trim()).map(l=>`<div style="padding:0.5px 0;font-size:7pt;line-height:1.55">${esc(l)}</div>`).join('');
+  }
+
+  return `<div class="rental-doc page-fill">
+  <div class="page-label">[ 3 / 3 페이지 — CMS 자동출금 이용신청서 ]</div>
+  <div class="rental-outer-box" style="padding:0;flex:1;display:flex;flex-direction:column">
+    <div class="rental-title-bar" style="font-size:11.5pt;letter-spacing:2px;padding:5px">계좌 / 신용카드 &nbsp; 자동출금 &nbsp; 이용신청서</div>
+    <div style="text-align:center;font-size:8.5pt;padding:2px 0;border-bottom:1px solid #333">□&nbsp;신규 &nbsp;&nbsp; □&nbsp;변경 &nbsp;&nbsp; □&nbsp;해지</div>
+    <div style="font-size:6.5pt;line-height:1.5;padding:3px 6px;border-bottom:1px solid #ccc;background:#fffdf0;color:#444">
+      ※ 전자금융거래법 관련 규정(시행령 10조)에 의거, 자동이체 신청시 반드시 서면/공인인증서/녹취를 통한 예금주/카드주/휴대폰명의자 본인 동의가 필요합니다. ※ 신용카드 이용시 카드이용내역서상 결제대행기관 명으로 청구될 수 있으며, 계좌출금시 통장기재내역으로 6자 이내 표시됩니다.
+    </div>
+
+    <div class="cms-section-title" style="font-size:8pt;padding:2px 6px">◈ 수납기관 및 요금정보</div>
+    <table class="cms-table" style="font-size:7.5pt">
+      <thead><tr><th>수납기관명</th><th>자동이체사유</th><th>금액</th><th>비고(통장기재내역)</th></tr></thead>
+      <tbody><tr>
+        <td style="text-align:center">${esc(me.name||'디직스코리아')}</td>
+        <td style="text-align:center">프린터 임대료</td>
+        <td style="text-align:right">${fmt(debitAmt)} 원</td>
+        <td>${esc(bankMemo)}</td>
+      </tr></tbody>
+    </table>
+
+    <div class="cms-section-title" style="font-size:8pt;padding:2px 6px">◈ 납부자 정보</div>
+    <table class="cms-table" style="font-size:7.5pt">
+      <tbody><tr>
+        <td class="cms-label" style="width:26%">납부자 번호(고객번호)</td><td>${esc(cu.reg||'')}</td>
+        <td class="cms-label" style="width:14%">이체개시</td><td style="width:16%">${startDate}</td>
+        <td class="cms-label" style="width:14%">지정 출금일</td><td>매월 <strong>${esc(val('r-debitDay')||'___')}</strong> 일</td>
+      </tr></tbody>
+    </table>
+
+    <div class="cms-section-title" style="font-size:8pt;padding:2px 6px">◈ 신청인 정보</div>
+    <table class="cms-table" style="font-size:7.5pt">
+      <tbody>
+        <tr><td class="cms-label" style="width:22%">신청인 성명</td><td>${esc(val('c-person')||cu.ceo||'')}</td><td class="cms-label" style="width:14%">이메일</td><td>${esc(cu.email||'')}</td></tr>
+        <tr><td class="cms-label">주소</td><td colspan="3">${esc(cu.addr||'')}</td></tr>
+        <tr><td class="cms-label">연락처</td><td>${esc(cu.tel||'')}</td><td class="cms-label">휴대폰번호</td><td>${esc(val('r-mobile')||'')}</td></tr>
+        <tr><td class="cms-label">결제수단</td><td colspan="3">${isCard?'□ 계좌(CMS) &nbsp; ☑ 신용카드':'☑ 계좌(CMS) &nbsp; □ 신용카드'} &nbsp;<span style="font-size:6.5pt;color:#666">*평생계좌번호 이용 불가</span></td></tr>
+        <tr><td class="cms-label">은행명/카드사</td><td>${esc(val('r-bank')||'')}</td><td class="cms-label">사업자번호</td><td>${esc(cu.reg||'')}</td></tr>
+        <tr><td class="cms-label">예금주/카드주</td><td>${esc(val('r-holder')||'')}</td><td class="cms-label">계좌/카드번호</td><td>${esc(val('r-account')||'')}</td></tr>
+        <tr><td class="cms-label">주민번호앞6자리</td><td>${esc(val('r-resid')||'')} - *******</td><td class="cms-label">카드유효기간<br><span style="font-size:6.5pt;font-weight:400">(월/년)*카드선택시</span></td><td>${esc(val('r-cardExp')||'/')}</td></tr>
+      </tbody>
+    </table>
+    <div style="font-size:6.5pt;color:#555;padding:2px 6px;border:1px solid #ccc;border-top:none">※ 법인공용카드·선불카드·해외발행카드 등 일부 카드 이용 불가 &nbsp;|&nbsp; ※ 연체·잔액부족 등으로 납부 지연이 발생하지 않도록 유의하십시오.</div>
+
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:0;margin-top:4px">
+      <div>
+        <div class="cms-consent-title" style="font-size:7.5pt;padding:2px 6px">■ 자동이체 서비스 이용 약관</div>
+        <div style="padding:2px 6px">${tb(termsText)}</div>
+        <div class="cms-consent-title" style="font-size:7.5pt;padding:2px 6px;margin-top:3px">■ 개인정보 수집 및 이용동의</div>
+        <div style="padding:2px 6px">${tb(piText)}</div>
+      </div>
+      <div style="border-left:1px solid #ccc;padding-left:4px">
+        <div class="cms-consent-title" style="font-size:7.5pt;padding:2px 6px">■ 개인정보 취급 위탁</div>
+        <div style="padding:2px 6px">${tb(delegateText)}</div>
+        <div class="cms-consent-title" style="font-size:7.5pt;padding:2px 6px;margin-top:3px">■ 문자(SMS)발송 동의</div>
+        <div style="padding:2px 6px">${tb(smsText)}</div>
+        <div style="font-size:6.5pt;line-height:1.55;padding:4px 6px;border:1px solid #ddd;background:#fffdf0;margin-top:3px">
+          상기 자동이체 신청과 관련하여 계좌예금주/카드주로서 자동이체 서비스 이용약관과 개인정보 수집·이용동의, 개인정보 취급 위탁에 동의, 문자(SMS)발송에 동의하며 자동출금이체서비스를 신청합니다.
+        </div>
+        <div style="font-size:8.5pt;font-weight:600;margin:6px 6px 4px">20&nbsp;&nbsp; 년 &nbsp; 월 &nbsp; 일</div>
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:6px;margin:0 6px">
+          <div style="border:1px solid #333;padding:5px">
+            <div style="font-size:7.5pt;font-weight:700;margin-bottom:2px">예금주 / 카드주</div>
+            ${getSig('customer')
+              ? `<div style="height:30px;display:flex;align-items:center;justify-content:center">${sigImg('customer',{h:'30px'})}</div>`
+              : `<div style="height:22px"></div>`}
+            <div style="border-top:1px solid #999;padding-top:3px;font-size:7pt">${esc(val('r-holder')||'________')} &nbsp;${getSig('customer')?'<span style="color:#1a56db">✓</span>':'(인)'}</div>
+          </div>
+          <div style="border:1px solid #333;padding:5px">
+            <div style="font-size:7.5pt;font-weight:700;margin-bottom:2px">신청인</div>
+            ${getSig('customer')
+              ? `<div style="height:30px;display:flex;align-items:center;justify-content:center">${sigImg('customer',{h:'30px'})}</div>`
+              : `<div style="height:22px"></div>`}
+            <div style="border-top:1px solid #999;padding-top:3px;font-size:7pt">${esc(val('c-person')||cu.ceo||'________')} &nbsp;${getSig('customer')?'<span style="color:#1a56db">✓</span>':'(인)'}</div>
+          </div>
+        </div>
+        <div style="font-size:6pt;color:#666;margin:3px 6px">*신청인과 예금주/카드주가 상이한 경우 예금주/카드주의 동의 필요</div>
+      </div>
+    </div>
+  </div>
+</div>`;
+}
+
+// ── 미리보기: 3페이지 전체 표시 ──
+function renderRentalAll() {
+  updateRentalTotals();
+  return `
+    ${renderRentalPage1()}
+    <div class="page-separator"></div>
+    ${renderRentalPage2()}
+    <div class="page-separator"></div>
+    ${renderRentalPage3()}
+  `;
+}
+
+// ── 인쇄 함수들 ──
+function printRentalPage(pageNum) {
+  const fns = { 1: renderRentalPage1, 2: renderRentalPage2, 3: renderRentalPage3 };
+  const titles = { 1:'임대계약서 표지', 2:'서비스 이용약관', 3:'자동이체 신청서' };
+  const win = window.open('','_blank','width=900,height=700');
+  win.document.write(`<!DOCTYPE html><html lang="ko"><head>
+    <meta charset="UTF-8"><title>${titles[pageNum]}</title>
+    <style>${getRentalDocCSS()}</style>
+    </head><body style="margin:0;padding:0;font-family:'Malgun Gothic','맑은 고딕',sans-serif">${fns[pageNum]()}
+    <script>window.onload=()=>{window.print()}<\/script>
+    </body></html>`);
+  win.document.close();
+}
+function printRentalAll() {
+  // 1장 계약서 표지: 2부 (갑/을)
+  // 2장 이용약관: 2부 (갑/을)
+  // 3장 자동이체신청서: 1부
+  const p1 = renderRentalPage1();
+  const p2 = renderRentalPage2();
+  const p3 = renderRentalPage3();
+  const combined = p1 + p1 + p2 + p2 + p3;
+  const win = window.open('','_blank','width=900,height=700');
+  win.document.write(`<!DOCTYPE html><html lang="ko"><head>
+    <meta charset="UTF-8"><title>임대계약서 3종</title>
+    <style>${getRentalDocCSS()}</style>
+    </head><body style="margin:0;padding:0;font-family:'Malgun Gothic','맑은 고딕',sans-serif">${combined}
+    <script>window.onload=()=>{window.print()}<\/script>
+    </body></html>`);
+  win.document.close();
+}
+
+// ── 임대 기본값 채우기 ──
+function fillRentalDefaults() {
+  const el = $('r-debitAmt');
+  if (el) el.addEventListener('input', () => { el._userEdited = el.value !== ''; });
+}
+
+// =============================================
+// RENDER ALL
+// =============================================
+function renderAll() {
+  $('docPreview').innerHTML = renderRentalAll();
+  updateRentalTotals();
+}
+
+// =============================================
+// UI HELPERS
+// =============================================
+function toggleSection(hd) {
+  hd.classList.toggle('open');
+  const body = hd.nextElementSibling;
+  body.classList.toggle('open');
+}
+function openModal(id) { $(id).classList.add('open'); }
+function closeModal(id) { $(id).classList.remove('open'); }
+function showToast(msg) {
+  const t = document.createElement('div');
+  t.style.cssText = 'position:fixed;bottom:24px;left:50%;transform:translateX(-50%);background:#1e293b;color:#fff;padding:10px 20px;border-radius:8px;font-size:13px;z-index:9999;box-shadow:0 4px 12px rgba(0,0,0,.3)';
+  t.textContent = msg;
+  document.body.appendChild(t);
+  setTimeout(() => t.remove(), 2500);
+}
+
+// =============================================
+// PARENT INTEGRATION
+// =============================================
+let parentCustomerId = null;
+let parentContractIdRef = null; // 부모에서 띄울 때 원본 계약 id (저장 시 _origin_id 로 회신)
+
+// URL 해시(#name=...&reg=...)로 부모에서 전달된 거래처 정보를 자식 폼에 채움
+function prefillFromHash() {
+  const h = (location.hash || '').replace(/^#/, '');
+  if (!h) return false;
+  const p = new URLSearchParams(h);
+  const map = { name:'c-name', reg:'c-reg', ceo:'c-ceo', person:'c-person',
+                biz:'c-biz', item:'c-item', addr:'c-addr', tel:'c-tel',
+                fax:'c-fax', email:'c-email' };
+  let filled = false;
+  Object.entries(map).forEach(([k, fid]) => {
+    const v = p.get(k);
+    if (v != null && $(fid)) { $(fid).value = v; filled = true; }
+  });
+  // 거래처상호
+  const tradeName = p.get('trade_name');
+  if (tradeName != null && $('c-trade-name')) {
+    $('c-trade-name').value = tradeName;
+    const nameVal = p.get('name') || '';
+    if (tradeName && tradeName === nameVal) {
+      const chk = $('ct-chk-same-name');
+      if (chk) { chk.checked = true; toggleSameName(chk); }
+    }
+    filled = true;
+  }
+  // 설치주소
+  const installAddr = p.get('install_addr');
+  if (installAddr != null && $('c-install-addr')) {
+    $('c-install-addr').value = installAddr;
+    const addrVal = p.get('addr') || '';
+    if (installAddr && installAddr === addrVal) {
+      const chk = $('ct-chk-same-addr');
+      if (chk) { chk.checked = true; toggleSameAddr(chk); }
+    }
+    filled = true;
+  }
+  // 핸드폰/발행구분/보증금/계약기간 — r-* 필드에 직접 매핑
+  const mobile  = p.get('mobile');  if (mobile  && $('r-mobile'))  { $('r-mobile').value  = mobile;  filled = true; }
+  const billing = p.get('billing'); if (billing && $('r-billing')) { $('r-billing').value = billing; filled = true; }
+  const deposit = p.get('deposit'); if (deposit && $('r-deposit')) { $('r-deposit').value = deposit; filled = true; }
+  const period  = p.get('period');  if (period  && $('r-period'))  { $('r-period').value  = period;  filled = true; }
+  // 부모 거래처 id (저장 시 회신용)
+  const cid = p.get('customer_id');
+  if (cid) parentCustomerId = cid;
+  return filled;
+}
+
+// 토큰 기반: localStorage 에서 큰 페이로드(계약서 전체 데이터) 로드
+// 부모가 "수정/인쇄" 클릭 시 사용
+function prefillFromToken() {
+  const h = (location.hash || '').replace(/^#/, '');
+  if (!h) return false;
+  const p = new URLSearchParams(h);
+  const token = p.get('token');
+  if (!token) return false;
+  const key = 'hbs_pending_contract_' + token;
+  try {
+    const raw = localStorage.getItem(key);
+    if (!raw) return false;
+    const payload = JSON.parse(raw);
+    applyFullPayload(payload);
+    localStorage.removeItem(key);
+    return true;
+  } catch (e) { console.error(e); return false; }
+}
+
+// 큰 페이로드 적용 (customer + rentalItems + rentalInfo)
+function applyFullPayload(p) {
+  if (!p || typeof p !== 'object') return;
+  // 부모 식별자
+  if (p.customer_id) parentCustomerId = p.customer_id;
+  if (p.contract_id) parentContractIdRef = p.contract_id;
+  // 거래처
+  const cu = p.customer || {};
+  // 기본 필드 (c-* 필드와 1:1)
+  ['name','reg','ceo','person','biz','item','addr','tel','fax','email'].forEach(k => {
+    if (cu[k] != null && $('c-'+k)) $('c-'+k).value = cu[k];
+  });
+  // 거래처상호 (c-trade-name)
+  if (cu.trade_name != null && $('c-trade-name')) {
+    $('c-trade-name').value = cu.trade_name;
+    // 사업자상호와 같으면 체크박스 활성화
+    if (cu.trade_name && cu.trade_name === cu.name) {
+      const chk = $('ct-chk-same-name');
+      if (chk) { chk.checked = true; toggleSameName(chk); }
+    }
+  }
+  // 설치주소 (c-install-addr)
+  if (cu.install_addr != null && $('c-install-addr')) {
+    $('c-install-addr').value = cu.install_addr;
+    // 사업자주소와 같으면 체크박스 활성화
+    if (cu.install_addr && cu.install_addr === cu.addr) {
+      const chk = $('ct-chk-same-addr');
+      if (chk) { chk.checked = true; toggleSameAddr(chk); }
+    }
+  }
+  // 핸드폰 번호는 r-mobile 필드에 매핑
+  if (cu.mobile != null && $('r-mobile')) $('r-mobile').value = cu.mobile;
+  // 임대 물품 — 부모(snake_case)와 자식(camelCase) 양쪽 키 호환
+  // subtype: 계약서 출력 흐름(openPrintContractWindow)에서 전달되는 품목 분류
+  if (Array.isArray(p.rentalItems)) {
+    rentalItems = p.rentalItems.map(it => ({
+      subtype:          it.subtype || '',
+      name:             it.name    || it.model       || '',
+      counter_mode:     (it.counter_mode === 'total') ? 'total' : 'split',
+      total_free_count: Number(it.total_free_count ?? 0),
+      total_unit_price: Number(it.total_unit_price ?? 0),
+      bcount:           Number(it.bcount  ?? it.bw_free   ?? 0),
+      ccount:           Number(it.ccount  ?? it.co_free   ?? 0),
+      bprice:           Number(it.bprice  ?? it.bw_rate   ?? 0),
+      cprice:           Number(it.cprice  ?? it.co_rate   ?? 0),
+      qty:              Number(it.qty     ?? 1),
+      install:          it.install || '무료',
+      monthly:          Number(it.monthly ?? it.monthly_fee ?? 0)
+    }));
+    if (!rentalItems.length) {
+      rentalItems = [{
+        subtype:'', name:'',
+        counter_mode:'split', total_free_count:0, total_unit_price:0,
+        bcount:500, ccount:200, bprice:10, cprice:100,
+        qty:1, install:'무료', monthly:0
+      }];
+    }
+    renderRentalItemRows();
+    updateRentalTotals();
+  }
+  // 임대 신청·자동이체·약관 필드
+  const ri = p.rentalInfo || {};
+  const mapInfo = {
+    'docNum':'docNum', 'docDate':'docDate',
+    'r-mobile':'rMobile',
+    'r-billing':'rBilling',
+    'r-deposit':'rDeposit', 'r-period':'rPeriod',
+    'r-bank':'rBank', 'r-account':'rAccount',
+    'r-holder':'rHolder', 'r-resid':'rResid',
+    'r-debitDay':'rDebitDay', 'r-debitAmt':'rDebitAmt',
+    'r-payMethod':'rPayMethod', 'r-bankMemo':'rBankMemo', 'r-cardExp':'rCardExp',
+    'rt1':'rt1','rt2':'rt2','rt3':'rt3','rt4':'rt4','rt5':'rt5',
+    're1':'re1','re2':'re2','re3':'re3','re4':'re4',
+    'cms-terms':'cmsTerms','cms-pi':'cmsPi','cms-delegate':'cmsDelegate','cms-sms':'cmsSms',
+    'rc-art1':'rcArt1','rc-art2':'rcArt2','rc-art3':'rcArt3','rc-art4':'rcArt4',
+    'rc-art5':'rcArt5','rc-art6':'rcArt6','rc-art7':'rcArt7','rc-art8':'rcArt8',
+    'rc-art9':'rcArt9','rc-art10':'rcArt10','rc-auto':'rcAuto','rc-extra2':'rcExtra2',
+    'rc-special1':'rcSpecial1','rc-special2':'rcSpecial2'
+  };
+  Object.entries(mapInfo).forEach(([fid, key]) => {
+    if (ri[key] != null && $(fid)) $(fid).value = ri[key];
+  });
+  if (ri.customerSig) customerSig = ri.customerSig;
+}
+
+// URL hash 의 action=print 이면 렌더 완료 후 인쇄 다이얼로그 자동 표시
+function tryAutoPrint() {
+  const h = (location.hash || '').replace(/^#/, '');
+  if (!h) return;
+  const p = new URLSearchParams(h);
+  if (p.get('action') === 'print') {
+    setTimeout(() => printRentalAll(), 600);
+  }
+}
+
+// 저장: 부모(임대거래처) 페이지로 데이터 전송 → Supabase 저장 위탁
+function saveToParent() {
+  if (!window.opener || window.opener.closed) {
+    alert('부모 창(임대거래처 페이지)이 열려있지 않아 저장할 수 없습니다.\n임대거래처 페이지의 "📄 새 계약서 작성" 버튼을 통해 다시 열어주세요.');
+    return;
+  }
+  const cu = getCust();
+  const payload = {
+    type: 'rental-contract-save',
+    customer_id: parentCustomerId || null,
+    origin_contract_id: parentContractIdRef || null,
+    customer: cu,
+    rentalItems: JSON.parse(JSON.stringify(rentalItems)),
+    rentalInfo: {
+      docNum: val('docNum'), docDate: val('docDate'),
+      rPerson: val('c-person'), rMobile: val('r-mobile'),
+      rBilling: val('r-billing'), rBillEmail: val('c-email'),
+      rDeposit: val('r-deposit'), rPeriod: val('r-period'),
+      rBank: val('r-bank'), rAccount: val('r-account'),
+      rHolder: val('r-holder'), rResid: val('r-resid'),
+      rDebitDay: val('r-debitDay'), rDebitAmt: val('r-debitAmt'),
+      rPayMethod: val('r-payMethod'), rBankMemo: val('r-bankMemo'), rCardExp: val('r-cardExp'),
+      rt1: val('rt1'), rt2: val('rt2'), rt3: val('rt3'), rt4: val('rt4'), rt5: val('rt5'),
+      re1: val('re1'), re2: val('re2'), re3: val('re3'), re4: val('re4'),
+      cmsTerms: val('cms-terms'), cmsPi: val('cms-pi'),
+      cmsDelegate: val('cms-delegate'), cmsSms: val('cms-sms'),
+      rcArt1: val('rc-art1'), rcArt2: val('rc-art2'), rcArt3: val('rc-art3'),
+      rcArt4: val('rc-art4'), rcArt5: val('rc-art5'), rcArt6: val('rc-art6'),
+      rcArt7: val('rc-art7'), rcArt8: val('rc-art8'), rcArt9: val('rc-art9'),
+      rcArt10: val('rc-art10'), rcAuto: val('rc-auto'), rcExtra2: val('rc-extra2'),
+      rcSpecial1: val('rc-special1'), rcSpecial2: val('rc-special2'),
+      customerSig: customerSig || ''
+    }
+  };
+  try {
+    window.opener.postMessage(payload, '*');
+    showToast('⏳ 부모 페이지로 저장 요청을 보냈습니다…');
+  } catch (e) {
+    console.error(e);
+    alert('부모 페이지 전송 실패: ' + (e?.message || e));
+  }
+}
+
+// 부모로부터 저장 결과 수신
+window.addEventListener('message', (e) => {
+  const m = e.data;
+  if (!m || typeof m !== 'object') return;
+  if (m.type === 'rental-contract-save-result') {
+    if (m.ok) {
+      if (m.customer_id) parentCustomerId = m.customer_id;
+      showToast('✅ ' + (m.message || '저장 완료'));
+    } else {
+      alert('저장 실패: ' + (m.message || '알 수 없는 오류'));
+    }
+  }
+});
+
+// =============================================
+// INIT
+// =============================================
+(function init() {
+  $('docDate').value = today();
+  $('docNum').value = '';
+  loadMyCompany();
+  fillRentalDefaults();
+  addRentalItem();
+  rentalItems[0] = {
+    subtype:'', name:'',
+    counter_mode:'split', total_free_count:0, total_unit_price:0,
+    bcount:500, ccount:200, bprice:10, cprice:100,
+    qty:1, install:'무료', monthly:0
+  };
+  renderRentalItemRows();
+  updateRentalTotals();
+  // 1) 큰 페이로드 (수정/인쇄 흐름) → 2) URL 해시 거래처 정보 (새 계약 흐름) 순으로 적용
+  if (!prefillFromToken()) prefillFromHash();
+  renderAll();
+  tryAutoPrint();
+})();
+</script>
+</body></html>

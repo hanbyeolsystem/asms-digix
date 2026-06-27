@@ -1,0 +1,949 @@
+<!doctype html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,viewport-fit=cover">
+<meta name="theme-color" content="#0f172a">
+<title>📷 명함 빠른 입력 — 디직스코리아</title>
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<link  rel="stylesheet" href="https://cdn.jsdelivr.net/npm/cropperjs@1.6.1/dist/cropper.min.css">
+<script src="https://cdn.jsdelivr.net/npm/cropperjs@1.6.1/dist/cropper.min.js"></script>
+<script src="../config.js?v=20260611"></script>
+<script src="../auth.js"></script>
+<style>
+  *, *::before, *::after { box-sizing: border-box; }
+  html, body { margin:0; padding:0; height:100%; background:#0f172a; color:#f1f5f9; font-family:-apple-system,BlinkMacSystemFont,"Segoe UI","Apple SD Gothic Neo","Malgun Gothic",sans-serif; -webkit-tap-highlight-color:transparent; }
+  body { padding-bottom:env(safe-area-inset-bottom); }
+
+  .q-app { min-height:100%; display:flex; flex-direction:column; max-width:560px; margin:0 auto; padding:14px 16px 24px; }
+  .q-top { display:flex; align-items:center; gap:10px; padding:6px 0 14px; }
+  .q-top h1 { margin:0; font-size:17px; font-weight:700; flex:1; }
+  .q-top .sub { font-size:11px; color:#94a3b8; }
+  .q-top a { color:#60a5fa; text-decoration:none; font-size:12px; padding:6px 10px; border:1px solid #1e293b; border-radius:8px; }
+
+  .q-camera { position:relative; }
+  .q-cam-btn {
+    display:flex; align-items:center; justify-content:center; gap:10px;
+    width:100%; padding:32px 16px; font-size:18px; font-weight:700;
+    background:#2563eb; color:#fff; border:0; border-radius:18px;
+    cursor:pointer; box-shadow:0 8px 24px rgba(37,99,235,.35);
+    transition:.15s; font-family:inherit;
+  }
+  .q-cam-btn:active { transform:scale(.98); }
+  .q-cam-btn.busy { background:#334155; }
+  .q-cam-btn .ic { font-size:30px; }
+  .q-cam-hint { text-align:center; color:#94a3b8; font-size:12px; margin-top:8px; }
+
+  .q-preview { display:none; margin-top:14px; border-radius:14px; overflow:hidden; background:#1e293b; }
+  .q-preview img { width:100%; display:block; max-height:340px; object-fit:contain; background:#000; }
+  .q-status { margin-top:10px; padding:10px 12px; background:#1e293b; border-radius:10px; font-size:13.5px; min-height:18px; }
+  .q-status.warn { background:#3f2218; color:#fbbf24; }
+  .q-status.ok { background:#172b1f; color:#86efac; }
+  .q-status.err { background:#3a1517; color:#fca5a5; }
+  .q-spinner { display:inline-block; width:14px; height:14px; border:2px solid #475569; border-top-color:#60a5fa; border-radius:50%; animation:qspin .7s linear infinite; vertical-align:-2px; margin-right:6px; }
+  @keyframes qspin { to { transform:rotate(360deg); } }
+
+  .q-match { margin-top:10px; padding:12px; background:#172033; border:1px solid #1e3a8a; border-radius:12px; font-size:13.5px; line-height:1.5; }
+  .q-match.new { background:#2b1d0d; border-color:#92400e; color:#fde68a; }
+  .q-match b { color:#93c5fd; }
+
+  .q-form { margin-top:16px; display:none; }
+  .q-form.show { display:block; }
+  .q-field { margin-bottom:10px; }
+  .q-field label { display:block; font-size:11.5px; color:#94a3b8; margin-bottom:4px; font-weight:600; letter-spacing:.3px; }
+  .q-field input, .q-field textarea {
+    width:100%; padding:13px 14px; font-size:16px; font-family:inherit;
+    background:#1e293b; color:#f1f5f9; border:1px solid #334155; border-radius:11px;
+  }
+  .q-field input:focus, .q-field textarea:focus { outline:none; border-color:#60a5fa; }
+  .q-grid { display:grid; grid-template-columns:1fr 1fr; gap:10px; }
+
+  .q-consent {
+    margin-top:14px; display:flex; align-items:center; gap:12px;
+    padding:14px; background:#172033; border:1px solid #334155; border-radius:14px;
+    cursor:pointer; user-select:none;
+  }
+  .q-consent input { width:22px; height:22px; accent-color:#16a34a; margin:0; flex-shrink:0; }
+  .q-consent .txt { font-size:13px; line-height:1.4; color:#cbd5e1; }
+  .q-consent .txt b { color:#86efac; }
+  .q-consent.checked { background:#16271b; border-color:#16a34a; }
+
+  .q-actions { margin-top:16px; display:flex; gap:8px; flex-direction:column; }
+  .q-btn {
+    width:100%; padding:18px; font-size:16.5px; font-weight:700;
+    border:0; border-radius:14px; cursor:pointer; font-family:inherit;
+  }
+  .q-btn.primary { background:#16a34a; color:#fff; }
+  .q-btn.primary:active { transform:scale(.98); }
+  .q-btn.primary:disabled { background:#475569; color:#94a3b8; cursor:not-allowed; }
+  .q-btn.ghost { background:transparent; color:#94a3b8; border:1px solid #334155; }
+
+  .q-toast { position:fixed; left:50%; bottom:24px; transform:translateX(-50%); background:#16a34a; color:#fff; padding:12px 20px; border-radius:999px; font-size:14px; font-weight:600; box-shadow:0 4px 16px rgba(0,0,0,.4); display:none; z-index:9999; }
+  .q-toast.show { display:block; animation:fadein .25s; }
+  @keyframes fadein { from { opacity:0; transform:translate(-50%, 8px); } to { opacity:1; transform:translate(-50%, 0); } }
+
+  .q-cfg-bg { position:fixed; inset:0; background:rgba(0,0,0,.7); display:none; align-items:flex-end; justify-content:center; z-index:1000; }
+  .q-cfg-bg.show { display:flex; }
+  .q-cfg { background:#0f172a; width:100%; max-width:560px; border-radius:18px 18px 0 0; padding:20px 18px 28px; box-shadow:0 -12px 32px rgba(0,0,0,.6); }
+  .q-cfg h2 { margin:0 0 6px; font-size:16px; }
+  .q-cfg p { margin:0 0 14px; font-size:12.5px; color:#94a3b8; line-height:1.5; }
+
+  .q-login-gate { text-align:center; padding:60px 20px; color:#94a3b8; }
+  .q-login-gate a { color:#60a5fa; }
+  /* === 그룹 미리 지정 (촬영 전 묶음 태깅) === */
+  .q-pregroup {
+    display:none; align-items:center; gap:8px; flex-wrap:wrap;
+    padding:10px 12px; margin-bottom:12px;
+    background:#172033; border:1px solid #1e3a8a; border-radius:12px;
+    font-size:13px;
+  }
+  .q-pregroup.show { display:flex; }
+  .q-pregroup .lab { color:#93c5fd; font-weight:700; font-size:12px; flex-shrink:0; }
+  .q-pregroup .chips { display:flex; flex-wrap:wrap; gap:4px; flex:1; min-width:0; }
+  .q-pregroup .chip { display:inline-block; padding:3px 10px; border-radius:999px; color:#fff; font-size:11.5px; font-weight:600; }
+  .q-pregroup .edit { background:transparent; border:1px solid #334155; color:#cbd5e1; padding:4px 10px; border-radius:8px; font-size:11.5px; cursor:pointer; font-family:inherit; flex-shrink:0; }
+  .q-pregroup-list { max-height:50vh; overflow-y:auto; margin-bottom:14px; border:1px solid #1e293b; border-radius:10px; padding:10px; background:#0a0f1e; }
+  .q-pregroup-cat { font-size:11px; color:#94a3b8; font-weight:700; margin:10px 0 6px; letter-spacing:.4px; }
+  .q-pregroup-cat:first-child { margin-top:0; }
+  .q-pregroup-item {
+    display:flex; align-items:center; gap:10px; padding:11px 10px; margin-bottom:4px;
+    background:#0f172a; border:1px solid #1e293b; border-radius:10px; cursor:pointer;
+    user-select:none; -webkit-tap-highlight-color:transparent;
+  }
+  .q-pregroup-item.on { border-color:#60a5fa; background:#172033; }
+  .q-pregroup-item .dot { width:13px; height:13px; border-radius:3px; flex-shrink:0; }
+  .q-pregroup-item .nm { flex:1; font-size:14px; color:#e2e8f0; }
+  .q-pregroup-item .chk { font-size:18px; color:#60a5fa; opacity:.15; }
+  .q-pregroup-item.on .chk { opacity:1; }
+  .q-pregroup-empty { text-align:center; color:#94a3b8; padding:24px 10px; font-size:13px; }
+
+  .q-recent { margin-top:18px; padding-top:14px; border-top:1px solid #1e293b; }
+  .q-recent h3 { margin:0 0 8px; font-size:12px; color:#94a3b8; font-weight:700; letter-spacing:.5px; }
+  .q-recent-item { padding:9px 12px; background:#172033; border-radius:10px; margin-bottom:6px; font-size:13px; }
+  .q-recent-item b { color:#e0e7ff; }
+  .q-recent-item .meta { color:#64748b; font-size:11.5px; margin-top:2px; }
+
+  /* === 명함 크롭 모달 === */
+  .q-crop-bg { position:fixed; inset:0; z-index:2100; background:#000; display:none; flex-direction:column; }
+  .q-crop-bg.show { display:flex; }
+  .q-crop-top { padding:14px 16px 10px; color:#e2e8f0; font-size:15px; font-weight:700; text-align:center; background:#0f172a; }
+  .q-crop-stage { flex:1; min-height:0; background:#000; display:flex; align-items:center; justify-content:center; }
+  .q-crop-stage img { max-width:100%; max-height:100%; display:block; }
+  .q-crop-bot { padding:12px 14px calc(14px + env(safe-area-inset-bottom)); background:#0f172a; display:flex; gap:8px; }
+  .q-crop-bot .q-btn { width:auto; flex:1; padding:14px 8px; font-size:14.5px; }
+  /* === 라이브 카메라 + 명함 사이즈 가이드 사각형 === */
+  .q-cam-modal { position:fixed; inset:0; z-index:2000; background:#000; display:none; }
+  .q-cam-modal.show { display:block; }
+  .q-cam-video { position:absolute; inset:0; width:100%; height:100%; object-fit:cover; background:#000; }
+  .q-cam-frame {
+    position:absolute; top:50%; left:50%; transform:translate(-50%, -50%);
+    width:min(90vw, 520px); aspect-ratio:1.6 / 1;
+    border:2.5px dashed rgba(255,255,255,0.95); border-radius:14px;
+    box-shadow:0 0 0 9999px rgba(0,0,0,0.58);
+    pointer-events:none;
+  }
+  /* 모서리 꺾쇠 — 명함 사이즈 가이드를 더 명확히 */
+  .q-cam-frame::before, .q-cam-frame::after,
+  .q-cam-frame > .c1, .q-cam-frame > .c2 {
+    content:""; position:absolute; width:24px; height:24px; border:3.5px solid #60a5fa;
+  }
+  .q-cam-frame::before { top:-3px; left:-3px; border-right:0; border-bottom:0; border-radius:14px 0 0 0; }
+  .q-cam-frame::after  { top:-3px; right:-3px; border-left:0; border-bottom:0; border-radius:0 14px 0 0; }
+  .q-cam-frame > .c1   { bottom:-3px; left:-3px; border-right:0; border-top:0; border-radius:0 0 0 14px; }
+  .q-cam-frame > .c2   { bottom:-3px; right:-3px; border-left:0; border-top:0; border-radius:0 0 14px 0; }
+
+  .q-cam-hint-top {
+    position:absolute; top:max(20px, env(safe-area-inset-top)); left:50%; transform:translateX(-50%);
+    background:rgba(0,0,0,0.55); color:#fff;
+    padding:8px 16px; border-radius:999px; font-size:13px; font-weight:600;
+    pointer-events:none; white-space:nowrap;
+  }
+  .q-cam-close {
+    position:absolute; top:max(14px, env(safe-area-inset-top)); right:14px;
+    width:44px; height:44px; border-radius:50%;
+    background:rgba(0,0,0,0.55); color:#fff; border:0; font-size:22px; line-height:1;
+    cursor:pointer; font-family:inherit; z-index:5;
+  }
+  .q-cam-bottom {
+    position:absolute; left:0; right:0; bottom:max(28px, env(safe-area-inset-bottom));
+    display:flex; align-items:center; justify-content:space-around; padding:0 32px; z-index:5;
+  }
+  .q-cam-side-btn {
+    display:flex; flex-direction:column; align-items:center; gap:4px;
+    background:transparent; border:0; color:#fff; font-size:12px; font-weight:600;
+    font-family:inherit; cursor:pointer; padding:8px 4px;
+    -webkit-tap-highlight-color:transparent;
+  }
+  .q-cam-side-btn .ic { font-size:24px; }
+  .q-cam-shutter {
+    width:78px; height:78px; border-radius:50%;
+    background:#fff; border:5px solid rgba(255,255,255,0.35);
+    background-clip:padding-box; cursor:pointer; padding:0;
+    box-shadow:0 4px 16px rgba(0,0,0,0.4);
+    transition:transform .12s;
+  }
+  .q-cam-shutter:active { transform:scale(.94); }
+  .q-cam-shutter.busy { background:#94a3b8; cursor:wait; }
+  .q-cam-error {
+    position:absolute; inset:0; z-index:6;
+    display:none; flex-direction:column; align-items:center; justify-content:center;
+    padding:24px; text-align:center; color:#fff; font-size:14px; line-height:1.55;
+    background:rgba(0,0,0,0.92);
+  }
+  .q-cam-error.show { display:flex; }
+  .q-cam-error .em { font-size:42px; margin-bottom:14px; }
+  .q-cam-error .ret-btn {
+    margin-top:18px; padding:12px 22px;
+    background:#2563eb; color:#fff; border:0; border-radius:12px;
+    font-size:14px; font-weight:600; cursor:pointer; font-family:inherit;
+  }
+</style>
+</head>
+<body data-embed="1">
+<div class="q-app" id="app">
+  <div class="q-top">
+    <div style="flex:1;">
+      <h1>📷 명함 빠른 입력</h1>
+      <div class="sub">사진 한 장 → 자동 추출 → 저장</div>
+    </div>
+    <a href="javascript:void(0)" id="btnPreGroup" title="이번 촬영분 그룹 미리 지정">🏷</a>
+    <a href="javascript:void(0)" id="btnCfg">⚙️</a>
+    <a href="./index.html">목록</a>
+  </div>
+
+  <div id="gate" class="q-login-gate" style="display:none;">
+    🔒 로그인이 필요합니다.<br><a href="../login.html?next=business-cards/quick.html">로그인 페이지로</a>
+  </div>
+
+  <div id="main">
+    <!-- 그룹 미리 지정 뱃지 — 선택 시 표시 -->
+    <div class="q-pregroup" id="preGroupBadge">
+      <span class="lab">🏷 그룹</span>
+      <span class="chips" id="preGroupChips"></span>
+      <button class="edit" type="button" id="btnPreGroupEdit">변경</button>
+    </div>
+
+    <div class="q-camera">
+      <!-- iOS Safari 에서 hidden input + JS click() 이 무시되는 이슈가 있어
+           label 로 file input 을 감싸는 패턴으로 변경 (JS 없이도 카메라가 열림). -->
+      <label class="q-cam-btn" id="btnShoot" for="fileInput">
+        <span class="ic">📷</span><span>명함 촬영하기</span>
+      </label>
+      <div class="q-cam-hint">버튼을 누르면 카메라가 열리고 화면 가운데에 명함 가이드 사각형이 표시됩니다.</div>
+      <input type="file" id="fileInput" accept="image/*" capture="environment"
+             style="position:absolute; left:-9999px; width:1px; height:1px; opacity:0;">
+    </div>
+
+    <div class="q-preview" id="preview"><img id="previewImg" alt=""></div>
+    <div class="q-status" id="status" style="display:none;"></div>
+    <div class="q-match" id="match" style="display:none;"></div>
+
+    <div class="q-form" id="form">
+      <div class="q-field"><label>회사명</label><input id="f_company" autocomplete="off"></div>
+      <div class="q-field"><label>이름</label><input id="f_name" autocomplete="off"></div>
+      <div class="q-grid">
+        <div class="q-field"><label>직책</label><input id="f_title" autocomplete="off"></div>
+        <div class="q-field"><label>휴대폰</label><input id="f_mobile" type="tel" autocomplete="off"></div>
+      </div>
+      <div class="q-field"><label>이메일</label><input id="f_email" type="email" autocomplete="off"></div>
+      <div class="q-grid">
+        <div class="q-field"><label>사무실 전화</label><input id="f_office" type="tel" autocomplete="off"></div>
+        <div class="q-field"><label>사업자번호</label><input id="f_bizno" autocomplete="off"></div>
+      </div>
+      <div class="q-field"><label>주소</label><input id="f_addr" autocomplete="off"></div>
+      <div class="q-field"><label>메모</label><textarea id="f_memo" rows="2" autocomplete="off"></textarea></div>
+
+      <div class="q-consent" id="consentBox" onclick="QC.toggleConsent()">
+        <input type="checkbox" id="f_consent" onclick="event.stopPropagation();QC.refreshConsent();">
+        <div class="txt">✅ <b>광고 수신동의</b> 받았음 (정보통신망법 §50 — 이 체크 없이는 영업 메시지 발송 불가)</div>
+      </div>
+
+      <div class="q-actions">
+        <button class="q-btn primary" id="btnSave">💾 저장하고 다음 명함</button>
+        <button class="q-btn ghost" id="btnReset">↻ 다시 찍기</button>
+      </div>
+    </div>
+
+    <div class="q-recent" id="recentBox" style="display:none;">
+      <h3>방금 저장한 명함</h3>
+      <div id="recentList"></div>
+    </div>
+  </div>
+</div>
+
+<div class="q-toast" id="toast">저장됨 ✓</div>
+
+<!-- 명함 크롭 모달 — Cropper.js. 명함 표준 비율(85.6:54mm ≈ 1.586:1) 가이드 -->
+<div class="q-crop-bg" id="cropModal" aria-hidden="true">
+  <div class="q-crop-top">
+    <div>✂️ 명함 영역을 맞춰주세요</div>
+    <div style="font-size:11.5px; color:#94a3b8;">박스 모서리를 드래그하면 크기 조절</div>
+  </div>
+  <div class="q-crop-stage">
+    <img id="cropImg" alt="명함 크롭">
+  </div>
+  <div class="q-crop-bot">
+    <button class="q-btn ghost" id="btnCropCancel">취소</button>
+    <button class="q-btn ghost" id="btnCropRotate">↻ 회전</button>
+    <button class="q-btn primary" id="btnCropConfirm">✂ 크롭 후 분석</button>
+  </div>
+</div>
+
+<!-- 라이브 카메라 + 명함 사이즈 가이드 사각형 -->
+<div class="q-cam-modal" id="camModal" aria-hidden="true">
+  <video class="q-cam-video" id="camVideo" autoplay playsinline muted></video>
+  <div class="q-cam-frame"><span class="c1"></span><span class="c2"></span></div>
+  <div class="q-cam-hint-top">📇 명함을 사각형 안에 맞춰 촬영</div>
+  <button class="q-cam-close" id="camClose" type="button" aria-label="닫기">✕</button>
+  <div class="q-cam-bottom">
+    <label class="q-cam-side-btn" for="fileInputGallery">
+      <span class="ic">🖼️</span><span>갤러리</span>
+    </label>
+    <button class="q-cam-shutter" id="camShutter" type="button" aria-label="촬영"></button>
+    <button class="q-cam-side-btn" id="camFlip" type="button">
+      <span class="ic">🔄</span><span>전환</span>
+    </button>
+  </div>
+  <div class="q-cam-error" id="camError">
+    <div class="em">📵</div>
+    <div id="camErrorMsg">카메라에 접근할 수 없습니다.</div>
+    <button class="ret-btn" id="camErrorFallback" type="button">기본 카메라로 촬영</button>
+  </div>
+  <canvas id="camCanvas" style="display:none;"></canvas>
+</div>
+<input type="file" id="fileInputGallery" accept="image/*" hidden>
+
+<!-- 🏷 그룹 미리 지정 모달 -->
+<div class="q-cfg-bg" id="preGroupModal">
+  <div class="q-cfg">
+    <h2>🏷 그룹 미리 지정</h2>
+    <p>선택한 그룹이 <b>이번 촬영분 명함에 자동 태깅</b>됩니다. 거래처와 매칭되면 즉시 그룹 매핑까지 연결되고, 신규 명함은 데스크탑에서 거래처 연결 시 함께 적용돼요. (브라우저를 닫으면 해제)</p>
+    <div class="q-pregroup-list" id="preGroupList"></div>
+    <div class="q-actions">
+      <button class="q-btn primary" onclick="QC.savePreGroup()">적용</button>
+      <button class="q-btn ghost" onclick="QC.clearPreGroup()">전체 해제</button>
+      <button class="q-btn ghost" onclick="QC.closePreGroup()">닫기</button>
+    </div>
+  </div>
+</div>
+
+<div class="q-cfg-bg" id="cfgModal">
+  <div class="q-cfg">
+    <h2>⚙️ OCR 설정 (Google Gemini)</h2>
+    <p>명함 OCR 은 <b>Google Gemini API</b>(무료)를 사용합니다. <a href="https://aistudio.google.com/app/apikey" target="_blank" style="color:#60a5fa;">aistudio.google.com/app/apikey</a> 에서 카드 등록 없이 키 발급 → 아래 붙여넣으세요. 이 키는 <b>이 브라우저에만</b> 저장되며 서버로 전송되지 않습니다.</p>
+    <div class="q-field"><label>Gemini API 키 (AIza...)</label><input id="cfg_apikey" type="password" placeholder="AIzaSy..." autocomplete="off"></div>
+    <div class="q-field"><label>모델 (기본: gemini-2.5-flash)</label><input id="cfg_model" type="text" placeholder="gemini-2.5-flash" autocomplete="off"></div>
+    <div class="q-actions">
+      <button class="q-btn primary" onclick="QC.saveCfg()">저장</button>
+      <button class="q-btn ghost" onclick="QC.closeCfg()">닫기</button>
+    </div>
+  </div>
+</div>
+
+<script>
+const QC = (() => {
+  const LS_KEY = 'digix_bc_cfg';
+  let supa = null;
+  const STATE = { customers:[], lastImageUrl:null, lastMatch:null, recent:[], stream:null, facingMode:'environment', allGroups:[], preGroups:[], lastFile:null };
+  const PRE_GROUPS_KEY = 'bc_pre_groups';
+
+  // 라이브 카메라(가이드 사각형) 지원 여부 — HTTPS + mediaDevices 필요
+  function isLiveCamSupported(){
+    return !!(navigator.mediaDevices && navigator.mediaDevices.getUserMedia && window.isSecureContext);
+  }
+  // 촬영 트리거를 한 곳에서 — 지원하면 인앱 카메라, 아니면 네이티브 파일 피커
+  function triggerShoot(){
+    if (isLiveCamSupported()) openCamera();
+    else document.getElementById('fileInput').click();
+  }
+
+  async function openCamera(){
+    const modal = document.getElementById('camModal');
+    const err   = document.getElementById('camError');
+    err.classList.remove('show');
+    modal.classList.add('show');
+    modal.setAttribute('aria-hidden','false');
+    document.body.style.overflow='hidden';
+    try{
+      if(!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia){
+        throw new Error('이 브라우저는 카메라 API를 지원하지 않습니다.');
+      }
+      const stream = await navigator.mediaDevices.getUserMedia({
+        video: {
+          facingMode: { ideal: STATE.facingMode },
+          width:  { ideal: 1920 },
+          height: { ideal: 1080 }
+        },
+        audio: false
+      });
+      STATE.stream = stream;
+      const v = document.getElementById('camVideo');
+      v.srcObject = stream;
+      try { await v.play(); } catch(_){}
+    }catch(e){
+      const msg = (e && e.message) ? e.message : '카메라 권한이 거부되었습니다';
+      showCamError(msg);
+    }
+  }
+
+  function showCamError(msg){
+    document.getElementById('camErrorMsg').textContent = msg;
+    document.getElementById('camError').classList.add('show');
+  }
+
+  function closeCamera(){
+    if(STATE.stream){ STATE.stream.getTracks().forEach(t=>t.stop()); STATE.stream=null; }
+    const v = document.getElementById('camVideo');
+    if(v) v.srcObject=null;
+    const modal = document.getElementById('camModal');
+    modal.classList.remove('show');
+    modal.setAttribute('aria-hidden','true');
+    document.body.style.overflow='';
+  }
+
+  async function flipCamera(){
+    STATE.facingMode = (STATE.facingMode==='environment') ? 'user' : 'environment';
+    if(STATE.stream){ STATE.stream.getTracks().forEach(t=>t.stop()); STATE.stream=null; }
+    await openCamera();
+  }
+
+  // 셔터 — 화면에 표시된 가이드 사각형 영역만 잘라서 캔버스 → JPEG Blob → handleFile()
+  async function shoot(){
+    const v = document.getElementById('camVideo');
+    if(!v || !v.videoWidth || !v.videoHeight) return;
+    const shutter = document.getElementById('camShutter');
+    if(shutter.classList.contains('busy')) return;
+    shutter.classList.add('busy');
+
+    const frame = document.querySelector('.q-cam-frame');
+    const vRect = v.getBoundingClientRect();
+    const fRect = frame.getBoundingClientRect();
+    const vw = v.videoWidth, vh = v.videoHeight;
+
+    // object-fit: cover 매핑 (표시 좌표 → 원본 영상 좌표)
+    const scale = Math.max(vRect.width / vw, vRect.height / vh);
+    const dispW = vw * scale, dispH = vh * scale;
+    const offX  = (vRect.width  - dispW) / 2;
+    const offY  = (vRect.height - dispH) / 2;
+    const fx = fRect.left - vRect.left;
+    const fy = fRect.top  - vRect.top;
+
+    let srcX = (fx - offX) / scale;
+    let srcY = (fy - offY) / scale;
+    let srcW = fRect.width  / scale;
+    let srcH = fRect.height / scale;
+    srcX = Math.max(0, Math.min(srcX, vw));
+    srcY = Math.max(0, Math.min(srcY, vh));
+    srcW = Math.max(1, Math.min(srcW, vw - srcX));
+    srcH = Math.max(1, Math.min(srcH, vh - srcY));
+
+    const targetW = 1600;
+    const targetH = Math.round(targetW * srcH / srcW);
+    const canvas = document.getElementById('camCanvas');
+    canvas.width  = targetW;
+    canvas.height = targetH;
+    canvas.getContext('2d').drawImage(v, srcX, srcY, srcW, srcH, 0, 0, targetW, targetH);
+
+    const blob = await new Promise(r => canvas.toBlob(r, 'image/jpeg', 0.92));
+    shutter.classList.remove('busy');
+    if(!blob){ return; }
+    const file = new File([blob], 'card_'+Date.now()+'.jpg', { type:'image/jpeg' });
+    closeCamera();
+    handleFile(file);
+  }
+
+  function normalize(s){
+    if(!s) return '';
+    return s.replace(/㈜|\(주\)|주식회사|유한회사|Co\.,?\s*Ltd|Inc\.?/gi,'').replace(/\s+/g,'').toLowerCase().normalize('NFKC');
+  }
+  const PERSONAL_DOMAINS = ['gmail.com','naver.com','daum.net','hanmail.net','kakao.com','nate.com','outlook.com','hotmail.com'];
+  function domainOf(email){ const m=(email||'').split('@'); return m.length===2 ? m[1].toLowerCase() : ''; }
+  function esc(s){ return String(s==null?'':s).replace(/[&<>"']/g,m=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[m])); }
+  function cfg(){ try{ return JSON.parse(localStorage.getItem(LS_KEY)||'{}'); }catch(e){ return {}; } }
+  // 기기 공용 키: DB(app_settings)에서 자동 로드 (핸드폰에서 재입력 불필요)
+  async function syncCfgFromDB(){
+    try{
+      const c=cfg(); if(c.apikey) return c;
+      const r=await supa.from('app_settings').select('key,value').in('key',['gemini_apikey','gemini_model']);
+      if(r.error||!r.data||!r.data.length) return c;
+      const map={}; r.data.forEach(x=>map[x.key]=x.value);
+      if(map.gemini_apikey){ const m={...c,apikey:map.gemini_apikey,model:map.gemini_model||c.model||'gemini-2.5-flash'}; localStorage.setItem(LS_KEY,JSON.stringify(m)); return m; }
+      return c;
+    }catch(e){ return cfg(); }
+  }
+  async function saveCfgToDB(apikey,model){ try{ await supa.from('app_settings').upsert([{key:'gemini_apikey',value:apikey,updated_at:new Date().toISOString()},{key:'gemini_model',value:model||'gemini-2.5-flash',updated_at:new Date().toISOString()}],{onConflict:'key'}); }catch(e){} }
+  function setStatus(msg, kind){
+    const el=document.getElementById('status');
+    el.className='q-status'+(kind?' '+kind:'');
+    el.innerHTML=msg; el.style.display='block';
+  }
+  function clearStatus(){ document.getElementById('status').style.display='none'; }
+  function toast(msg){
+    const t=document.getElementById('toast'); t.textContent=msg; t.classList.add('show');
+    setTimeout(()=>t.classList.remove('show'), 1800);
+  }
+
+  async function loadCustomers(){
+    await syncCfgFromDB();   // 기기 공용 키 자동 로드
+    const r = await supa.from('rental_customers')
+      .select('id, company, contact_name, biz_no, phone, mobile, email')
+      .eq('active', true).range(0,9999);
+    STATE.customers = r.data||[];
+  }
+
+  // === 🏷 그룹 미리 지정 ===
+  async function loadGroups(){
+    try{
+      const r = await supa.from('card_groups').select('id, name, category, color').order('category').order('name');
+      STATE.allGroups = r.data || [];
+    }catch(e){ STATE.allGroups = []; }
+    restorePreGroups();
+    renderPreGroupBadge();
+  }
+  function restorePreGroups(){
+    try{
+      const raw = sessionStorage.getItem(PRE_GROUPS_KEY);
+      if(!raw) return;
+      const ids = JSON.parse(raw);
+      if(Array.isArray(ids)) STATE.preGroups = ids.filter(id=>STATE.allGroups.some(g=>g.id===id));
+    }catch(e){}
+  }
+  function persistPreGroups(){
+    try{ sessionStorage.setItem(PRE_GROUPS_KEY, JSON.stringify(STATE.preGroups)); }catch(e){}
+  }
+  function renderPreGroupBadge(){
+    const box = document.getElementById('preGroupBadge');
+    const chips = document.getElementById('preGroupChips');
+    if(!STATE.preGroups.length){ box.classList.remove('show'); return; }
+    box.classList.add('show');
+    chips.innerHTML = STATE.preGroups.map(id=>{
+      const g = STATE.allGroups.find(x=>x.id===id); if(!g) return '';
+      return '<span class="chip" style="background:'+esc(g.color||'#2563eb')+'">'+esc(g.name)+'</span>';
+    }).join('');
+  }
+  function renderPreGroupList(){
+    const box = document.getElementById('preGroupList');
+    if(!STATE.allGroups.length){
+      box.innerHTML='<div class="q-pregroup-empty">그룹이 없습니다. 데스크탑에서 먼저 그룹을 만들어주세요.</div>';
+      return;
+    }
+    const byCat = {};
+    STATE.allGroups.forEach(g=>{ const c=g.category||'기타'; (byCat[c]=byCat[c]||[]).push(g); });
+    let html='';
+    Object.keys(byCat).forEach(cat=>{
+      html += '<div class="q-pregroup-cat">'+esc(cat)+'</div>';
+      byCat[cat].forEach(g=>{
+        const on = STATE.preGroups.includes(g.id);
+        html += '<div class="q-pregroup-item'+(on?' on':'')+'" data-id="'+esc(g.id)+'">'+
+                '<span class="dot" style="background:'+esc(g.color||'#2563eb')+'"></span>'+
+                '<span class="nm">'+esc(g.name)+'</span>'+
+                '<span class="chk">✓</span></div>';
+      });
+    });
+    box.innerHTML = html;
+    box.querySelectorAll('.q-pregroup-item').forEach(el=>{
+      el.onclick = ()=>{
+        const id = el.dataset.id;
+        const idx = STATE.preGroups.indexOf(id);
+        if(idx>=0) STATE.preGroups.splice(idx,1); else STATE.preGroups.push(id);
+        el.classList.toggle('on');
+      };
+    });
+  }
+  function openPreGroup(){ renderPreGroupList(); document.getElementById('preGroupModal').classList.add('show'); }
+  function closePreGroup(){ document.getElementById('preGroupModal').classList.remove('show'); }
+  function savePreGroup(){
+    persistPreGroups();
+    renderPreGroupBadge();
+    closePreGroup();
+    toast(STATE.preGroups.length ? ('✓ '+STATE.preGroups.length+'개 그룹 적용') : '그룹 해제됨');
+  }
+  function clearPreGroup(){
+    STATE.preGroups = [];
+    persistPreGroups();
+    renderPreGroupBadge();
+    renderPreGroupList();
+    toast('전체 해제');
+  }
+
+  function matchCustomer(card){
+    const norm=normalize(card.company); const dom=domainOf(card.email);
+    if(card.biz_no){ const h=STATE.customers.find(c=>c.biz_no && c.biz_no.replace(/\D/g,'')===card.biz_no.replace(/\D/g,'')); if(h) return {match:'exact',customer:h,reason:'사업자번호 일치'}; }
+    if(dom && !PERSONAL_DOMAINS.includes(dom)){ const h=STATE.customers.find(c=>domainOf(c.email)===dom); if(h) return {match:'exact',customer:h,reason:'이메일 도메인 일치'}; }
+    const ex=STATE.customers.find(c=>normalize(c.company)===norm && norm); if(ex) return {match:'exact',customer:ex,reason:'회사명 일치'};
+    if(norm){ const cand=STATE.customers.filter(c=>{const cn=normalize(c.company); return cn && (cn.includes(norm)||norm.includes(cn));}); if(cand.length) return {match:'maybe',candidates:cand,reason:'유사 회사명 발견'}; }
+    return {match:'new'};
+  }
+
+  function showMatch(card){
+    const box=document.getElementById('match'); const r=matchCustomer(card);
+    STATE.lastMatch=r; box.style.display='block';
+    if(r.match==='exact'){ box.className='q-match'; box.innerHTML='🔍 기존 거래처 <b>'+esc(r.customer.company)+'</b> 에 자동 연결됩니다 ('+r.reason+')'; }
+    else if(r.match==='maybe'){ box.className='q-match'; box.innerHTML='🔍 유사 거래처 후보: <b>'+r.candidates.map(c=>esc(c.company)).join(', ')+'</b> — 저장 시 확인합니다'; }
+    else { box.className='q-match new'; box.innerHTML='🆕 <b>신규 거래처</b> — 기존 목록에 없습니다 (저장 후 데스크탑에서 거래처 연결 가능)'; }
+  }
+
+  function fileToB64(file){ return new Promise((rs,rj)=>{ const r=new FileReader(); r.onload=()=>rs(r.result); r.onerror=rj; r.readAsDataURL(file); }); }
+
+  // Storage 업로드가 실패해도 사진을 잃지 않도록 — 긴 변 maxSide(px) 안으로 리사이즈해 JPEG dataURL 로 반환.
+  async function shrinkToDataUrl(file, maxSide, quality){
+    const dataUrl = await fileToB64(file);
+    return await new Promise((resolve)=>{
+      const img = new Image();
+      img.onload = ()=>{
+        const w = img.naturalWidth, h = img.naturalHeight;
+        const scale = Math.min(1, maxSide / Math.max(w, h));
+        const tw = Math.max(1, Math.round(w*scale));
+        const th = Math.max(1, Math.round(h*scale));
+        const cv = document.createElement('canvas');
+        cv.width = tw; cv.height = th;
+        cv.getContext('2d').drawImage(img, 0, 0, tw, th);
+        try{ resolve(cv.toDataURL('image/jpeg', quality||0.82)); }
+        catch(e){ resolve(dataUrl); }
+      };
+      img.onerror = ()=>resolve(dataUrl);
+      img.src = dataUrl;
+    });
+  }
+
+  // OCR 가 한글 이름을 "홍 길 동" 처럼 글자 사이 공백으로 분리해주는 케이스가 있어 보정.
+  // 전체가 한글+공백만으로 이루어진 경우에만 공백 제거 (영어 풀네임/혼합은 보존).
+  function fixKoreanName(s){
+    if(s==null) return s;
+    const t = String(s).trim().replace(/\s+/g,' ');
+    if(!t) return t;
+    if(/^[가-힣\s]+$/.test(t)) return t.replace(/\s+/g,'');
+    return t;
+  }
+
+  function activeModel(c){
+    const m = (c.model||'').trim();
+    return (m && m.startsWith('gemini-')) ? m : 'gemini-2.5-flash';
+  }
+
+  async function runOCR(file){
+    const c=cfg();
+    if(!c.apikey){
+      setStatus('⚠️ Gemini 키 미설정 — 수동으로 입력 후 저장하세요. <a href="javascript:QC.openCfg()" style="color:#60a5fa;">⚙️ 키 설정</a>', 'warn');
+      document.getElementById('form').classList.add('show');
+      return;
+    }
+    setStatus('<span class="q-spinner"></span> 명함 분석 중…');
+    const dataUrl = await fileToB64(file);
+    // data URL → raw base64 분리
+    const m = /^data:([^;]+);base64,(.+)$/.exec(dataUrl);
+    const mime = m ? m[1] : (file.type || 'image/jpeg');
+    const b64 = m ? m[2] : dataUrl;
+    const prompt='이 명함 이미지에서 정보를 추출해 JSON으로만 응답하세요. 키: company, name, title, department, phone_mobile, phone_office, fax, email, address, website, biz_no. 없으면 null. 설명 없이 JSON만.';
+    const model = activeModel(c);
+    try{
+      const res=await fetch('https://generativelanguage.googleapis.com/v1beta/models/'+encodeURIComponent(model)+':generateContent?key='+encodeURIComponent(c.apikey),{
+        method:'POST', headers:{'Content-Type':'application/json'},
+        body:JSON.stringify({
+          contents:[{ parts:[ {text:prompt}, {inline_data:{mime_type:mime, data:b64}} ] }],
+          generationConfig:{ response_mime_type:'application/json', temperature:0 }
+        })
+      });
+      const j=await res.json();
+      if(!res.ok) throw new Error((j.error&&j.error.message)||('Gemini 실패 ('+res.status+')'));
+      const txt = (((j.candidates||[])[0]||{}).content?.parts||[])[0]?.text || '';
+      if(!txt) throw new Error('Gemini 응답 비어있음');
+      const cleaned = txt.trim().replace(/^```json\s*/i,'').replace(/```\s*$/,'').trim();
+      const d=JSON.parse(cleaned);
+      d.name = fixKoreanName(d.name);   // "홍 길 동" → "홍길동"
+      const set=(id,v)=>{ if(v!=null) document.getElementById(id).value=v; };
+      set('f_company',d.company); set('f_name',d.name); set('f_title',d.title);
+      set('f_mobile',d.phone_mobile); set('f_office',d.phone_office); set('f_email',d.email);
+      set('f_addr',d.address); set('f_bizno',d.biz_no);
+      setStatus('✅ 추출 완료 — 확인/수정 후 저장하세요', 'ok');
+      showMatch({company:d.company,email:d.email,biz_no:d.biz_no});
+      document.getElementById('form').classList.add('show');
+    }catch(e){
+      setStatus('⚠️ '+esc(e.message)+' — 수동으로 입력 후 저장하세요', 'err');
+      document.getElementById('form').classList.add('show');
+    }
+  }
+
+  // 1단계: 사용자가 선택/촬영한 사진을 크롭 모달에 띄움
+  async function handleFile(file){
+    const url = await fileToB64(file);
+    openCrop(url, file);
+  }
+
+  // 2단계: 크롭 확정 후 실제 업로드/OCR. file 은 크롭된 Blob/File 이 들어옴.
+  async function processCroppedFile(file){
+    document.getElementById('btnShoot').classList.add('busy');
+    document.getElementById('btnShoot').querySelector('span:last-child').textContent='분석 준비 중…';
+    const url=await fileToB64(file);
+    document.getElementById('previewImg').src=url;
+    document.getElementById('preview').style.display='block';
+    STATE.lastImageUrl=null;
+    STATE.lastFile = file;   // 저장 후 핸드폰에 다운로드할 (크롭된) 파일 보관
+    try{
+      const path='cards/'+Date.now()+'_'+(file.name||'mobile.jpg').replace(/[^\w.]/g,'_');
+      const up=await supa.storage.from('business-cards').upload(path, file, {upsert:true, contentType:file.type||'image/jpeg'});
+      if(!up.error){ const pub=supa.storage.from('business-cards').getPublicUrl(path); STATE.lastImageUrl=pub.data.publicUrl; }
+      else {
+        // Storage 업로드 실패 → 사진을 잃지 않게 dataURL 백업 보관 (DB에 그대로 저장됨)
+        STATE.lastImageUrl = await shrinkToDataUrl(file, 1200, 0.82);
+        setStatus('ℹ️ Storage 업로드 실패 — 사진을 DB(base64)로 보관합니다.', 'warn');
+      }
+    }catch(e){
+      try{ STATE.lastImageUrl = await shrinkToDataUrl(file, 1200, 0.82); }catch(_){}
+      setStatus('ℹ️ Storage 오류 — 사진을 DB(base64)로 보관합니다. ('+esc(e.message)+')', 'warn');
+    }
+    await runOCR(file);
+    document.getElementById('btnShoot').classList.remove('busy');
+    document.getElementById('btnShoot').querySelector('span:last-child').textContent='다시 촬영';
+  }
+
+  // 크롭 모달 — Cropper.js. 명함 표준 비율(1.586:1) 가이드 박스로 시작, 사용자가 조정 후 ✂ 확정.
+  let _cropper = null, _cropSrcType = 'image/jpeg', _cropSrcName = 'card.jpg';
+  function openCrop(dataUrl, srcFile){
+    _cropSrcType = (srcFile && srcFile.type) || 'image/jpeg';
+    _cropSrcName = (srcFile && srcFile.name) || 'card.jpg';
+    const img = document.getElementById('cropImg');
+    img.src = dataUrl;
+    document.getElementById('cropModal').classList.add('show');
+    document.getElementById('cropModal').setAttribute('aria-hidden','false');
+    if(_cropper){ try{ _cropper.destroy(); }catch(e){} _cropper=null; }
+    img.onload = ()=>{
+      _cropper = new Cropper(img, {
+        aspectRatio: 85.6 / 54,         // 국제표준 명함 비율 (≈1.586)
+        viewMode: 1,
+        autoCropArea: 0.92,
+        background: false,
+        movable: true, zoomable: true, scalable: false,
+        responsive: true, guides: true,
+        dragMode: 'move',
+      });
+    };
+  }
+  function closeCrop(){
+    document.getElementById('cropModal').classList.remove('show');
+    document.getElementById('cropModal').setAttribute('aria-hidden','true');
+    if(_cropper){ try{ _cropper.destroy(); }catch(e){} _cropper=null; }
+    document.getElementById('cropImg').src = '';
+  }
+  function confirmCrop(){
+    if(!_cropper){ closeCrop(); return; }
+    const canvas = _cropper.getCroppedCanvas({
+      // 너무 크면 업로드 느림 + Gemini 토큰↑. OCR 충분한 1600x1010 정도로 캡.
+      maxWidth: 1600, maxHeight: 1600,
+      imageSmoothingEnabled: true, imageSmoothingQuality: 'high'
+    });
+    const outType = (_cropSrcType==='image/png') ? 'image/png' : 'image/jpeg';
+    const outQual = outType==='image/jpeg' ? 0.92 : undefined;
+    canvas.toBlob(blob=>{
+      if(!blob){ alert('크롭 결과 생성 실패'); return; }
+      const ext = outType==='image/png' ? '.png' : '.jpg';
+      const baseName = (_cropSrcName.replace(/\.[^.]+$/,'') || 'card') + '_cropped' + ext;
+      const file = new File([blob], baseName, { type: outType });
+      closeCrop();
+      processCroppedFile(file);
+    }, outType, outQual);
+  }
+  function rotateCrop(){ if(_cropper){ try{ _cropper.rotate(90); }catch(e){} } }
+
+  async function save(){
+    const v=id=>document.getElementById(id).value.trim()||null;
+    const consent=document.getElementById('f_consent').checked;
+    // 저장 직전 이름 정규화 (수동 수정한 경우도 포함)
+    const nameInput = document.getElementById('f_name');
+    nameInput.value = fixKoreanName(nameInput.value) || '';
+    const card={
+      company_raw:v('f_company'), company_normalized:normalize(v('f_company')),
+      name:v('f_name'), title:v('f_title'),
+      phone_mobile:v('f_mobile'), phone_office:v('f_office'),
+      email:v('f_email'), email_domain:domainOf(v('f_email')),
+      address:v('f_addr'), biz_no:v('f_bizno'), memo:v('f_memo'),
+      consent_marketing:consent,
+      consent_date:consent?new Date().toISOString():null,
+      card_image_url:STATE.lastImageUrl||null,
+    };
+    if(!card.company_raw && !card.name){ setStatus('회사명 또는 이름을 입력해주세요', 'err'); return; }
+
+    const m=matchCustomer({company:card.company_raw,email:card.email,biz_no:card.biz_no});
+    if(m.match==='exact') card.customer_id=m.customer.id;
+    else if(m.match==='maybe'){
+      if(confirm('"'+m.candidates[0].company+'" 거래처와 같은 회사인가요?\n확인=연결 / 취소=신규로 저장')) card.customer_id=m.candidates[0].id;
+    }
+
+    // 🏷 그룹 미리 지정 — 컬럼이 있으면 카드에 직접 박아두기 (마이그레이션 안 된 환경 폴백)
+    if(STATE.preGroups.length) card.pending_group_ids = STATE.preGroups.slice();
+
+    document.getElementById('btnSave').disabled=true;
+    let res = await supa.from('business_cards').insert(card).select().single();
+    // pending_group_ids 컬럼이 없는 환경: 해당 필드만 빼고 재시도
+    if(res.error && /pending_group_ids/i.test(res.error.message||'')){
+      delete card.pending_group_ids;
+      res = await supa.from('business_cards').insert(card).select().single();
+    }
+    document.getElementById('btnSave').disabled=false;
+    if(res.error){ setStatus('저장 실패: '+esc(res.error.message), 'err'); return; }
+
+    // 거래처 매칭된 명함은 즉시 card_group_map 까지 채워서 그룹 발송 대상에 바로 포함되게
+    if(STATE.preGroups.length && card.customer_id){
+      try{
+        const rows = STATE.preGroups.map(gid=>({ customer_id: card.customer_id, group_id: gid }));
+        await supa.from('card_group_map').upsert(rows, { onConflict: 'customer_id,group_id' });
+      }catch(e){}
+    }
+
+    STATE.recent.unshift({
+      company: card.company_raw||'(회사 미상)',
+      name: card.name||'-',
+      consent,
+      at: new Date()
+    });
+    if(STATE.recent.length>5) STATE.recent.pop();
+    renderRecent();
+
+    // 핸드폰에 사진 자동 저장 — 파일명: 거래처_이름_직책.jpg
+    if(STATE.lastFile){
+      const baseName = [safeFilePart(card.company_raw), safeFilePart(card.name), safeFilePart(card.title)].filter(Boolean).join('_') || 'card';
+      downloadFileToPhone(STATE.lastFile, baseName);
+    }
+
+    toast('저장됨 ✓ — 사진은 다운로드 폴더에');
+    resetForm();
+    // 자동으로 카메라 다시 열기 (사용자의 다음 동작 흐름 유지) — 다운로드 트리거 직후 충돌 방지로 약간 더 지연
+    setTimeout(triggerShoot, 600);
+  }
+
+  // 파일명에 못쓰는 문자 제거 + 길이 제한
+  function safeFilePart(s){
+    return (s||'').replace(/[\\/:*?"<>|\s\n\r\t]/g,'').slice(0,30);
+  }
+  // 다운로드 트리거 — 안드로이드/iOS 양쪽에서 동작하는 가장 호환성 좋은 방식
+  function downloadFileToPhone(file, baseName){
+    try{
+      const ext = (file.type==='image/png') ? 'png' : ((file.type==='image/heic'||file.type==='image/heif') ? 'jpg' : 'jpg');
+      const filename = baseName + '.' + ext;
+      const url = URL.createObjectURL(file);
+      const a = document.createElement('a');
+      a.href = url; a.download = filename; a.rel='noopener';
+      a.style.display='none';
+      document.body.appendChild(a);
+      a.click();
+      setTimeout(()=>{ try{ document.body.removeChild(a); }catch(e){} URL.revokeObjectURL(url); }, 1500);
+    }catch(e){ /* 실패해도 본 저장은 이미 끝났으므로 무시 */ }
+  }
+
+  function renderRecent(){
+    const box=document.getElementById('recentBox');
+    if(!STATE.recent.length){ box.style.display='none'; return; }
+    box.style.display='block';
+    document.getElementById('recentList').innerHTML = STATE.recent.map(r=>
+      '<div class="q-recent-item"><b>'+esc(r.company)+'</b> · '+esc(r.name)+
+      '<div class="meta">'+(r.consent?'✅ 동의':'❌ 미동의')+' · '+r.at.toLocaleTimeString('ko-KR',{hour:'2-digit',minute:'2-digit'})+'</div></div>'
+    ).join('');
+  }
+
+  function resetForm(){
+    ['f_company','f_name','f_title','f_mobile','f_office','f_email','f_addr','f_bizno','f_memo'].forEach(id=>document.getElementById(id).value='');
+    document.getElementById('f_consent').checked=false;
+    refreshConsent();
+    clearStatus();
+    document.getElementById('match').style.display='none';
+    document.getElementById('preview').style.display='none';
+    document.getElementById('form').classList.remove('show');
+    document.getElementById('previewImg').src='';
+    STATE.lastImageUrl=null; STATE.lastMatch=null; STATE.lastFile=null;
+  }
+
+  function refreshConsent(){
+    const on=document.getElementById('f_consent').checked;
+    document.getElementById('consentBox').classList.toggle('checked', on);
+  }
+  function toggleConsent(){
+    const cb=document.getElementById('f_consent');
+    cb.checked=!cb.checked;
+    refreshConsent();
+  }
+
+  function openCfg(){
+    const c=cfg();
+    document.getElementById('cfg_apikey').value=c.apikey||'';
+    document.getElementById('cfg_model').value = activeModel(c);
+    document.getElementById('cfgModal').classList.add('show');
+  }
+  function closeCfg(){ document.getElementById('cfgModal').classList.remove('show'); }
+  function saveCfg(){
+    const key=document.getElementById('cfg_apikey').value.trim();
+    const model=document.getElementById('cfg_model').value.trim() || 'gemini-2.5-flash';
+    const cur=cfg(); cur.apikey=key; cur.model=model;
+    // 옛 OpenAI 키 슬롯이 남아있으면 정리
+    delete cur.openai;
+    localStorage.setItem(LS_KEY, JSON.stringify(cur));
+    if(key) saveCfgToDB(key, model);   // DB에도 저장 → 모든 기기 공유
+    closeCfg();
+    toast('설정 저장됨 ✓ (모든 기기 공유)');
+  }
+
+  async function init(){
+    supa = window.totalasAuth;
+    if(!supa){ document.getElementById('main').style.display='none'; document.getElementById('gate').style.display='block'; return; }
+    // 세션 확인
+    try {
+      const { data: { session } } = await supa.auth.getSession();
+      if (!session) { document.getElementById('main').style.display='none'; document.getElementById('gate').style.display='block'; return; }
+    } catch(e){}
+
+    await loadCustomers();
+    await loadGroups();
+    document.getElementById('btnPreGroup').onclick = openPreGroup;
+    document.getElementById('btnPreGroupEdit').onclick = openPreGroup;
+    // btnShoot: 라이브 카메라(가이드 사각형) 지원 시 인앱 카메라 모달, 아니면 <label for="fileInput"> 폴백
+    document.getElementById('btnShoot').addEventListener('click', (ev)=>{
+      if(isLiveCamSupported()){ ev.preventDefault(); openCamera(); }
+      // 미지원: <label for="fileInput"> 의 기본 동작에 맡김 (네이티브 카메라)
+    });
+    document.getElementById('btnSave').onclick=save;
+    document.getElementById('btnReset').onclick=()=>{ resetForm(); triggerShoot(); };
+    document.getElementById('btnCfg').onclick=openCfg;
+    // 크롭 모달
+    document.getElementById('btnCropCancel').onclick  = closeCrop;
+    document.getElementById('btnCropConfirm').onclick = confirmCrop;
+    document.getElementById('btnCropRotate').onclick  = rotateCrop;
+
+    // 카메라 모달 컨트롤
+    document.getElementById('camClose').onclick   = closeCamera;
+    document.getElementById('camShutter').onclick = shoot;
+    document.getElementById('camFlip').onclick    = flipCamera;
+    document.getElementById('camErrorFallback').onclick = ()=>{
+      closeCamera();
+      document.getElementById('fileInput').click();
+    };
+    // 갤러리에서 선택 (카메라 모달 안의 🖼️ 버튼)
+    const gi = document.getElementById('fileInputGallery');
+    if(gi){
+      gi.addEventListener('change', e=>{
+        if(!supa){ alert('로그인 세션을 불러오는 중입니다. 잠시 후 다시 시도하세요.'); e.target.value=''; return; }
+        if(e.target.files[0]){ closeCamera(); handleFile(e.target.files[0]); }
+        e.target.value='';
+      });
+    }
+
+    refreshConsent();
+  }
+
+  // change 핸들러는 init() 보다 먼저 — 인증/세션 로드가 늦어도 사진은 즉시 처리.
+  document.addEventListener('DOMContentLoaded', () => {
+    const fi = document.getElementById('fileInput');
+    if (fi) fi.addEventListener('change', e => {
+      if (!supa) { alert('로그인 세션을 불러오는 중입니다. 잠시 후 다시 시도하세요.'); e.target.value=''; return; }
+      if (e.target.files[0]) handleFile(e.target.files[0]);
+      e.target.value='';
+    });
+  });
+
+  if(window.totalasAuth) init();
+  else document.addEventListener('totalas:ready', init, {once:true});
+  setTimeout(()=>{ if(!supa && window.totalasAuth) init(); }, 1500);
+
+  return { openCfg, closeCfg, saveCfg, refreshConsent, toggleConsent, openPreGroup, closePreGroup, savePreGroup, clearPreGroup };
+})();
+</script>
+</body>
+</html>

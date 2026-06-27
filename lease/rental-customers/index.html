@@ -1,0 +1,2266 @@
+<!doctype html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>임대거래처 — 디직스코리아</title>
+<link rel="stylesheet" href="../styles.css?v=20260529b">
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<script src="../config.js?v=20260611"></script>
+<script src="../auth.js"></script>
+<script src="../item-types.js"></script>
+<style>
+  /* ===== 임대거래처 전용 인라인 스타일 ===== */
+  .rc-layout {
+    display: grid;
+    grid-template-columns: 320px 1fr;
+    gap: 16px;
+    align-items: start;
+    margin-top: 14px;
+  }
+  @media (max-width: 900px) {
+    .rc-layout { grid-template-columns: 1fr; }
+  }
+
+  .rc-toolbar {
+    display: flex;
+    gap: 8px;
+    flex-wrap: wrap;
+    align-items: center;
+    margin-bottom: 10px;
+  }
+  .rc-toolbar input[type=text],
+  .rc-toolbar select {
+    padding: 6px 10px;
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    font-size: 13px;
+    background: #fff;
+  }
+  .rc-toolbar input[type=text] { flex: 1; min-width: 140px; }
+  .rc-toolbar .rc-tool-btn {
+    padding: 6px 10px;
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    background: #fff;
+    color: var(--text);
+    font-size: 12.5px;
+    font-weight: 600;
+    cursor: pointer;
+    font-family: inherit;
+    white-space: nowrap;
+    transition: background .12s, border-color .12s;
+  }
+  .rc-toolbar .rc-tool-btn:hover { background: var(--primary-soft, #eff6ff); border-color: var(--primary, #2563eb); }
+
+  /* ===== 전체 거래처 보기 (우측 detail 의 빈 상태 대체) ===== */
+  .rc-overview-head { padding: 8px 4px 12px 4px; }
+  .rc-overview-head h2 { margin: 0; font-size: 16px; font-weight: 700; }
+  .rc-overview-head .sub { font-size: 12px; color: var(--muted); margin-top: 2px; }
+
+  /* ── 1단계: 품목(subtype) 섹션 — 카드 그리드 ── */
+  .rc-ov-sections {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(240px, 1fr));
+    gap: 10px;
+    align-items: start;
+  }
+  .rc-ov-section {
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    background: #fff;
+    overflow: hidden;
+    box-shadow: 0 1px 2px rgba(0,0,0,.04);
+    transition: box-shadow .12s, transform .08s;
+  }
+  .rc-ov-section:hover { box-shadow: 0 3px 10px rgba(0,0,0,.07); }
+  /* 펼쳐진 카드는 그리드 한 줄 전체를 차지 — 내부 제품 그리드가 넓게 보이도록 */
+  .rc-ov-section.open { grid-column: 1 / -1; box-shadow: 0 3px 12px rgba(0,0,0,.08); }
+  @media (max-width: 480px) {
+    .rc-ov-sections { grid-template-columns: 1fr; }
+  }
+  .rc-ov-section-head {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 10px 14px;
+    cursor: pointer;
+    user-select: none;
+    transition: background .12s;
+  }
+  .rc-ov-section-head:hover { background: var(--primary-soft, #eff6ff); }
+  .rc-ov-section.open .rc-ov-section-head { background: #f8fafc; border-bottom: 1px solid var(--border); }
+  .rc-ov-section-icon {
+    font-size: 15px;
+    flex-shrink: 0;
+  }
+  .rc-ov-section-title {
+    font-size: 14px;
+    font-weight: 700;
+    flex: 1;
+  }
+  .rc-ov-section-badges {
+    display: flex;
+    gap: 5px;
+    flex-wrap: wrap;
+  }
+  .rc-ov-section-chevron {
+    font-size: 10px;
+    color: var(--muted);
+    transition: transform .15s;
+    margin-left: 4px;
+  }
+  .rc-ov-section.open .rc-ov-section-chevron { transform: rotate(180deg); }
+
+  /* 품목 섹션 색상 */
+  .rc-ov-section[data-cat="출력"] .rc-ov-section-head:hover,
+  .rc-ov-section[data-cat="출력"].open .rc-ov-section-head { background: #fffbeb; }
+  .rc-ov-section[data-cat="출력"] .rc-ov-section-title { color: #92400e; }
+  .rc-ov-section[data-cat="IT"] .rc-ov-section-head:hover,
+  .rc-ov-section[data-cat="IT"].open .rc-ov-section-head { background: #eff6ff; }
+  .rc-ov-section[data-cat="IT"] .rc-ov-section-title { color: #1e40af; }
+  .rc-ov-section[data-cat="위생"] .rc-ov-section-head:hover,
+  .rc-ov-section[data-cat="위생"].open .rc-ov-section-head { background: #ecfdf5; }
+  .rc-ov-section[data-cat="위생"] .rc-ov-section-title { color: #065f46; }
+
+  /* 품목 섹션 내부 접힘/펼침 */
+  .rc-ov-section-body {
+    max-height: 0;
+    overflow: hidden;
+    transition: max-height .25s ease-out;
+  }
+  .rc-ov-section.open .rc-ov-section-body {
+    max-height: 2000px;
+  }
+  .rc-ov-section-inner {
+    padding: 12px 14px 14px 14px;
+  }
+
+  /* ── 2단계: 제품(브랜드+모델) 카드 그리드 ── */
+  .rc-overview-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
+    gap: 8px;
+  }
+  .rc-ov-card {
+    background: #fff;
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    padding: 9px 11px;
+    cursor: pointer;
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+    transition: border-color .12s, box-shadow .12s, transform .08s;
+  }
+  .rc-ov-card:hover { border-color: var(--primary, #2563eb); box-shadow: 0 3px 10px rgba(0,0,0,.07); transform: translateY(-1px); }
+  .rc-ov-card.selected { border-color: var(--primary, #2563eb); background: var(--primary-soft, #eff6ff); }
+  .rc-ov-card .name { font-size: 13px; font-weight: 700; line-height: 1.3; word-break: break-all; }
+  .rc-ov-card .bizname { font-size: 11px; color: var(--muted); margin-top: -2px; }
+  .rc-ov-card .meta { display: flex; gap: 5px; flex-wrap: wrap; margin-top: 4px; font-size: 11px; }
+  .rc-ov-card .badge {
+    background: #f1f5f9; color: #475569;
+    padding: 1px 7px; border-radius: 999px;
+    font-variant-numeric: tabular-nums;
+  }
+  .rc-ov-card .badge.score { background: #eff6ff; color: #1d4ed8; }
+  .rc-ov-card .badge.alert { background: #fef3c7; color: #92400e; }
+  .rc-ov-card .addr { font-size: 11px; color: var(--muted); margin-top: 2px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+
+  /* 제품 카드 내 거래처 펼침 */
+  .rc-ov-product { position: relative; }
+  .rc-ov-chevron {
+    font-size: 10px; color: var(--muted);
+    margin-left: auto;
+    transition: transform .15s;
+  }
+  .rc-ov-product.expanded .rc-ov-chevron { transform: rotate(180deg); }
+  .rc-ov-cust-list {
+    list-style: none;
+    margin: 0; padding: 0;
+    max-height: 0;
+    overflow: hidden;
+    transition: max-height .2s ease-out, margin-top .2s ease-out;
+  }
+  .rc-ov-product.expanded .rc-ov-cust-list {
+    max-height: 600px; overflow-y: auto;
+    margin-top: 6px;
+    border-top: 1px solid var(--border);
+    padding-top: 6px;
+  }
+  .rc-ov-cust-list li { margin: 0; padding: 0; }
+  .rc-ov-cust {
+    display: flex; justify-content: space-between; align-items: center;
+    width: 100%;
+    padding: 5px 8px;
+    border: 1px solid transparent;
+    border-radius: 6px;
+    background: transparent;
+    font: inherit;
+    font-size: 12px;
+    color: var(--text);
+    cursor: pointer;
+    text-align: left;
+  }
+  .rc-ov-cust:hover { background: var(--primary-soft, #eff6ff); border-color: var(--primary, #2563eb); }
+  .rc-ov-cust-cnt { font-size: 10.5px; color: var(--muted); font-variant-numeric: tabular-nums; }
+
+  /* 좌측 거래처 리스트 */
+  .rc-list-card { padding: 12px; max-height: calc(100vh - 120px); overflow: auto; position: sticky; top: 16px; }
+  .rc-cust-item {
+    padding: 10px 12px;
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    margin-bottom: 6px;
+    cursor: pointer;
+    transition: all .12s;
+    background: #fff;
+  }
+  .rc-cust-item:hover {
+    border-color: var(--primary);
+    background: var(--primary-soft, #eff6ff);
+  }
+  .rc-cust-item.active {
+    border-color: #f59e0b;
+    background: #fef3c7;
+    box-shadow: 0 0 0 2px rgba(245,158,11,.35);
+  }
+  .rc-cust-item.active:hover {
+    background: #fde68a;
+    border-color: #d97706;
+  }
+  .rc-cust-item.active .rc-cust-name { color: #92400e; }
+  .rc-cust-name { font-weight: 600; font-size: 13.5px; }
+  .rc-cust-sub { font-size: 11.5px; color: var(--muted); margin-top: 2px; }
+  .rc-cust-items {
+    font-size: 11px;
+    color: #475569;
+    margin-top: 2px;
+    line-height: 1.6;
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 3px;
+  }
+  .rc-cust-items .rc-cust-item-chip {
+    display: inline-block;
+    padding: 0 4px;
+    background: #f1f5f9;
+    border-radius: 3px;
+    font-weight: 500;
+  }
+  .rc-cust-tags {
+    display: flex;
+    gap: 4px;
+    margin-top: 4px;
+    flex-wrap: wrap;
+  }
+
+  /* 거래처 인라인 액션 (수정/만기/복원) */
+  .rc-cust-item { position: relative; }
+  .rc-cust-actions {
+    position: absolute;
+    top: 8px;
+    right: 8px;
+    display: none;
+    gap: 4px;
+    z-index: 2;
+  }
+  .rc-cust-item:hover .rc-cust-actions,
+  .rc-cust-item.active .rc-cust-actions { display: flex; }
+  .rc-item-action {
+    width: 24px;
+    height: 24px;
+    padding: 0;
+    background: #fff;
+    border: 1px solid var(--border);
+    border-radius: 4px;
+    cursor: pointer;
+    font-size: 12px;
+    line-height: 1;
+    opacity: .75;
+    transition: all .12s;
+    color: var(--text-soft, #475569);
+  }
+  .rc-item-action:hover { opacity: 1; background: #f1f5f9; }
+  .rc-item-action[data-action="archive"]:hover {
+    background: #fee2e2;
+    border-color: #fca5a5;
+    color: #b91c1c;
+  }
+  .rc-item-action[data-action="restore"]:hover {
+    background: #d1fae5;
+    border-color: #6ee7b7;
+    color: #065f46;
+  }
+  .rc-item-action[data-action="edit"]:hover {
+    background: #eff6ff;
+    border-color: #93c5fd;
+    color: #1e40af;
+  }
+
+  /* 활성/만기 모드 라디오 */
+  .rc-list-mode {
+    display: flex;
+    gap: 14px;
+    font-size: 12.5px;
+    margin-bottom: 8px;
+    padding: 6px 10px;
+    background: #f8fafc;
+    border: 1px solid var(--border);
+    border-radius: 6px;
+  }
+  .rc-list-mode label {
+    cursor: pointer;
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+  }
+  .rc-list-mode input[type="radio"] { margin: 0; }
+  .rc-cust-item.archived {
+    background: #fafafa;
+    border-style: dashed;
+  }
+  .rc-cust-item.archived .rc-cust-name { color: #64748b; }
+
+  /* === 청구 그룹 트리 (좌측 리스트) === */
+  .rc-group-block { margin-bottom: 8px; }
+  .rc-group-header {
+    display: flex; align-items: center; gap: 6px;
+    padding: 6px 8px; margin-bottom: 4px;
+    background: #eff6ff; border-left: 3px solid #1e40af;
+    border-radius: 4px;
+    font-size: 12px; font-weight: 700; color: #1e3a8a;
+    cursor: pointer; user-select: none;
+  }
+  .rc-group-header:hover { background: #dbeafe; }
+  .rc-group-header-solo {
+    background: #f3f4f6; border-left-color: #6b7280;
+    color: #374151; cursor: default;
+  }
+  .rc-group-arrow { font-size: 9px; opacity: .7; min-width: 9px; }
+  .rc-group-name { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .rc-group-meta { font-size: 10.5px; font-weight: 500; color: #6b7280; }
+  .rc-cust-item-grouped { margin-left: 12px; border-left: 2px solid #dbeafe; }
+  .rc-cust-item-grouped.active { border-left-color: #f59e0b; }
+  .rc-bg-badge {
+    display: inline-block; padding: 1px 6px;
+    border-radius: 3px; font-size: 10px; font-weight: 700;
+    margin-left: 4px; white-space: nowrap;
+  }
+  .rc-bg-badge.rc-bg-combined { background: #dcfce7; color: #166534; }
+  .rc-bg-badge.rc-bg-split    { background: #fef3c7; color: #92400e; }
+  .rc-bg-badge.rc-bg-mixed    { background: #ede9fe; color: #5b21b6; }
+
+  /* 그룹 내부 합산/단독 서브 헤더 */
+  .rc-group-subheader {
+    display: flex; align-items: center; gap: 6px;
+    margin: 4px 0 2px 12px;
+    padding: 3px 8px;
+    border-radius: 3px;
+    font-size: 10.5px; font-weight: 700;
+    text-transform: none; letter-spacing: 0;
+  }
+  .rc-group-subheader.rc-sub-combined { background: #ecfdf5; color: #047857; border-left: 2px solid #10b981; }
+  .rc-group-subheader.rc-sub-split    { background: #fff7ed; color: #b45309; border-left: 2px solid #f59e0b; }
+  .rc-group-subheader .rc-sub-meta    { font-weight: 500; font-size: 10px; color: inherit; opacity: 0.75; margin-left: auto; }
+
+  /* 신규 거래처 안내 배너 (계약 에디터) */
+  .ct-new-customer-banner {
+    margin: 0 0 10px 0;
+    padding: 8px 12px;
+    background: #ecfdf5;
+    border: 1px solid #6ee7b7;
+    border-radius: 6px;
+    font-size: 12px;
+    color: #065f46;
+  }
+  .ct-new-customer-banner strong { color: #047857; }
+  .rc-tag {
+    display: inline-block;
+    padding: 1px 6px;
+    border-radius: 4px;
+    font-size: 10.5px;
+    font-weight: 600;
+    background: #e0e7ff;
+    color: #3730a3;
+  }
+  .rc-tag.score-hot { background: #fee2e2; color: #991b1b; }
+  .rc-tag.score-mid { background: #fef3c7; color: #92400e; }
+  .rc-tag.score-low { background: #d1fae5; color: #065f46; }
+  /* 우측 상세 패널 */
+  .rc-detail .card { margin-bottom: 12px; padding: 14px 16px; }
+  .rc-detail h3 { margin: 0 0 10px 0; font-size: 15px; }
+  .rc-detail h4 { margin: 0 0 6px 0; font-size: 13px; color: var(--muted); font-weight: 600; text-transform: uppercase; letter-spacing: .3px; }
+
+  .rc-info-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+    gap: 10px 18px;
+    font-size: 13px;
+  }
+  .rc-info-grid > div { padding: 4px 0; }
+  .rc-info-grid label {
+    display: block;
+    font-size: 11px;
+    color: var(--muted);
+    margin-bottom: 2px;
+    text-transform: uppercase;
+    letter-spacing: .3px;
+  }
+
+  .rc-asset-table {
+    width: 100%;
+    border-collapse: collapse;
+    font-size: 12.5px;
+  }
+  .rc-asset-table th,
+  .rc-asset-table td {
+    padding: 7px 9px;
+    border-bottom: 1px solid var(--border);
+    text-align: left;
+  }
+  .rc-asset-table th {
+    background: #f8fafc;
+    font-weight: 600;
+    font-size: 11.5px;
+    text-transform: uppercase;
+    letter-spacing: .2px;
+    color: var(--muted);
+  }
+  .rc-asset-table tbody tr:hover { background: #f9fafb; }
+  .rc-cat-pill {
+    display: inline-block;
+    padding: 1px 7px;
+    border-radius: 3px;
+    font-size: 10.5px;
+    font-weight: 600;
+  }
+  .rc-cat-it { background: #dbeafe; color: #1e40af; }
+  .rc-cat-출력 { background: #fde68a; color: #92400e; }
+  .rc-cat-위생 { background: #d1fae5; color: #065f46; }
+  .rc-cat-기타 { background: #e5e7eb; color: #374151; }
+
+  /* Cross-sell 인사이트 카드 */
+  .rc-insight {
+    padding: 10px 12px;
+    border-left: 3px solid var(--primary);
+    background: var(--primary-soft, #eff6ff);
+    border-radius: 6px;
+    margin-bottom: 8px;
+    font-size: 13px;
+  }
+  .rc-insight.warn { border-color: #d97706; background: #fffbeb; }
+  .rc-insight.hot { border-color: #dc2626; background: #fef2f2; }
+  .rc-insight.ok { border-color: #059669; background: #ecfdf5; }
+  .rc-insight-title { font-weight: 700; margin-bottom: 2px; }
+  .rc-insight-body { font-size: 12px; color: var(--text-soft, #475569); }
+
+  .rc-as-table {
+    width: 100%;
+    border-collapse: collapse;
+    font-size: 12.5px;
+  }
+  .rc-as-table th,
+  .rc-as-table td {
+    padding: 6px 9px;
+    border-bottom: 1px dashed var(--border);
+  }
+
+  .rc-detail-empty {
+    padding: 40px 20px;
+    text-align: center;
+    color: var(--muted);
+  }
+
+  /* 모달 */
+  .rc-modal-backdrop {
+    position: fixed; inset: 0;
+    background: rgba(15,23,42,.45);
+    display: none;
+    align-items: center;
+    justify-content: center;
+    z-index: 1000;
+    padding: 16px;
+  }
+  .rc-modal-backdrop.show { display: flex; }
+  .rc-modal-box {
+    background: #fff;
+    border-radius: 12px;
+    padding: 20px 22px;
+    max-width: 560px;
+    width: 100%;
+    max-height: 90vh;
+    overflow: auto;
+    box-shadow: 0 20px 60px rgba(0,0,0,.25);
+  }
+  .rc-form-row {
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+    margin-bottom: 10px;
+  }
+  .rc-form-row.two {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 10px;
+  }
+  .rc-form-row label {
+    font-size: 11.5px;
+    color: var(--muted);
+    text-transform: uppercase;
+    letter-spacing: .3px;
+  }
+  .rc-form-row input,
+  .rc-form-row select,
+  .rc-form-row textarea {
+    padding: 7px 10px;
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    font-size: 13px;
+    font-family: inherit;
+  }
+  .rc-modal-actions {
+    display: flex;
+    gap: 8px;
+    justify-content: flex-end;
+    margin-top: 14px;
+  }
+  .rc-error {
+    color: #dc2626;
+    font-size: 12.5px;
+    margin-top: 4px;
+  }
+
+  /* 자산 행 액션 버튼 */
+  .rc-asset-table th.act,
+  .rc-asset-table td.act {
+    text-align: right;
+    white-space: nowrap;
+    width: 80px;
+  }
+  .rc-icon-btn {
+    background: transparent;
+    border: 1px solid var(--border);
+    border-radius: 5px;
+    padding: 3px 7px;
+    font-size: 12px;
+    cursor: pointer;
+    line-height: 1;
+    margin-left: 3px;
+    color: var(--text-soft, #475569);
+    transition: all .12s;
+  }
+  .rc-icon-btn:hover {
+    background: #eff6ff;
+    border-color: var(--primary);
+    color: var(--primary);
+  }
+  .rc-icon-btn.danger:hover {
+    background: #fee2e2;
+    border-color: #dc2626;
+    color: #dc2626;
+  }
+
+  /* 자산 모달 — 거래처 모달과 동일 패턴 (.rc-modal-* 재사용) */
+  .rc-asset-modal-box {
+    max-width: 640px;
+  }
+  .rc-form-divider {
+    margin: 14px 0 10px 0;
+    padding-top: 10px;
+    border-top: 1px dashed var(--border);
+    font-size: 11.5px;
+    color: var(--muted);
+    text-transform: uppercase;
+    letter-spacing: .4px;
+    font-weight: 600;
+  }
+  .rc-form-row.hidden { display: none; }
+
+  /* 결제내역 체크박스 그룹 */
+  .payment-methods {
+    display: flex;
+    gap: 10px;
+    flex-wrap: wrap;
+    align-items: center;
+    padding: 6px 2px;
+  }
+  .payment-methods .pm-chk {
+    display: inline-flex;
+    align-items: center;
+    gap: 5px;
+    margin: 0;
+    padding: 5px 10px;
+    background: #f8fafc;
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    font-size: 13px;
+    cursor: pointer;
+    user-select: none;
+    transition: all .12s;
+  }
+  .payment-methods .pm-chk:hover {
+    background: #f1f5f9;
+    border-color: var(--primary, #2563eb);
+  }
+  .payment-methods .pm-chk input { margin: 0; cursor: pointer; }
+  .payment-methods .pm-chk:has(input:checked) {
+    background: #fef3c7;
+    border-color: #f59e0b;
+    font-weight: 600;
+    color: #92400e;
+  }
+
+  /* 토스트 */
+  .rc-toast {
+    position: fixed;
+    left: 50%;
+    bottom: 30px;
+    transform: translateX(-50%) translateY(20px);
+    background: #1e293b;
+    color: #fff;
+    padding: 10px 18px;
+    border-radius: 8px;
+    font-size: 13px;
+    box-shadow: 0 8px 24px rgba(0,0,0,.25);
+    opacity: 0;
+    pointer-events: none;
+    transition: all .2s;
+    z-index: 1100;
+    max-width: 90vw;
+  }
+  .rc-toast.show {
+    opacity: 1;
+    transform: translateX(-50%) translateY(0);
+  }
+  .rc-toast.ok { background: #059669; }
+  .rc-toast.err { background: #dc2626; }
+
+  @media (max-width: 640px) {
+    .rc-modal-box { max-height: 95vh; }
+    .rc-form-row.two { grid-template-columns: 1fr; }
+  }
+
+  /* ===== 프리셋 관리 버튼 ===== */
+  .preset-manage-btn {
+    flex-shrink: 0;
+    min-width: 32px;
+    min-height: 32px;
+    width: 32px;
+    height: 32px;
+    padding: 0;
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    background: #f8fafc;
+    color: var(--text-soft, #64748b);
+    font-size: 14px;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    transition: background .12s, border-color .12s, color .12s;
+    align-self: flex-end;
+    margin-bottom: 1px;
+  }
+  .preset-manage-btn:hover {
+    background: #eff6ff;
+    border-color: var(--primary, #2563eb);
+    color: var(--primary, #2563eb);
+  }
+  .preset-input-row {
+    display: flex;
+    gap: 6px;
+    align-items: flex-end;
+  }
+  .preset-input-row input[list] {
+    flex: 1;
+    min-width: 0;
+  }
+
+  /* ===== 프리셋 관리 모달 (2차 모달) ===== */
+  .pm-backdrop {
+    position: fixed; inset: 0;
+    background: rgba(15,23,42,.5);
+    display: none;
+    align-items: center;
+    justify-content: center;
+    z-index: 1100;
+    padding: 12px;
+  }
+  .pm-backdrop.show { display: flex; }
+  .pm-box {
+    background: #fff;
+    border-radius: 12px;
+    padding: 16px 18px;
+    width: 100%;
+    max-width: 420px;
+    max-height: 85vh;
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+    box-shadow: 0 20px 60px rgba(0,0,0,.3);
+  }
+  .pm-header {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+  }
+  .pm-header h4 {
+    margin: 0;
+    font-size: 14px;
+    font-weight: 700;
+    flex: 1;
+  }
+  .pm-header .pm-close {
+    background: none;
+    border: none;
+    font-size: 18px;
+    cursor: pointer;
+    padding: 4px 8px;
+    color: var(--muted);
+    line-height: 1;
+    min-width: 32px;
+    min-height: 32px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+  }
+  .pm-search-row {
+    display: flex;
+    gap: 6px;
+    align-items: center;
+  }
+  .pm-search-row input {
+    flex: 1;
+    padding: 7px 10px;
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    font-size: 13px;
+    font-family: inherit;
+  }
+  .pm-toggle-all {
+    font-size: 11px;
+    color: var(--primary, #2563eb);
+    background: none;
+    border: 1px solid var(--primary, #2563eb);
+    border-radius: 5px;
+    padding: 5px 8px;
+    cursor: pointer;
+    white-space: nowrap;
+    min-height: 32px;
+  }
+  .pm-list {
+    flex: 1;
+    overflow-y: auto;
+    border: 1px solid var(--border);
+    border-radius: 8px;
+  }
+  .pm-item {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 10px 12px;
+    border-bottom: 1px solid #f1f5f9;
+    min-height: 44px;
+  }
+  .pm-item:last-child { border-bottom: none; }
+  .pm-item-val {
+    flex: 1;
+    font-size: 13px;
+    word-break: break-all;
+  }
+  .pm-item-val.editing input {
+    width: 100%;
+    padding: 4px 7px;
+    border: 1px solid var(--primary, #2563eb);
+    border-radius: 5px;
+    font-size: 13px;
+    font-family: inherit;
+  }
+  .pm-item-cnt {
+    font-size: 11px;
+    color: var(--muted);
+    background: #f1f5f9;
+    border-radius: 10px;
+    padding: 1px 7px;
+    white-space: nowrap;
+  }
+  .pm-item.dim .pm-item-val,
+  .pm-item.dim .pm-item-cnt {
+    opacity: .45;
+  }
+  .pm-item-edit {
+    background: none;
+    border: 1px solid var(--border);
+    border-radius: 5px;
+    padding: 0;
+    width: 32px;
+    height: 32px;
+    min-width: 32px;
+    cursor: pointer;
+    font-size: 13px;
+    color: var(--text-soft, #64748b);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+  }
+  .pm-item-edit:hover { background: #eff6ff; border-color: var(--primary, #2563eb); color: var(--primary, #2563eb); }
+  .pm-item-del {
+    background: none;
+    border: 1px solid var(--border);
+    border-radius: 5px;
+    padding: 0;
+    width: 32px;
+    height: 32px;
+    min-width: 32px;
+    cursor: pointer;
+    font-size: 15px;
+    color: #94a3b8;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+  }
+  .pm-item-del:hover { background: #fee2e2; border-color: #dc2626; color: #dc2626; }
+  .pm-add-row {
+    display: flex;
+    gap: 6px;
+  }
+  .pm-add-row input {
+    flex: 1;
+    padding: 7px 10px;
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    font-size: 13px;
+    font-family: inherit;
+  }
+  .pm-add-btn {
+    padding: 7px 14px;
+    background: var(--primary, #2563eb);
+    color: #fff;
+    border: none;
+    border-radius: 6px;
+    font-size: 13px;
+    font-weight: 600;
+    cursor: pointer;
+    white-space: nowrap;
+    min-height: 36px;
+  }
+  .pm-add-btn:hover { background: #1d4ed8; }
+  .pm-empty {
+    padding: 20px;
+    text-align: center;
+    color: var(--muted);
+    font-size: 13px;
+  }
+  @media (max-width: 768px) {
+    .pm-backdrop { padding: 0; align-items: flex-end; }
+    .pm-box { border-radius: 16px 16px 0 0; max-height: 90vh; max-width: 100%; }
+  }
+
+  /* =============================================================
+     모바일 최적화 (max-width: 768px)
+     - 좌우 분할 → 풀스크린 전환 (리스트 or 상세 한 화면씩)
+     - 표 → 세로 카드 스택
+     ============================================================= */
+  @media (max-width: 768px) {
+
+    /* ── 레이아웃: 단일 컬럼, 패딩 축소 ── */
+    .rc-layout {
+      grid-template-columns: 1fr;
+      gap: 0;
+      margin-top: 8px;
+    }
+
+    /* 리스트 패널: 기본(미선택)은 풀스크린, 선택 시 숨김 */
+    .rc-list-card {
+      position: static;
+      max-height: none;
+      overflow: visible;
+      padding: 10px;
+    }
+    .rc-layout.detail-open .rc-list-card {
+      display: none;
+    }
+
+    /* 상세 패널: 기본 숨김, 선택 시 표시 */
+    .rc-detail {
+      display: none;
+    }
+    .rc-layout.detail-open .rc-detail {
+      display: block;
+    }
+
+    /* 뒤로가기 버튼 */
+    .rc-mobile-back {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      padding: 10px 12px;
+      background: #fff;
+      border-bottom: 1px solid var(--border);
+      font-size: 14px;
+      font-weight: 600;
+      cursor: pointer;
+      color: var(--primary, #2563eb);
+      min-height: 44px;
+      margin-bottom: 8px;
+      border-radius: 8px;
+      border: 1px solid var(--border);
+    }
+    .rc-mobile-back:active {
+      background: var(--primary-soft, #eff6ff);
+    }
+
+    /* page-head 압축 */
+    .page-head {
+      flex-direction: column;
+      align-items: flex-start;
+      gap: 8px;
+      padding: 10px 12px;
+    }
+    .page-head h1 { font-size: 18px; }
+    .page-head p  { font-size: 12px; }
+    .page-head-actions {
+      display: flex;
+      gap: 6px;
+      flex-wrap: wrap;
+      width: 100%;
+    }
+    .page-head-actions .btn {
+      flex: 1;
+      min-height: 40px;
+      font-size: 12px;
+      padding: 8px 8px;
+      text-align: center;
+    }
+
+    /* 툴바: 375px 이하에서 select + 버튼이 overflow하지 않도록 */
+    .rc-toolbar {
+      gap: 6px;
+    }
+    .rc-toolbar input[type=text] { min-width: 0; flex: 1; }
+    .rc-toolbar select {
+      min-width: 0;
+      max-width: 110px;
+      flex-shrink: 0;
+      font-size: 12px;
+    }
+    .rc-toolbar .rc-tool-btn {
+      min-width: 0;
+      flex-shrink: 0;
+      font-size: 12px;
+      padding: 6px 7px;
+    }
+
+    /* 거래처 리스트 아이템 터치 영역 확대 */
+    .rc-cust-item {
+      padding: 12px 14px;
+      min-height: 44px;
+    }
+    .rc-cust-name { font-size: 14px; }
+
+    /* 액션 버튼 터치 영역 */
+    .rc-item-action {
+      width: 32px;
+      height: 32px;
+      font-size: 14px;
+    }
+    .rc-icon-btn {
+      min-height: 36px;
+      padding: 6px 10px;
+    }
+
+    /* ── 표 → 카드 스택 변환 (rc-asset-table) ── */
+    /* rc-asset-table : 임대물품 내역 / 임대계약내역 / 카운터12m / 수리내역 */
+    .rc-asset-table,
+    .rc-asset-table thead,
+    .rc-asset-table tbody,
+    .rc-asset-table tfoot,
+    .rc-asset-table tr,
+    .rc-asset-table th,
+    .rc-asset-table td {
+      display: block;
+    }
+    /* 헤더 행 숨김 */
+    .rc-asset-table thead tr {
+      position: absolute;
+      left: -9999px;
+      top: -9999px;
+      visibility: hidden;
+    }
+    /* 각 행 → 카드 */
+    .rc-asset-table tbody tr,
+    .rc-asset-table tfoot tr {
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      margin-bottom: 8px;
+      padding: 8px 10px;
+      background: #fff;
+    }
+    .rc-asset-table tbody tr:hover {
+      background: #f9fafb;
+    }
+    /* 각 셀 → "라벨: 값" 한 줄 */
+    .rc-asset-table td {
+      border: none;
+      border-bottom: 1px dashed #f1f5f9;
+      padding: 5px 2px;
+      font-size: 13px;
+      display: flex;
+      align-items: flex-start;
+      gap: 6px;
+      text-align: left !important;
+    }
+    .rc-asset-table td:last-child {
+      border-bottom: none;
+    }
+    .rc-asset-table td::before {
+      content: attr(data-label);
+      font-size: 10.5px;
+      font-weight: 600;
+      color: var(--muted);
+      text-transform: uppercase;
+      letter-spacing: .3px;
+      min-width: 64px;
+      flex-shrink: 0;
+      padding-top: 1px;
+    }
+    /* 관리 셀: 라벨 제거, 오른쪽 정렬 */
+    .rc-asset-table td.act {
+      justify-content: flex-end;
+      border-bottom: none;
+    }
+    .rc-asset-table td.act::before {
+      display: none;
+    }
+    /* 새 행 입력 필드도 카드화 */
+    .rc-asset-table tr.rp-new-row td,
+    .rc-asset-table tr.rp-edit-row td {
+      padding: 6px 4px;
+    }
+    .rc-asset-table tr.rp-new-row td::before,
+    .rc-asset-table tr.rp-edit-row td::before {
+      display: none;
+    }
+    /* 전체보기 토글 행 */
+    .rc-asset-table tr.rp-toggle-row td {
+      justify-content: center;
+    }
+    .rc-asset-table tr.rp-toggle-row td::before {
+      display: none;
+    }
+
+    /* 카운터 12개월: 열이 13개라 데이터 테이블 방식으로 가로 스크롤 유지 */
+    .rc-counter-12m-wrap {
+      overflow-x: auto;
+      -webkit-overflow-scrolling: touch;
+    }
+    .rc-counter-12m-wrap .rc-asset-table,
+    .rc-counter-12m-wrap .rc-asset-table thead,
+    .rc-counter-12m-wrap .rc-asset-table tbody,
+    .rc-counter-12m-wrap .rc-asset-table tfoot,
+    .rc-counter-12m-wrap .rc-asset-table tr,
+    .rc-counter-12m-wrap .rc-asset-table th,
+    .rc-counter-12m-wrap .rc-asset-table td {
+      display: revert;
+    }
+    .rc-counter-12m-wrap .rc-asset-table thead tr {
+      position: static;
+      visibility: visible;
+    }
+    .rc-counter-12m-wrap .rc-asset-table td {
+      border-bottom: 1px solid var(--border);
+      padding: 7px 9px;
+    }
+    .rc-counter-12m-wrap .rc-asset-table tbody tr {
+      border: none;
+      border-radius: 0;
+      margin-bottom: 0;
+      padding: 0;
+    }
+    .rc-counter-12m-wrap .rc-asset-table td::before {
+      display: none;
+    }
+
+    /* 임대계약내역 표도 열이 많아 가로 스크롤 유지 */
+    .rc-contract-items-wrap,
+    .rc-monthly-balance-wrap {
+      overflow-x: auto;
+      -webkit-overflow-scrolling: touch;
+    }
+    .rc-contract-items-wrap .rc-asset-table,
+    .rc-contract-items-wrap .rc-asset-table thead,
+    .rc-contract-items-wrap .rc-asset-table tbody,
+    .rc-contract-items-wrap .rc-asset-table tfoot,
+    .rc-contract-items-wrap .rc-asset-table tr,
+    .rc-contract-items-wrap .rc-asset-table th,
+    .rc-contract-items-wrap .rc-asset-table td,
+    .rc-monthly-balance-wrap .rc-asset-table,
+    .rc-monthly-balance-wrap .rc-asset-table thead,
+    .rc-monthly-balance-wrap .rc-asset-table tbody,
+    .rc-monthly-balance-wrap .rc-asset-table tfoot,
+    .rc-monthly-balance-wrap .rc-asset-table tr,
+    .rc-monthly-balance-wrap .rc-asset-table th,
+    .rc-monthly-balance-wrap .rc-asset-table td {
+      display: revert;
+    }
+    .rc-contract-items-wrap .rc-asset-table thead tr,
+    .rc-monthly-balance-wrap .rc-asset-table thead tr {
+      position: static;
+      visibility: visible;
+    }
+    .rc-contract-items-wrap .rc-asset-table td,
+    .rc-monthly-balance-wrap .rc-asset-table td {
+      border-bottom: 1px solid var(--border);
+      padding: 7px 9px;
+    }
+    .rc-contract-items-wrap .rc-asset-table tbody tr,
+    .rc-monthly-balance-wrap .rc-asset-table tbody tr {
+      border: none;
+      border-radius: 0;
+      margin-bottom: 0;
+      padding: 0;
+    }
+    .rc-contract-items-wrap .rc-asset-table td::before,
+    .rc-monthly-balance-wrap .rc-asset-table td::before {
+      display: none;
+    }
+    /* 월합계: 첫 열(항목)은 sticky 로 — 가로 스크롤해도 라벨 항상 보이게 */
+    .rc-monthly-balance-wrap .rc-asset-table th:first-child,
+    .rc-monthly-balance-wrap .rc-asset-table td:first-child {
+      position: sticky;
+      left: 0;
+      background: #fff;
+      z-index: 2;
+      box-shadow: 1px 0 0 var(--border);
+    }
+    .rc-monthly-balance-wrap .rc-asset-table thead th:first-child {
+      background: #f8fafc;
+    }
+    .rc-monthly-balance-wrap .rc-asset-table tfoot td:first-child {
+      background: #f1f5f9;
+    }
+
+    /* 카드 내부 패딩 축소 */
+    .rc-detail .card { padding: 12px; margin-bottom: 10px; }
+    .rc-detail .card h3 { font-size: 14px; }
+
+    /* ── 핵심 픽스: 임대계약내역 / 카운터 12개월 우측 잘림 ──
+       CSS Grid item(.rc-detail)의 기본 min-width: auto 때문에
+       자식 테이블 max-content 가 칸 폭을 터트려 wrap의 overflow-x:auto 가 무력화됨.
+       체인 전체에 min-width: 0 을 박아 viewport 폭으로 강제 수렴시킴. */
+    .rc-layout, .rc-list-card, .rc-detail { min-width: 0; }
+    .rc-detail .card { min-width: 0; max-width: 100%; box-sizing: border-box; }
+    .rc-contract-items-wrap,
+    .rc-counter-12m-wrap,
+    .rc-monthly-balance-wrap {
+      width: 100%;
+      max-width: 100%;
+      overflow-x: auto;
+      -webkit-overflow-scrolling: touch;
+    }
+
+    /* 오버뷰 카드 그리드: 모바일 1열, 카드 min-width 해제 */
+    .rc-overview-grid {
+      grid-template-columns: 1fr;
+    }
+    .rc-ov-card { min-width: 0; }
+
+    /* 오버뷰 섹션 헤더 내 배지 wrap 보장 */
+    .rc-ov-section-head { flex-wrap: wrap; }
+
+    /* payment-methods: 모바일에서 버튼이 넘칠 때 wrap */
+    .payment-methods { gap: 6px; }
+    .payment-methods .pm-chk { font-size: 12px; padding: 4px 8px; }
+
+    /* rc-info-grid minmax 재조정 (220px → 140px) */
+    .rc-info-grid {
+      grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
+    }
+
+    /* container 패딩은 styles.css @media(max-width:720px)에서 12px로 처리됨 */
+
+    /* 모달: 사이드 여백 제거 */
+    .rc-modal-backdrop { padding: 0; align-items: flex-end; }
+    .rc-modal-box {
+      border-radius: 16px 16px 0 0;
+      max-height: 92vh;
+      width: 100%;
+    }
+
+    /* 리스트 모드 라디오 */
+    .rc-list-mode { font-size: 13px; }
+    .rc-list-mode label { gap: 6px; }
+
+    /* 뒤로가기 없을 때 숨김 */
+    .rc-mobile-back { display: none; }
+    .rc-layout.detail-open .rc-mobile-back { display: flex; }
+
+    /* 계약서 행: 배지가 긴 제목에 밀려나지 않도록 wrap 허용 */
+    .rc-ct-row { flex-wrap: wrap; gap: 6px; }
+    .rc-ct-row-main { min-width: 0; }
+    .rc-ct-row-title {
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+    }
+
+    /* 그룹 헤더 텍스트가 길 때 잘리지 않도록 */
+    .rc-group-header { flex-wrap: nowrap; }
+    .rc-group-name { font-size: 11.5px; }
+    .rc-group-meta { font-size: 10px; white-space: nowrap; }
+  }
+
+  /* ── 뒤로가기 버튼: 데스크탑에서 항상 숨김 ── */
+  @media (min-width: 769px) {
+    .rc-mobile-back { display: none !important; }
+  }
+
+  /* =============================================================
+     계약서 카드 (우측 상세 패널) — 거래처별 계약서 리스트
+     ============================================================= */
+  .rc-ct-row {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    gap: 10px;
+    padding: 9px 11px;
+    border: 1px solid var(--border);
+    border-radius: 7px;
+    margin-bottom: 6px;
+    cursor: pointer;
+    background: #fff;
+    transition: all .12s;
+  }
+  .rc-ct-row:hover { border-color: var(--primary); background: var(--primary-soft, #eff6ff); }
+  .rc-ct-row-main { min-width: 0; flex: 1; }
+  .rc-ct-row-title { font-weight: 600; font-size: 13px; }
+  .rc-ct-row-sub { font-size: 11.5px; color: var(--muted); margin-top: 2px; }
+  .rc-ct-badge {
+    display: inline-block;
+    padding: 2px 8px;
+    border-radius: 4px;
+    font-size: 10.5px;
+    font-weight: 700;
+    letter-spacing: .3px;
+    text-transform: uppercase;
+    flex-shrink: 0;
+  }
+  .rc-ct-badge.draft     { background: #e5e7eb; color: #374151; }
+  .rc-ct-badge.signed    { background: #dbeafe; color: #1e40af; }
+  .rc-ct-badge.active    { background: #d1fae5; color: #065f46; }
+  .rc-ct-badge.terminated{ background: #fee2e2; color: #991b1b; }
+
+  /* =============================================================
+     계약서 에디터 풀스크린 모달
+     ============================================================= */
+  .ct-edit-backdrop {
+    position: fixed; inset: 0;
+    background: rgba(15, 23, 42, .55);
+    display: none;
+    z-index: 1200;
+  }
+  .ct-edit-backdrop.show { display: block; }
+
+  .ct-edit-modal {
+    position: fixed;
+    inset: 12px;
+    background: #f3f5f9;
+    border-radius: 12px;
+    box-shadow: 0 20px 60px rgba(0,0,0,.35);
+    display: flex;
+    flex-direction: column;
+    overflow: hidden;
+  }
+  @media (max-width: 640px) {
+    .ct-edit-modal { inset: 0; border-radius: 0; }
+  }
+
+  /* sticky 헤더 */
+  .ct-edit-head {
+    background: #fff;
+    border-bottom: 1px solid var(--border);
+    padding: 10px 16px;
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    flex-wrap: wrap;
+    flex-shrink: 0;
+  }
+  .ct-edit-head .ct-h-left { min-width: 0; flex: 1; display: flex; flex-direction: column; gap: 2px; }
+  .ct-edit-head .ct-h-title { font-weight: 700; font-size: 14.5px; }
+  .ct-edit-head .ct-h-meta  { font-size: 11.5px; color: var(--muted); }
+  .ct-edit-head .ct-h-actions { display: flex; gap: 6px; flex-wrap: wrap; }
+  .ct-edit-head select, .ct-edit-head input { font-size: 12.5px; padding: 5px 8px; border-radius: 6px; border: 1px solid var(--border-strong, #cbd5e1); }
+
+  @media (max-width: 640px) {
+    /* 계약서 에디터 헤더: 좁은 화면에서 액션 버튼 행 분리 + 가로 스크롤 */
+    .ct-edit-head {
+      padding: 8px 10px;
+      gap: 6px;
+    }
+    .ct-edit-head .ct-h-left { width: 100%; flex: none; }
+    .ct-edit-head .ct-h-actions {
+      width: 100%;
+      overflow-x: auto;
+      -webkit-overflow-scrolling: touch;
+      flex-wrap: nowrap;
+      padding-bottom: 2px;
+    }
+    .ct-edit-head .ct-h-actions .btn,
+    .ct-edit-head .ct-h-actions button {
+      white-space: nowrap;
+      flex-shrink: 0;
+      min-height: 36px;
+      font-size: 12px;
+      padding: 6px 8px;
+    }
+    .ct-edit-head select,
+    .ct-edit-head input[type=text] {
+      max-width: 120px;
+      font-size: 12px;
+    }
+  }
+
+  /* 본문 — 스크롤 */
+  .ct-edit-body {
+    flex: 1;
+    overflow: auto;
+    padding: 18px 16px 60px 16px;
+    min-width: 0;
+  }
+  .ct-edit-body .contract-doc { min-width: 800px; margin: 0 auto; max-width: 220mm; }
+
+  @media (max-width: 720px) {
+    .ct-edit-body { padding: 8px 4px 60px 4px; }
+    /* contract-doc: A4 폭 고정 유지, ct-edit-body(overflow:auto)가 가로 스크롤 담당 */
+    .ct-edit-body .contract-doc { min-width: 800px; }
+  }
+
+  /* 페이지 구분선 (화면용) */
+  .ct-page-divider {
+    text-align: center;
+    color: var(--muted);
+    font-size: 11px;
+    margin: 8px 0 16px 0;
+    letter-spacing: 1px;
+  }
+
+  /* 품목 프리셋 드롭다운 자리 */
+  .ct-preset-row {
+    display: flex;
+    gap: 8px;
+    align-items: center;
+    margin: 6px 0 10px 0;
+    font-size: 12.5px;
+    flex-wrap: wrap;
+  }
+  .ct-preset-row select { padding: 6px 10px; border-radius: 6px; border: 1px solid var(--border-strong, #cbd5e1); }
+
+  /* 행 액션 컬럼 */
+  .ct-tbl-items td .ct-row-del {
+    background: transparent;
+    border: 1px solid var(--border);
+    color: var(--danger, #dc2626);
+    padding: 2px 7px;
+    border-radius: 4px;
+    cursor: pointer;
+    font-size: 11px;
+  }
+  .ct-tbl-items td .ct-row-del:hover { background: #fee2e2; }
+  .ct-row-added {
+    display: inline-block;
+    margin-top: 3px;
+    padding: 1px 6px;
+    background: #ecfdf5;
+    border: 1px solid #6ee7b7;
+    color: #065f46;
+    border-radius: 3px;
+    font-size: 10px;
+    font-weight: 600;
+    letter-spacing: .2px;
+  }
+  .ct-input[disabled] {
+    background: #f1f5f9 !important;
+    color: #94a3b8;
+    cursor: not-allowed;
+  }
+
+  /* 합계 박스 */
+  .ct-total-box {
+    display: grid;
+    grid-template-columns: 1fr 1fr 1fr;
+    gap: 8px;
+    margin: 8px 0;
+    font-size: 12px;
+  }
+  .ct-total-cell {
+    background: #f4f4f4;
+    border: 1px solid #555;
+    padding: 6px 10px;
+    text-align: center;
+  }
+  .ct-total-cell.total { background: #fde68a; font-weight: 700; }
+  .ct-total-cell label { display: block; font-size: 10.5px; color: #555; margin-bottom: 2px; letter-spacing: .5px; }
+  .ct-total-cell .v { font-size: 13px; font-weight: 600; }
+
+  /* 약관 행 */
+  .ct-term-row {
+    display: grid;
+    grid-template-columns: 64px 1fr 80px 28px;
+    gap: 8px;
+    align-items: start;
+    padding: 8px 0;
+    border-bottom: 1px solid #e5e7eb;
+  }
+  .ct-term-row:last-child { border-bottom: none; }
+  .ct-term-row .ct-term-no  { font-weight: 700; font-size: 11.5px; padding-top: 4px; }
+  .ct-term-row .ct-term-tt  { padding-top: 4px; }
+  .ct-term-row .ct-term-tt input { width: 100%; font-weight: 700; font-size: 11.5px; }
+  .ct-term-row textarea { width: 100%; min-height: 56px; font-size: 11px; padding: 5px 7px; border: 1px solid var(--border); border-radius: 5px; font-family: inherit; resize: vertical; }
+  .ct-term-row .ct-term-chk { padding-top: 6px; }
+  .ct-term-row .ct-term-rm  { padding-top: 4px; text-align: right; }
+  .ct-term-row .ct-term-rm button { background: transparent; border: none; color: var(--danger); cursor: pointer; font-size: 14px; }
+
+  /* CMS 결제수단 — 활성/비활성 */
+  .ct-pay-block {
+    border: 1px solid var(--border);
+    border-radius: 7px;
+    padding: 10px 12px;
+    margin-bottom: 10px;
+    background: #fff;
+  }
+  .ct-pay-block.disabled {
+    opacity: .45;
+    background: #f9fafb;
+    pointer-events: none;
+  }
+  .ct-pay-block h5 { margin: 0 0 8px 0; font-size: 12.5px; font-weight: 700; }
+  .ct-pay-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(160px, 1fr));
+    gap: 8px;
+  }
+  .ct-pay-grid label { font-size: 11px; color: var(--muted); display: block; margin-bottom: 2px; }
+  .ct-pay-grid input { width: 100%; padding: 5px 7px; border: 1px solid var(--border); border-radius: 5px; font-size: 12px; }
+
+  /* 서명 캔버스 */
+  .ct-sign-wrap {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 14px;
+    margin-top: 14px;
+  }
+  @media (max-width: 720px) {
+    .ct-sign-wrap { grid-template-columns: 1fr; }
+  }
+  .ct-sign-box {
+    border: 1px solid #555;
+    background: #fff;
+    padding: 8px;
+    border-radius: 4px;
+  }
+  .ct-sign-label {
+    font-size: 12px;
+    font-weight: 700;
+    margin-bottom: 6px;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+  }
+  .ct-sign-canvas {
+    display: block;
+    width: 100%;
+    height: 150px;
+    border: 1px dashed #94a3b8;
+    border-radius: 4px;
+    background: #fcfdff;
+    touch-action: none;          /* 모바일 스크롤 차단 */
+    cursor: crosshair;
+  }
+  .ct-sign-clear {
+    background: transparent;
+    border: 1px solid var(--border);
+    border-radius: 4px;
+    padding: 3px 8px;
+    font-size: 11px;
+    cursor: pointer;
+    color: var(--text-soft, #475569);
+  }
+  .ct-sign-clear:hover { background: #fee2e2; color: var(--danger); border-color: var(--danger); }
+
+  /* 서명 모드 토글 */
+  .ct-sign-mode {
+    margin-bottom: 10px;
+    padding: 8px 12px;
+    background: #f8fafc;
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    font-size: 12.5px;
+  }
+  .ct-sign-mode label { cursor: pointer; }
+
+  /* 도장 모드 첨부 영역 */
+  .ct-sign-stamp .ct-attach-row {
+    margin: 8px 0;
+    padding: 10px 12px;
+    border: 1px dashed var(--border);
+    border-radius: 6px;
+    background: #fafafa;
+  }
+  .ct-sign-stamp .ct-attach-row label {
+    display: block;
+    font-size: 12.5px;
+    font-weight: 600;
+    margin-bottom: 6px;
+  }
+  .ct-sign-stamp .ct-attach-row input[type=file] {
+    display: block;
+    margin-top: 4px;
+    font-size: 11.5px;
+  }
+  .ct-sign-stamp .ct-attach-meta {
+    font-size: 11.5px;
+    color: var(--muted);
+    margin-top: 6px;
+    line-height: 1.55;
+  }
+  .ct-sign-stamp .ct-attach-meta.has-file {
+    color: #065f46;
+    background: #ecfdf5;
+    border: 1px solid #6ee7b7;
+    padding: 6px 8px;
+    border-radius: 4px;
+  }
+  .ct-sign-stamp .ct-attach-meta a {
+    color: var(--primary);
+    text-decoration: underline;
+    margin: 0 6px;
+  }
+  .ct-sign-stamp .ct-attach-meta button {
+    background: transparent;
+    border: 1px solid #fca5a5;
+    color: #dc2626;
+    font-size: 11px;
+    padding: 2px 6px;
+    border-radius: 4px;
+    cursor: pointer;
+    margin-left: 6px;
+  }
+  .ct-sign-stamp .ct-attach-meta button:hover { background: #fee2e2; }
+  .ct-sign-stamp .ct-stamp-area {
+    border: 1px solid #555;
+    border-radius: 4px;
+    background: #fff;
+    height: 120px;
+    margin: 8px 0;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    color: #94a3b8;
+    font-size: 11.5px;
+  }
+  .ct-sign-block.hidden { display: none !important; }
+
+  /* 인쇄 사본 라벨 */
+  .ct-print-copy-label {
+    position: absolute;
+    top: 10px;
+    right: 12px;
+    border: 1.5px solid #555;
+    padding: 3px 10px;
+    font-size: 11px;
+    font-weight: 700;
+    letter-spacing: .5px;
+    background: #fff;
+    border-radius: 3px;
+    color: #1e293b;
+  }
+
+  /* 인쇄 클론 영역 — 화면에서는 숨김 */
+  #ct-print-clone {
+    display: none;
+  }
+  #ct-print-clone .contract-page {
+    position: relative;
+  }
+
+  /* 인쇄: 에디터 헤더/모달 backdrop/체크/삭제 버튼 숨김 + 모달 전체 풀스크린화 */
+  @media print {
+    html, body { background: #fff !important; }
+    body * { visibility: hidden !important; }
+
+    /* 클론 영역이 활성화되면 그것만 보이게 */
+    body.ct-printing #ct-print-clone,
+    body.ct-printing #ct-print-clone * { visibility: visible !important; }
+    body.ct-printing #ct-print-clone {
+      display: block !important;
+      position: absolute !important;
+      left: 0; top: 0;
+      width: 100%;
+      background: #fff !important;
+    }
+    body.ct-printing .ct-edit-backdrop,
+    body.ct-printing .ct-edit-modal {
+      display: none !important;
+    }
+
+    /* 클론이 없을 때 폴백 — 기존 모달 사용 */
+    body:not(.ct-printing) .ct-edit-backdrop,
+    body:not(.ct-printing) .ct-edit-modal,
+    body:not(.ct-printing) .ct-edit-modal *,
+    body:not(.ct-printing) .ct-edit-modal *::before,
+    body:not(.ct-printing) .ct-edit-modal *::after { visibility: visible !important; }
+    body:not(.ct-printing) .ct-edit-backdrop { background: transparent !important; }
+    body:not(.ct-printing) .ct-edit-modal {
+      position: static !important;
+      inset: auto !important;
+      box-shadow: none !important;
+      border-radius: 0 !important;
+      background: #fff !important;
+      display: block !important;
+      overflow: visible !important;
+    }
+
+    .ct-edit-head, .ct-preset-row, .ct-row-del, .ct-term-rm, .ct-sign-clear,
+    .ct-page-divider, .no-print { display: none !important; }
+    .ct-edit-body { padding: 0 !important; overflow: visible !important; }
+    .ct-edit-body .contract-doc { min-width: 0 !important; max-width: none !important; }
+    .ct-pay-block.disabled { display: none !important; }
+    .ct-sign-canvas { border: none !important; background: transparent !important; }
+    .ct-sign-box { border: 1px solid #555 !important; }
+
+    /* 인쇄 클론: 각 페이지마다 page-break */
+    #ct-print-clone .contract-page {
+      page-break-after: always;
+      break-after: page;
+      padding: 8mm 0 0 0;
+      box-sizing: border-box;
+    }
+    #ct-print-clone .contract-page:last-child {
+      page-break-after: auto;
+      break-after: auto;
+    }
+    #ct-print-clone input,
+    #ct-print-clone textarea,
+    #ct-print-clone select {
+      border: none !important;
+      background: transparent !important;
+      -webkit-appearance: none !important;
+    }
+    #ct-print-clone .ct-print-copy-label { display: block !important; }
+
+    @page { size: A4; margin: 15mm 12mm; }
+  }
+
+  /* =============================================================
+     거래처 문서 카드 (도장 계약서 / 신분증·사업자사본 / 통장사본·CMS신청서)
+     ============================================================= */
+  .rc-doc-slots {
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+  }
+  .rc-doc-slot {
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    padding: 10px 12px;
+    background: #fff;
+  }
+  .rc-doc-slot-head {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    margin-bottom: 8px;
+    font-size: 13px;
+    font-weight: 600;
+  }
+  .rc-doc-slot-icon { font-size: 15px; }
+  .rc-doc-slot-hint { font-size: 11px; color: var(--muted); font-weight: 400; margin-left: 4px; }
+  .rc-doc-count {
+    margin-left: auto;
+    font-size: 11px;
+    background: #dbeafe;
+    color: #1e40af;
+    padding: 1px 6px;
+    border-radius: 4px;
+    font-weight: 700;
+  }
+  .rc-doc-file-row {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    padding: 5px 8px;
+    background: #f8fafc;
+    border: 1px solid #e2e8f0;
+    border-radius: 5px;
+    margin-bottom: 5px;
+    font-size: 12.5px;
+  }
+  .rc-doc-filename {
+    flex: 1;
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+  .rc-doc-meta {
+    font-size: 11px;
+    color: var(--muted);
+    white-space: nowrap;
+    flex-shrink: 0;
+  }
+  .rc-doc-upload-label {
+    display: block;
+    margin-top: 4px;
+    padding: 8px 12px;
+    border: 2px dashed var(--border);
+    border-radius: 6px;
+    text-align: center;
+    font-size: 12.5px;
+    color: var(--muted);
+    cursor: pointer;
+    transition: all .12s;
+    user-select: none;
+  }
+  .rc-doc-upload-label:hover,
+  .rc-doc-upload-label.drag-over {
+    border-color: var(--primary);
+    background: var(--primary-soft, #eff6ff);
+    color: var(--primary);
+  }
+  .rc-doc-upload-label.uploading {
+    opacity: .6;
+    cursor: wait;
+    pointer-events: none;
+  }
+</style>
+</head>
+<body>
+<main class="container">
+  <div class="page-head">
+    <div>
+      <h1>👥 임대거래처</h1>
+      <p class="muted" style="margin:2px 0 0 0;">Cross-selling 인사이트 · NAS 잠재고객 발굴 · 품목별 AS 주기 통합 관리</p>
+    </div>
+    <div class="page-head-actions">
+      <button class="btn ghost" id="btn-item-types" title="품목 마스터 관리 — 추가/순서/숨김">⚙ 품목 관리</button>
+      <button class="btn ghost" id="btn-ct-new-top" title="선택된 거래처가 없으면 신규 거래처와 함께 작성합니다.">📄 새 계약서 작성</button>
+      <button class="btn primary" id="btn-add">+ 거래처 추가</button>
+    </div>
+  </div>
+
+  <div class="rc-layout">
+    <!-- 좌측: 거래처 리스트 -->
+    <section class="card rc-list-card">
+      <div class="rc-list-mode">
+        <label>
+          <input type="radio" name="rc-mode" value="active" checked> 활성 거래처
+        </label>
+        <label>
+          <input type="radio" name="rc-mode" value="archived"> 만기 거래처
+        </label>
+      </div>
+      <div class="rc-toolbar">
+        <input type="text" id="rc-search" placeholder="🔍 회사명 / 브랜드 / 모델 검색">
+        <select id="rc-sort">
+          <option value="name">이름순</option>
+          <option value="recent">최근 등록순</option>
+          <option value="assets">자산 많은순</option>
+          <option value="score">Cross-sell 점수↓</option>
+        </select>
+        <button type="button" id="rc-toggle-menu" class="rc-tool-btn" title="전체 메뉴 열기 + 검색 리셋 + 전체 거래처 보기">☰ 전체메뉴</button>
+      </div>
+      <div id="rc-cust-list" style="margin-top:10px;">
+        <div class="muted" style="text-align:center; padding:20px; font-size:12px;">로딩 중…</div>
+      </div>
+    </section>
+
+    <!-- 우측: 상세 패널 -->
+    <section class="rc-detail" id="rc-detail">
+      <div class="card rc-detail-empty">
+        <p style="font-size:14px; margin:0;">좌측에서 거래처를 선택하세요.</p>
+      </div>
+    </section>
+  </div>
+</main>
+
+<!-- 모달 (거래처/자산 공용 컨테이너) -->
+<div class="rc-modal-backdrop" id="rc-modal">
+  <div class="rc-modal-box" id="rc-modal-body"></div>
+</div>
+
+<!-- 토스트 -->
+<div class="rc-toast" id="rc-toast"></div>
+
+<!-- 프리셋 관리 모달 -->
+<div class="pm-backdrop" id="pm-modal">
+  <div class="pm-box">
+    <div class="pm-header">
+      <h4 id="pm-title">브랜드 목록 관리</h4>
+      <button class="pm-close" id="pm-close-btn" type="button">&#10005;</button>
+    </div>
+    <div class="pm-search-row">
+      <input type="text" id="pm-search" placeholder="검색..." autocomplete="off">
+      <button class="pm-toggle-all" id="pm-toggle-all" type="button" style="display:none;">전체 모델 보기</button>
+    </div>
+    <div class="pm-list" id="pm-list">
+      <div class="pm-empty">불러오는 중...</div>
+    </div>
+    <div class="pm-add-row">
+      <input type="text" id="pm-add-input" placeholder="새 항목 추가..." autocomplete="off">
+      <button class="pm-add-btn" id="pm-add-btn" type="button">+ 추가</button>
+    </div>
+  </div>
+</div>
+
+<!-- 계약서 에디터 풀스크린 모달 -->
+<div class="ct-edit-backdrop" id="ct-edit-backdrop">
+  <div class="ct-edit-modal" id="ct-edit-modal">
+    <div class="ct-edit-head no-print" id="ct-edit-head"><!-- JS 렌더 --></div>
+    <div class="ct-edit-body" id="ct-edit-body"><!-- JS 렌더 --></div>
+  </div>
+</div>
+
+<!-- 인쇄 전용 클론 영역 (계약서·약관 2매 + 자동이체 1매) -->
+<div id="ct-print-clone"></div>
+
+<template id="tpl-customer-form">
+  <h3 id="form-title">거래처 추가</h3>
+  <form id="customer-form" autocomplete="off">
+
+    <!-- 🔍 관리툴 고객 검색 (신규 추가 모드에서만 표시 · JS 로 토글) -->
+    <div class="rc-form-row" id="asms-search-box" style="display:none;background:#fffbeb;padding:8px 10px;border-radius:4px;border-left:3px solid #f59e0b;position:relative;">
+      <label style="display:flex;align-items:center;gap:6px;">
+        🔍 관리툴 고객 검색
+        <span style="font-weight:400;font-size:11px;color:var(--muted);">(매칭 필드 자동 채움 · 나머지는 직접 입력)</span>
+      </label>
+      <input type="text" id="asms-search-input" placeholder="고객명/휴대폰/전화로 검색…" autocomplete="off">
+      <div id="asms-search-results" style="display:none;position:absolute;left:10px;right:10px;top:calc(100% - 4px);max-height:240px;overflow-y:auto;background:#fff;border:1px solid #d1d5db;border-radius:4px;box-shadow:0 4px 12px rgba(0,0,0,0.1);z-index:100;font-size:12.5px;"></div>
+      <div id="asms-search-status" style="margin-top:4px;font-size:11px;color:var(--muted);">2자 이상 입력하면 관리툴 고객DB에서 검색합니다.</div>
+    </div>
+
+    <!-- 청구 그룹 (선택) -->
+    <div class="rc-form-row" style="background:#f8fafc;padding:8px 10px;border-radius:4px;border-left:3px solid #1e40af;">
+      <label style="display:flex;align-items:center;gap:6px;">
+        📁 청구 그룹
+        <span style="font-weight:400;font-size:11px;color:var(--muted);">(본점/지점·1공장/2공장 청구 통합용)</span>
+      </label>
+      <div style="display:flex;flex-wrap:wrap;gap:10px;font-size:12.5px;margin:2px 0;">
+        <label style="display:inline-flex;align-items:center;gap:3px;cursor:pointer;"><input type="radio" name="bg_choice" value="none" checked style="margin:0;"> 단독 거래처</label>
+        <label style="display:inline-flex;align-items:center;gap:3px;cursor:pointer;"><input type="radio" name="bg_choice" value="existing" style="margin:0;"> 기존 그룹에 추가</label>
+        <label style="display:inline-flex;align-items:center;gap:3px;cursor:pointer;"><input type="radio" name="bg_choice" value="new" style="margin:0;"> 새 그룹 만들기</label>
+      </div>
+      <div id="bg-existing-row" style="display:none;margin-top:4px;">
+        <select name="billing_group_id" style="width:100%;padding:5px 6px;border:1px solid #d1d5db;border-radius:4px;font-size:12.5px;">
+          <option value="">그룹 선택...</option>
+        </select>
+      </div>
+      <div id="bg-new-row" style="display:none;margin-top:4px;">
+        <input name="new_group_name" placeholder="새 그룹명 (예: 홈마트)" style="width:100%;padding:5px 6px;border:1px solid #d1d5db;border-radius:4px;font-size:12.5px;margin-bottom:4px;">
+        <input name="new_group_biz_no" placeholder="그룹 사업자번호 (선택)" style="width:100%;padding:5px 6px;border:1px solid #d1d5db;border-radius:4px;font-size:12.5px;margin-bottom:4px;">
+        <div style="display:flex;gap:12px;font-size:11.5px;align-items:center;">
+          <span style="color:var(--muted);">계산서 발행:</span>
+          <label style="display:inline-flex;align-items:center;gap:3px;cursor:pointer;"><input type="radio" name="new_group_combined" value="true" checked style="margin:0;"> 그룹 통합 1장</label>
+          <label style="display:inline-flex;align-items:center;gap:3px;cursor:pointer;"><input type="radio" name="new_group_combined" value="false" style="margin:0;"> 사업장별 따로</label>
+        </div>
+      </div>
+      <div id="bg-note" style="margin-top:5px;font-size:11px;color:var(--muted);">단독: 아래 사업자 정보를 직접 입력 · 그룹: 사업자 정보는 그룹 마스터에서 관리(상속)</div>
+
+      <!-- 이 사업장 발행 방식 (그룹 통합 그룹일 때만 의미 있음) -->
+      <div id="bg-individual-row" style="display:none;margin-top:8px;padding-top:6px;border-top:1px dashed #cbd5e1;">
+        <label style="display:flex;align-items:center;gap:6px;font-size:12px;font-weight:600;">
+          📑 이 사업장 발행 방식
+          <span style="font-weight:400;font-size:10.5px;color:var(--muted);">(그룹과 별도로 받을 때만 체크)</span>
+        </label>
+        <div style="display:flex;flex-wrap:wrap;gap:10px;font-size:11.5px;margin-top:3px;">
+          <label style="display:inline-flex;align-items:center;gap:3px;cursor:pointer;"><input type="radio" name="billing_individual" value="false" checked style="margin:0;"> 그룹 따라가기</label>
+          <label style="display:inline-flex;align-items:center;gap:3px;cursor:pointer;"><input type="radio" name="billing_individual" value="true" style="margin:0;"> 이 사업장만 따로 받기</label>
+        </div>
+      </div>
+    </div>
+
+    <!-- 1행: 사업자상호 / 사업자번호 -->
+    <div class="rc-form-row two">
+      <div class="rc-form-row" style="margin:0;">
+        <label>사업자상호 *</label>
+        <input name="company" required placeholder="사업자등록증 기준 상호">
+      </div>
+      <div class="rc-form-row" style="margin:0;">
+        <label>사업자번호</label>
+        <input name="biz_no" placeholder="000-00-00000">
+      </div>
+    </div>
+
+    <!-- 1-2행: 거래처상호 (통상 호칭) -->
+    <div class="rc-form-row">
+      <label style="display:flex;align-items:center;gap:6px;">
+        거래처상호
+        <span style="font-weight:400;font-size:11px;color:var(--muted);">(별칭/지점명/매장명)</span>
+        <label style="display:inline-flex;align-items:center;gap:3px;font-size:11.5px;color:var(--muted);margin-left:auto;text-transform:none;letter-spacing:0;">
+          <input type="checkbox" id="chk-same-name" style="margin:0;cursor:pointer;">
+          사업자상호와 동일
+        </label>
+      </label>
+      <input name="trade_name" id="input-trade-name" placeholder="거래처 통상 호칭 (비어두면 사업자상호 사용)">
+    </div>
+
+    <!-- 2행: 대표자 / 요청자 성함 -->
+    <div class="rc-form-row two">
+      <div class="rc-form-row" style="margin:0;">
+        <label>대표자</label>
+        <input name="ceo" placeholder="대표자명">
+      </div>
+      <div class="rc-form-row" style="margin:0;">
+        <label>요청자 성함</label>
+        <input name="contact_name" placeholder="요청자 성함">
+      </div>
+    </div>
+
+    <!-- 3행: 업태 / 종목 -->
+    <div class="rc-form-row two">
+      <div class="rc-form-row" style="margin:0;">
+        <label>업태</label>
+        <input name="biz_type" placeholder="예) 제조업">
+      </div>
+      <div class="rc-form-row" style="margin:0;">
+        <label>종목</label>
+        <input name="biz_item" placeholder="예) 전자부품, 프린터">
+      </div>
+    </div>
+
+    <!-- 4행: 사업자주소 -->
+    <div class="rc-form-row">
+      <label>사업자주소</label>
+      <input name="address" placeholder="사업자등록증 기준 주소">
+    </div>
+
+    <!-- 4-2행: 설치주소 -->
+    <div class="rc-form-row">
+      <label style="display:flex;align-items:center;gap:6px;">
+        설치주소
+        <span style="font-weight:400;font-size:11px;color:var(--muted);">(실제 기기 설치 위치)</span>
+        <label style="display:inline-flex;align-items:center;gap:3px;font-size:11.5px;color:var(--muted);margin-left:auto;text-transform:none;letter-spacing:0;">
+          <input type="checkbox" id="chk-same-addr" style="margin:0;cursor:pointer;">
+          사업자주소와 동일
+        </label>
+      </label>
+      <input name="install_address" id="input-install-address" placeholder="설치 주소 (비어두면 사업자주소 사용)">
+    </div>
+
+    <!-- 5행: 전화 / 팩스 -->
+    <div class="rc-form-row two">
+      <div class="rc-form-row" style="margin:0;">
+        <label>전화</label>
+        <input name="phone" placeholder="전화번호">
+      </div>
+      <div class="rc-form-row" style="margin:0;">
+        <label>팩스</label>
+        <input name="fax" placeholder="팩스번호">
+      </div>
+    </div>
+
+    <!-- 6행: 핸드폰 번호 / 이메일 -->
+    <div class="rc-form-row two">
+      <div class="rc-form-row" style="margin:0;">
+        <label>핸드폰 번호</label>
+        <input name="mobile" placeholder="010-0000-0000">
+      </div>
+      <div class="rc-form-row" style="margin:0;">
+        <label>이메일</label>
+        <input name="email" type="email" placeholder="이메일">
+      </div>
+    </div>
+
+    <!-- 7행: 발행 구분 / 결제방법 -->
+    <div class="rc-form-row two">
+      <div class="rc-form-row" style="margin:0;">
+        <label>발행 구분</label>
+        <div class="payment-methods">
+          <label class="pm-chk"><input type="checkbox" name="billing_types" value="전자세금계산서"> 전자세금계산서</label>
+          <label class="pm-chk"><input type="checkbox" name="billing_types" value="거래명세표"> 거래명세표</label>
+        </div>
+      </div>
+      <div class="rc-form-row" style="margin:0;">
+        <label>결제방법</label>
+        <div class="payment-methods">
+          <label class="pm-chk"><input type="checkbox" name="payment_methods" value="CMS계좌"> CMS계좌</label>
+          <label class="pm-chk"><input type="checkbox" name="payment_methods" value="CMS카드"> CMS카드</label>
+          <label class="pm-chk"><input type="checkbox" name="payment_methods" value="입금"> 입금</label>
+        </div>
+      </div>
+    </div>
+
+    <!-- 8행: 보증금 / 청구일 -->
+    <div class="rc-form-row two">
+      <div class="rc-form-row" style="margin:0;">
+        <label>보증금 (원)</label>
+        <input name="deposit" type="number" min="0" step="1" placeholder="0">
+      </div>
+      <div class="rc-form-row" style="margin:0;">
+        <label>청구일 (일자)</label>
+        <input name="invoice_day" type="number" min="1" max="31">
+      </div>
+    </div>
+
+    <!-- 9행: 기본 계약기간 -->
+    <div class="rc-form-row two">
+      <div class="rc-form-row" style="margin:0;">
+        <label>기본 계약기간 (년)</label>
+        <input name="period_years" type="number" min="1" max="10" placeholder="3">
+      </div>
+      <div></div>
+    </div>
+
+    <!-- 9행: 활성 상태 -->
+    <div class="rc-form-row">
+      <label>상태</label>
+      <select name="active">
+        <option value="true">활성</option>
+        <option value="false">비활성</option>
+      </select>
+    </div>
+
+    <!-- 10행: 메모 -->
+    <div class="rc-form-row">
+      <label>메모</label>
+      <textarea name="notes" rows="3"></textarea>
+    </div>
+
+    <div id="form-error" class="rc-error"></div>
+    <div class="rc-modal-actions">
+      <button type="button" class="btn ghost" data-close>취소</button>
+      <button type="submit" class="btn primary" id="form-submit">저장</button>
+    </div>
+  </form>
+</template>
+
+<template id="tpl-asset-form">
+  <h3 id="asset-form-title">임대추가</h3>
+  <form id="asset-form" autocomplete="off">
+    <div class="rc-form-row two">
+      <div class="rc-form-row" style="margin:0;">
+        <label>품목 *</label>
+        <select name="item_type" required>
+          <option value="">선택</option>
+          <option value="흑백복사기">흑백복사기(A3)</option>
+          <option value="컬러복사기">컬러복사기(A3)</option>
+          <option value="흑백레이저">흑백레이저/복합기(A4)</option>
+          <option value="컬러레이저">컬러레이저/복합기(A4)</option>
+          <option value="잉크젯">잉크젯</option>
+          <option value="컴퓨터">컴퓨터</option>
+          <option value="노트북">노트북</option>
+          <option value="모니터">모니터</option>
+          <option value="PC유지보수">PC유지보수</option>
+          <option value="웰리스">웰리스</option>
+          <option value="나스">나스</option>
+        </select>
+      </div>
+      <div class="rc-form-row" style="margin:0;">
+        <label>임대유형</label>
+        <select name="rental_type">
+          <option value="paid">유상임대</option>
+          <option value="free">무상임대 (소모품 구매조건)</option>
+        </select>
+      </div>
+    </div>
+    <div class="rc-form-row two">
+      <div class="rc-form-row" style="margin:0;">
+        <label>브랜드</label>
+        <div class="preset-input-row">
+          <input name="brand" id="asset-brand-input"
+                 list="dl-brand-presets"
+                 placeholder="브랜드 검색 또는 직접 입력"
+                 autocomplete="off">
+          <datalist id="dl-brand-presets"></datalist>
+          <button type="button" class="preset-manage-btn" id="btn-manage-brand" title="브랜드 목록 관리">&#9881;</button>
+        </div>
+      </div>
+      <div class="rc-form-row" style="margin:0;">
+        <label>모델 *</label>
+        <div class="preset-input-row">
+          <input name="model" id="asset-model-input" required
+                 list="dl-model-presets"
+                 placeholder="모델 검색 또는 직접 입력"
+                 autocomplete="off">
+          <datalist id="dl-model-presets"></datalist>
+          <button type="button" class="preset-manage-btn" id="btn-manage-model" title="모델 목록 관리">&#9881;</button>
+        </div>
+      </div>
+    </div>
+    <div class="rc-form-row" style="background:#f0f9ff;padding:8px 10px;border-radius:4px;border-left:3px solid #0284c7;">
+      <label style="display:flex;align-items:center;gap:6px;">
+        🏷 자산번호
+        <span style="font-weight:400;font-size:11px;color:var(--muted);">(한별 자체 코드 · 카운터 매칭 1차 기준, 2자 이상)</span>
+      </label>
+      <input name="asset_number" placeholder="예: A001 / K-2024-12 / 0123" style="font-weight:600;">
+    </div>
+    <div class="rc-form-row two">
+      <div class="rc-form-row" style="margin:0;">
+        <label>시리얼</label>
+        <input name="serial">
+      </div>
+      <div class="rc-form-row" style="margin:0;">
+        <label>도입일</label>
+        <input name="install_date" type="date">
+      </div>
+    </div>
+    <div class="rc-form-row two">
+      <div class="rc-form-row" style="margin:0;">
+        <label>상태</label>
+        <select name="status">
+          <option value="active">active</option>
+          <option value="replaced">replaced</option>
+          <option value="returned">returned</option>
+          <option value="lost">lost</option>
+        </select>
+      </div>
+      <div class="rc-form-row hidden" data-show="nas" style="margin:0;">
+        <label>저장 용량 (GB)</label>
+        <input name="storage_gb" type="number" min="0" step="1">
+      </div>
+    </div>
+    <div class="rc-form-row">
+      <label>자산 메모</label>
+      <textarea name="notes" rows="2" placeholder="예: 2층 사무실 비치, 스캔 전용 등 (선택)"></textarea>
+    </div>
+
+    <!-- 수량: 추가 모드 = N대 일괄 추가 / 수정 모드 = 현재 1대 수정 + (N-1)대 추가 -->
+    <div class="rc-form-row" id="asset-qty-row">
+      <label>수량 <span style="font-size:11px;color:var(--muted);" id="asset-qty-hint">(동일 모델 N대 일괄 추가)</span></label>
+      <input name="qty" type="number" min="1" max="99" value="1" style="width:80px;">
+    </div>
+
+    <div class="rc-form-divider">임대 조건</div>
+
+    <div class="rc-form-row two">
+      <div class="rc-form-row" style="margin:0;">
+        <label>월 임대료 (원)</label>
+        <input name="monthly_fee" type="number" min="0" step="1">
+      </div>
+      <div class="rc-form-row" style="margin:0;">
+        <label>임대 시작일</label>
+        <input name="start_date" type="date">
+      </div>
+    </div>
+    <div class="rc-form-row two hidden" data-show="print">
+      <div class="rc-form-row" style="margin:0;">
+        <label>무료 BW (장)</label>
+        <input name="bw_free" type="number" min="0" step="1">
+      </div>
+      <div class="rc-form-row" style="margin:0;">
+        <label>무료 컬러 (장)</label>
+        <input name="co_free" type="number" min="0" step="1">
+      </div>
+    </div>
+    <!-- 합계 카운터 모드 체크박스 (출력기기 전용) -->
+    <div class="rc-form-row hidden" data-show="print" id="asset-total-counter-row" style="padding:4px 0 2px;">
+      <label style="display:flex;align-items:center;gap:8px;cursor:pointer;font-weight:600;">
+        <input type="checkbox" name="use_total_counter" id="asset-use-total-counter" style="width:15px;height:15px;cursor:pointer;">
+        흑백/컬러 합산 청구 (합계 카운터)
+      </label>
+    </div>
+
+    <div class="rc-form-row two hidden" data-show="print" id="asset-split-rate-row">
+      <div class="rc-form-row" style="margin:0;">
+        <label>단가 BW (원)</label>
+        <input name="bw_rate" type="number" min="0" step="0.01">
+      </div>
+      <div class="rc-form-row" style="margin:0;">
+        <label>단가 컬러 (원)</label>
+        <input name="co_rate" type="number" min="0" step="0.01">
+      </div>
+    </div>
+
+    <!-- 합계 카운터 모드: 무료 기본매수 + 초과 단가 (합계 카운터 모드일 때만 활성) -->
+    <div class="rc-form-row two hidden" data-show="print" id="asset-total-rate-row">
+      <div class="rc-form-row" style="margin:0;">
+        <label>기본 무료 매수 (장)</label>
+        <input name="total_free_count" type="number" min="0" step="1" id="asset-total-free-count"
+               placeholder="0" disabled>
+      </div>
+      <div class="rc-form-row" style="margin:0;">
+        <label>초과 매수당 단가 (원)</label>
+        <input name="total_unit_price" type="number" min="0" step="0.01" id="asset-total-unit-price"
+               placeholder="매수당 단가" disabled>
+      </div>
+    </div>
+
+    <!-- Phase 3: rate 변경 이력 섹션 (출력기기 수정 모드에서만 노출) -->
+    <div id="asset-rate-history-wrap" class="hidden" data-show="print" style="margin-top:2px;">
+      <div class="rc-form-divider" style="display:flex;align-items:center;gap:8px;cursor:pointer;"
+           id="rate-history-toggle">
+        <span>단가/기본매수 변경 이력</span>
+        <span id="rate-history-badge" style="font-size:11px;background:#e0e7ff;color:#3730a3;border-radius:10px;padding:1px 7px;"></span>
+        <span style="margin-left:auto;font-size:11px;color:var(--muted);" id="rate-history-arrow">[펼치기]</span>
+      </div>
+      <div id="rate-history-body" style="display:none;margin-top:6px;">
+        <div id="rate-history-list" style="font-size:12px;"></div>
+        <div style="margin-top:8px;background:#f8fafc;border:1px solid var(--border);border-radius:8px;padding:10px 12px;" id="rate-add-form">
+          <div style="font-size:12px;font-weight:600;margin-bottom:6px;color:var(--text);">새 변경 이력 추가</div>
+          <div class="rc-form-row two" style="margin:0 0 6px;">
+            <div class="rc-form-row" style="margin:0;">
+              <label style="font-size:11.5px;">적용일 *</label>
+              <input id="rh-effective-date" type="date" style="font-size:12px;">
+            </div>
+            <div class="rc-form-row" style="margin:0;">
+              <label style="font-size:11.5px;">메모 (선택)</label>
+              <input id="rh-note" type="text" placeholder="예: 계약 갱신 시 단가 조정" style="font-size:12px;">
+            </div>
+          </div>
+          <!-- split 모드 입력 필드 -->
+          <div id="rh-split-fields">
+            <div class="rc-form-row two" style="margin:0 0 6px;">
+              <div class="rc-form-row" style="margin:0;">
+                <label style="font-size:11.5px;">무료 BW (장)</label>
+                <input id="rh-bw-free" type="number" min="0" step="1" style="font-size:12px;">
+              </div>
+              <div class="rc-form-row" style="margin:0;">
+                <label style="font-size:11.5px;">무료 컬러 (장)</label>
+                <input id="rh-co-free" type="number" min="0" step="1" style="font-size:12px;">
+              </div>
+            </div>
+            <div class="rc-form-row two" style="margin:0 0 8px;">
+              <div class="rc-form-row" style="margin:0;">
+                <label style="font-size:11.5px;">단가 BW (원)</label>
+                <input id="rh-bw-rate" type="number" min="0" step="0.01" style="font-size:12px;">
+              </div>
+              <div class="rc-form-row" style="margin:0;">
+                <label style="font-size:11.5px;">단가 컬러 (원)</label>
+                <input id="rh-co-rate" type="number" min="0" step="0.01" style="font-size:12px;">
+              </div>
+            </div>
+          </div>
+          <!-- total 모드 입력 필드 (합계 카운터 모드일 때만 표시) -->
+          <div id="rh-total-fields" style="display:none;">
+            <div class="rc-form-row two" style="margin:0 0 8px;">
+              <div class="rc-form-row" style="margin:0;">
+                <label style="font-size:11.5px;">무료 매수 (장)</label>
+                <input id="rh-total-free" type="number" min="0" step="1" style="font-size:12px;">
+              </div>
+              <div class="rc-form-row" style="margin:0;">
+                <label style="font-size:11.5px;">매수당 단가 (원)</label>
+                <input id="rh-total-unit" type="number" min="0" step="0.01" style="font-size:12px;">
+              </div>
+            </div>
+          </div>
+          <div style="display:flex;gap:6px;justify-content:flex-end;">
+            <button type="button" class="btn small primary" id="rh-add-btn">이력 저장</button>
+          </div>
+          <div id="rh-error" style="color:#dc2626;font-size:11.5px;margin-top:4px;"></div>
+        </div>
+      </div>
+    </div>
+
+    <div id="asset-form-error" class="rc-error"></div>
+    <div class="rc-modal-actions">
+      <button type="button" class="btn ghost" data-close>닫기</button>
+      <button type="submit" class="btn primary" id="asset-form-submit">저장</button>
+    </div>
+  </form>
+</template>
+
+<script src="index.js?v=20260608a"></script>
+</body>
+</html>

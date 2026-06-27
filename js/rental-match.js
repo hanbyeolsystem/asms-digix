@@ -33,11 +33,13 @@
       while (true) {
         const { data, error } = await window.sb
           .from("rental_customers")
-          .select("company,trade_name")
+          .select("company,trade_name,active")
           .range(from, from + PAGE - 1);
         if (error) throw error;
         if (!data || !data.length) break;
         for (const r of data) {
+          // active=false(만기) 거래처는 라벨 대상에서 제외. NULL/TRUE 는 활성으로 간주.
+          if (r.active === false) continue;
           const nc = normalize(r.company);
           const nt = normalize(r.trade_name);
           if (nc) s.add(nc);

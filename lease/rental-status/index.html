@@ -1,0 +1,1294 @@
+<!doctype html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>임대현황 — 디직스코리아</title>
+<link rel="stylesheet" href="../styles.css">
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
+<script src="../config.js?v=20260611"></script>
+<script src="../auth.js"></script>
+<script src="../item-types.js"></script>
+<style>
+/* ============================================================
+   임대현황 v3 — 전략 분석 대시보드
+   ============================================================ */
+
+/* ---------- 변수 / 리셋 ---------- */
+:root {
+  --rs-blue:   #2563eb;
+  --rs-green:  #16a34a;
+  --rs-amber:  #d97706;
+  --rs-red:    #dc2626;
+  --rs-purple: #7c3aed;
+  --rs-slate:  #475569;
+  --rs-card-bg: #fff;
+  --rs-border: #e2e8f0;
+  --rs-radius: 14px;
+  --rs-shadow: 0 2px 8px rgba(0,0,0,.07);
+}
+
+/* ---------- 페이지 헤더 ---------- */
+.rs-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  gap: 12px;
+  margin-bottom: 20px;
+  padding-bottom: 14px;
+  border-bottom: 1px solid var(--rs-border);
+}
+.rs-header-title h1 {
+  margin: 0;
+  font-size: 22px;
+  font-weight: 800;
+  color: #0f172a;
+  letter-spacing: -.4px;
+}
+.rs-header-title p {
+  margin: 3px 0 0 0;
+  font-size: 13px;
+  color: var(--rs-slate);
+}
+.rs-header-actions {
+  display: flex;
+  gap: 8px;
+  flex-shrink: 0;
+}
+.rs-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  padding: 9px 14px;
+  border-radius: 8px;
+  font-size: 13px;
+  font-weight: 600;
+  cursor: pointer;
+  border: 1px solid var(--rs-border);
+  background: #fff;
+  color: #374151;
+  transition: all .12s;
+  font-family: inherit;
+  min-height: 40px;
+}
+.rs-btn:hover { background: #f8fafc; border-color: #94a3b8; }
+.rs-btn.primary {
+  background: var(--rs-blue);
+  color: #fff;
+  border-color: var(--rs-blue);
+}
+.rs-btn.primary:hover { background: #1d4ed8; }
+
+/* ---------- KPI 카드 그리드 ---------- */
+.rs-kpi-grid {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 10px;
+  margin-bottom: 20px;
+}
+.rs-kpi-card {
+  background: var(--rs-card-bg);
+  border: 1px solid var(--rs-border);
+  border-radius: var(--rs-radius);
+  padding: 14px 16px;
+  box-shadow: var(--rs-shadow);
+}
+.rs-kpi-label {
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--rs-slate);
+  text-transform: uppercase;
+  letter-spacing: .4px;
+  margin-bottom: 6px;
+}
+.rs-kpi-value {
+  font-size: 26px;
+  font-weight: 800;
+  color: #0f172a;
+  line-height: 1;
+  font-variant-numeric: tabular-nums;
+  letter-spacing: -.5px;
+}
+.rs-kpi-value .unit {
+  font-size: 13px;
+  font-weight: 500;
+  color: var(--rs-slate);
+  margin-left: 2px;
+}
+.rs-kpi-sub {
+  font-size: 11px;
+  color: #94a3b8;
+  margin-top: 4px;
+}
+.rs-kpi-card.accent-blue   .rs-kpi-value { color: var(--rs-blue); }
+.rs-kpi-card.accent-green  .rs-kpi-value { color: var(--rs-green); }
+.rs-kpi-card.accent-red    .rs-kpi-value { color: var(--rs-red); }
+.rs-kpi-card.accent-amber  .rs-kpi-value { color: var(--rs-amber); }
+.rs-kpi-card.accent-purple .rs-kpi-value { color: var(--rs-purple); }
+.rs-kpi-card.accent-teal   .rs-kpi-value { color: #0d9488; }
+.rs-kpi-card.accent-indigo .rs-kpi-value { color: #4f46e5; }
+
+/* 거래처당 평균 카드 클릭 커서 */
+.rs-kpi-card.clickable {
+  cursor: pointer;
+  transition: box-shadow .15s, border-color .15s;
+}
+.rs-kpi-card.clickable:hover {
+  box-shadow: 0 4px 18px rgba(0,0,0,.13);
+  border-color: #a5b4fc;
+}
+
+/* ---------- 차트 그리드 ---------- */
+.rs-chart-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 14px;
+  margin-bottom: 20px;
+}
+.rs-chart-card {
+  background: var(--rs-card-bg);
+  border: 1px solid var(--rs-border);
+  border-radius: var(--rs-radius);
+  box-shadow: var(--rs-shadow);
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  min-width: 0;
+  cursor: pointer;
+  transition: box-shadow .15s;
+}
+.rs-chart-card:hover {
+  box-shadow: 0 4px 18px rgba(0,0,0,.13);
+}
+.rs-chart-head {
+  padding: 12px 16px 8px 16px;
+  border-bottom: 1px solid #f1f5f9;
+}
+.rs-chart-head h3 {
+  margin: 0 0 2px 0;
+  font-size: 13px;
+  font-weight: 700;
+  color: #64748b;
+  text-transform: uppercase;
+  letter-spacing: .3px;
+}
+/* 핵심 숫자 — 차트 카드 상단 */
+.rs-chart-kpi {
+  font-size: 22px;
+  font-weight: 800;
+  color: #0f172a;
+  line-height: 1.1;
+  font-variant-numeric: tabular-nums;
+  letter-spacing: -.4px;
+  margin: 4px 0 0 0;
+}
+.rs-chart-kpi .unit {
+  font-size: 13px;
+  font-weight: 500;
+  color: var(--rs-slate);
+  margin-left: 2px;
+}
+.rs-chart-kpi.accent-red   { color: var(--rs-red); }
+.rs-chart-kpi.accent-blue  { color: var(--rs-blue); }
+.rs-chart-kpi.accent-amber { color: var(--rs-amber); }
+.rs-chart-kpi.accent-green { color: var(--rs-green); }
+.rs-chart-body {
+  padding: 10px 14px;
+  flex: 1;
+  position: relative;
+  min-height: 260px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 0;
+}
+.rs-chart-caption {
+  padding: 7px 16px 11px 16px;
+  font-size: 12px;
+  color: var(--rs-slate);
+  border-top: 1px solid #f1f5f9;
+  font-style: italic;
+}
+
+/* 도넛 차트 전용 — 리더라인 라벨이 캔버스 바깥으로 나와도 잘리지 않도록 */
+.rs-donut-body {
+  overflow: visible !important;
+  min-height: 300px;
+  padding: 4px 8px;
+}
+.rs-donut-body canvas {
+  overflow: visible;
+}
+
+/* 히트맵 테이블 */
+.heatmap-wrap {
+  width: 100%;
+  overflow-x: auto;
+}
+.heatmap-table {
+  border-collapse: collapse;
+  font-size: 11px;
+  width: 100%;
+  min-width: 420px;
+}
+.heatmap-table th {
+  padding: 5px 7px;
+  text-align: center;
+  font-weight: 600;
+  color: var(--rs-slate);
+  font-size: 10px;
+  white-space: nowrap;
+  background: #f8fafc;
+  border: 1px solid var(--rs-border);
+}
+.heatmap-table th.row-head {
+  text-align: left;
+  min-width: 90px;
+}
+.heatmap-table td {
+  padding: 5px 7px;
+  text-align: center;
+  border: 1px solid var(--rs-border);
+  font-variant-numeric: tabular-nums;
+  font-size: 11px;
+  transition: background .1s;
+}
+.heatmap-table td.row-head {
+  text-align: left;
+  font-weight: 600;
+  color: #374151;
+  background: #f8fafc;
+  font-size: 11px;
+  white-space: nowrap;
+}
+
+/* ---------- 전략 분석 패널 ---------- */
+.rs-gahu-panel {
+  background: linear-gradient(135deg, #0f172a 0%, #1e293b 100%);
+  border-radius: var(--rs-radius);
+  box-shadow: 0 4px 24px rgba(0,0,0,.18);
+  margin-bottom: 20px;
+  overflow: hidden;
+}
+.rs-gahu-header {
+  padding: 18px 22px;
+  border-bottom: 1px solid rgba(255,255,255,.08);
+  display: flex;
+  align-items: center;
+  gap: 14px;
+}
+.rs-gahu-avatar {
+  width: 48px;
+  height: 48px;
+  background: linear-gradient(135deg, #7c3aed, #a855f7);
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 22px;
+  flex-shrink: 0;
+  border: 2px solid rgba(168,85,247,.4);
+}
+.rs-gahu-title-wrap h2 {
+  margin: 0 0 2px 0;
+  font-size: 16px;
+  font-weight: 800;
+  color: #f8fafc;
+  letter-spacing: -.2px;
+}
+.rs-gahu-title-wrap p {
+  margin: 0;
+  font-size: 12px;
+  color: #94a3b8;
+}
+.rs-gahu-sections {
+  padding: 8px 0 4px 0;
+}
+.rs-gahu-accordion-item {
+  border-bottom: 1px solid rgba(255,255,255,.06);
+}
+.rs-gahu-accordion-item:last-child { border-bottom: none; }
+.rs-gahu-accordion-btn {
+  width: 100%;
+  padding: 14px 22px;
+  background: transparent;
+  border: none;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  cursor: pointer;
+  font-family: inherit;
+  color: #e2e8f0;
+  font-size: 14px;
+  font-weight: 700;
+  text-align: left;
+  transition: background .12s;
+}
+.rs-gahu-accordion-btn:hover {
+  background: rgba(255,255,255,.04);
+}
+.rs-gahu-accordion-btn .acc-left {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+.rs-gahu-accordion-btn .acc-icon {
+  font-size: 18px;
+}
+.rs-gahu-accordion-btn .acc-arrow {
+  color: #64748b;
+  font-size: 12px;
+  transition: transform .2s;
+  user-select: none;
+}
+.rs-gahu-accordion-btn[aria-expanded="true"] .acc-arrow {
+  transform: rotate(90deg);
+}
+.rs-gahu-accordion-body {
+  display: none;
+  padding: 4px 22px 16px 22px;
+}
+.rs-gahu-accordion-body.open { display: block; }
+.rs-gahu-msg {
+  padding: 10px 14px;
+  border-radius: 8px;
+  margin-bottom: 8px;
+  font-size: 13.5px;
+  line-height: 1.7;
+  color: #cbd5e1;
+  border-left: 3px solid;
+  background: rgba(255,255,255,.03);
+}
+.rs-gahu-msg:last-child { margin-bottom: 0; }
+.rs-gahu-msg.danger   { border-color: #ef4444; color: #fca5a5; }
+.rs-gahu-msg.warning  { border-color: #f59e0b; color: #fcd34d; }
+.rs-gahu-msg.success  { border-color: #22c55e; color: #86efac; }
+.rs-gahu-msg.info     { border-color: #60a5fa; color: #bfdbfe; }
+.rs-gahu-msg.muted    { border-color: #475569; color: #94a3b8; }
+.rs-gahu-section-empty {
+  font-size: 13px;
+  color: #475569;
+  font-style: italic;
+  padding: 4px 0;
+}
+.rs-gahu-sign {
+  padding: 12px 22px 16px 22px;
+  text-align: right;
+  font-size: 12px;
+  color: #475569;
+  font-style: italic;
+  border-top: 1px solid rgba(255,255,255,.06);
+}
+
+/* ---------- 하단 탭 ---------- */
+.rs-tabs-wrap {
+  background: var(--rs-card-bg);
+  border: 1px solid var(--rs-border);
+  border-radius: var(--rs-radius);
+  box-shadow: var(--rs-shadow);
+  overflow: hidden;
+  margin-bottom: 20px;
+}
+.rs-tabs-nav {
+  display: flex;
+  overflow-x: auto;
+  border-bottom: 1px solid var(--rs-border);
+  background: #f8fafc;
+}
+.rs-tab-btn {
+  padding: 12px 18px;
+  border: none;
+  background: transparent;
+  font-size: 13.5px;
+  font-weight: 600;
+  color: #64748b;
+  cursor: pointer;
+  white-space: nowrap;
+  border-bottom: 2px solid transparent;
+  margin-bottom: -1px;
+  transition: all .12s;
+  font-family: inherit;
+  min-height: 46px;
+}
+.rs-tab-btn:hover { color: #0f172a; }
+.rs-tab-btn.active {
+  color: var(--rs-blue);
+  border-bottom-color: var(--rs-blue);
+  background: #fff;
+}
+.rs-tab-btn .tc {
+  background: #e2e8f0;
+  color: #64748b;
+  padding: 1px 7px;
+  border-radius: 20px;
+  font-size: 11px;
+  margin-left: 5px;
+  font-variant-numeric: tabular-nums;
+}
+.rs-tab-btn.active .tc {
+  background: #dbeafe;
+  color: var(--rs-blue);
+}
+.rs-tab-panel { display: none; }
+.rs-tab-panel.active { display: block; }
+
+/* ---------- 필터바 ---------- */
+.rs-filter-bar {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  align-items: center;
+  padding: 12px 16px;
+  border-bottom: 1px solid var(--rs-border);
+  background: #fafbfc;
+}
+.rs-filter-bar input[type="search"],
+.rs-filter-bar select {
+  padding: 7px 10px;
+  border: 1px solid var(--rs-border);
+  border-radius: 7px;
+  background: #fff;
+  font-size: 13px;
+  min-width: 130px;
+  font-family: inherit;
+  color: #374151;
+}
+.rs-filter-bar input:focus,
+.rs-filter-bar select:focus {
+  outline: none;
+  border-color: var(--rs-blue);
+  box-shadow: 0 0 0 2px rgba(37,99,235,.1);
+}
+.rs-filter-count {
+  margin-left: auto;
+  font-size: 12px;
+  color: #64748b;
+  background: #f1f5f9;
+  padding: 4px 10px;
+  border-radius: 20px;
+  font-variant-numeric: tabular-nums;
+}
+
+/* ---------- 데이터 테이블 ---------- */
+.rs-table-wrap {
+  overflow-x: auto;
+  max-height: calc(100vh - 280px);
+  overflow-y: auto;
+}
+.rs-data-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 13px;
+}
+.rs-data-table th {
+  padding: 9px 10px;
+  background: #f8fafc;
+  border-bottom: 1px solid var(--rs-border);
+  font-weight: 600;
+  color: #64748b;
+  font-size: 11.5px;
+  text-transform: uppercase;
+  letter-spacing: .3px;
+  text-align: left;
+  position: sticky;
+  top: 0;
+  z-index: 1;
+  white-space: nowrap;
+}
+.rs-data-table td {
+  padding: 8px 10px;
+  border-bottom: 1px solid #f1f5f9;
+  vertical-align: middle;
+}
+.rs-data-table tr:last-child td { border-bottom: none; }
+.rs-data-table tr:hover td { background: #fafbff; }
+.rs-data-table th.num,
+.rs-data-table td.num { text-align: right; font-variant-numeric: tabular-nums; }
+
+/* ---------- 태그 / pill ---------- */
+.age-pill {
+  display: inline-block;
+  padding: 2px 8px;
+  border-radius: 20px;
+  font-size: 11.5px;
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+}
+.age-pill.ok   { background: #ecfdf5; color: #047857; }
+.age-pill.warn { background: #fef3c7; color: #92400e; }
+.age-pill.bad  { background: #fee2e2; color: #b91c1c; }
+.age-pill.none { background: #f1f5f9; color: #64748b; }
+
+.status-tag {
+  display: inline-block;
+  padding: 2px 8px;
+  border-radius: 20px;
+  font-size: 11px;
+  font-weight: 600;
+}
+.status-tag.active   { background: #ecfdf5; color: #047857; }
+.status-tag.replaced { background: #f1f5f9; color: #475569; }
+.status-tag.returned { background: #fef3c7; color: #92400e; }
+.status-tag.lost     { background: #fee2e2; color: #b91c1c; }
+
+.pay-tag {
+  display: inline-block;
+  padding: 1px 7px;
+  border-radius: 4px;
+  font-size: 11px;
+  font-weight: 600;
+}
+.pay-tag.선불 { background: #dbeafe; color: #1d4ed8; }
+.pay-tag.후불 { background: #fef3c7; color: #92400e; }
+
+.cat-badge {
+  display: inline-block;
+  padding: 2px 7px;
+  border-radius: 4px;
+  font-size: 11px;
+  font-weight: 600;
+  background: #f1f5f9;
+  color: #475569;
+  margin: 1px;
+  font-variant-numeric: tabular-nums;
+}
+.replace-tag {
+  display: inline-block;
+  padding: 2px 8px;
+  border-radius: 20px;
+  font-size: 11px;
+  font-weight: 700;
+  background: #fee2e2;
+  color: #b91c1c;
+}
+.kind-tag {
+  display: inline-block;
+  padding: 1px 7px;
+  border-radius: 4px;
+  font-size: 11px;
+  font-weight: 600;
+  background: #ede9fe;
+  color: #5b21b6;
+}
+.kind-tag.item { background: #fce7f3; color: #9d174d; }
+
+.empty-row-td {
+  padding: 28px;
+  text-align: center;
+  color: #94a3b8;
+  font-size: 13px;
+}
+.muted-cell { color: #94a3b8; }
+.cust-row { cursor: pointer; }
+.cust-row:hover td { background: #eff6ff !important; }
+/* 그룹 합산 행 — 클릭 불가, 시각적 구분 */
+.cust-row.group-row { cursor: default; background: #f8fafc; }
+.cust-row.group-row td { border-left: 3px solid #3b82f6; padding-left: 9px; }
+.cust-row.group-row:hover td { background: #f1f5f9 !important; }
+
+/* ---------- 드릴다운 메시지 스타일 ---------- */
+.rs-gahu-msg[data-drill] {
+  cursor: pointer;
+  position: relative;
+  padding-right: 32px;
+  transition: background .12s;
+}
+.rs-gahu-msg[data-drill]:hover {
+  background: rgba(255,255,255,.08);
+}
+.rs-gahu-msg[data-drill]::after {
+  content: '\203A';
+  position: absolute;
+  right: 12px;
+  top: 50%;
+  transform: translateY(-50%);
+  font-size: 18px;
+  opacity: .55;
+  line-height: 1;
+}
+
+/* ---------- 드릴다운 모달 ---------- */
+.rs-drill-backdrop {
+  position: fixed; inset: 0;
+  background: rgba(15,23,42,.65);
+  display: none;
+  align-items: center;
+  justify-content: center;
+  z-index: 1100;
+  padding: 16px;
+}
+.rs-drill-backdrop.show { display: flex; }
+.rs-drill-modal {
+  background: #fff;
+  border-radius: 16px;
+  max-width: 860px;
+  width: 100%;
+  max-height: 88vh;
+  display: flex;
+  flex-direction: column;
+  box-shadow: 0 24px 60px rgba(0,0,0,.28);
+  overflow: hidden;
+}
+.rs-drill-head {
+  padding: 16px 20px;
+  border-bottom: 1px solid var(--rs-border);
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 12px;
+  background: #f8fafc;
+}
+.rs-drill-head h3 {
+  margin: 0;
+  font-size: 15px;
+  font-weight: 700;
+  color: #0f172a;
+  line-height: 1.3;
+}
+.rs-drill-body {
+  overflow-y: auto;
+  flex: 1;
+}
+.rs-drill-foot {
+  padding: 10px 18px;
+  border-top: 1px solid var(--rs-border);
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  background: #fafbfc;
+  gap: 10px;
+}
+.rs-drill-count {
+  font-size: 12px;
+  color: #64748b;
+}
+
+/* ---------- 거래처 상세 모달 ---------- */
+.rs-modal-backdrop {
+  position: fixed; inset: 0;
+  background: rgba(15,23,42,.55);
+  display: none;
+  align-items: center;
+  justify-content: center;
+  z-index: 1000;
+  padding: 16px;
+}
+.rs-modal-backdrop.show { display: flex; }
+.rs-modal {
+  background: #fff;
+  border-radius: 16px;
+  max-width: 900px;
+  width: 100%;
+  max-height: 90vh;
+  display: flex;
+  flex-direction: column;
+  box-shadow: 0 24px 60px rgba(0,0,0,.25);
+  overflow: hidden;
+}
+.rs-modal-head {
+  padding: 18px 22px;
+  border-bottom: 1px solid var(--rs-border);
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  gap: 12px;
+}
+.rs-modal-body {
+  padding: 16px 22px;
+  overflow-y: auto;
+  flex: 1;
+}
+.rs-modal-foot {
+  padding: 12px 22px;
+  border-top: 1px solid var(--rs-border);
+  display: flex;
+  justify-content: flex-end;
+  background: #fafbfc;
+}
+.rs-info-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+  gap: 10px 18px;
+  font-size: 13px;
+  margin-bottom: 16px;
+}
+.rs-info-grid label {
+  display: block;
+  font-size: 10.5px;
+  color: #64748b;
+  text-transform: uppercase;
+  letter-spacing: .3px;
+  margin-bottom: 2px;
+}
+.rs-section-title {
+  font-size: 14px;
+  font-weight: 700;
+  color: #0f172a;
+  margin: 16px 0 8px 0;
+}
+.rs-notes-block {
+  padding: 10px 12px;
+  background: #fffbeb;
+  border-left: 3px solid #f59e0b;
+  border-radius: 6px;
+  font-size: 12.5px;
+  white-space: pre-wrap;
+  word-break: break-word;
+  line-height: 1.6;
+  color: #78350f;
+}
+
+/* ---------- 로딩 / 에러 ---------- */
+.rs-loading {
+  padding: 40px;
+  text-align: center;
+  color: #64748b;
+  font-size: 14px;
+}
+.rs-error-banner {
+  padding: 14px 18px;
+  border-radius: 10px;
+  border: 1px solid #fecaca;
+  background: #fef2f2;
+  color: #991b1b;
+  margin-bottom: 16px;
+  font-size: 13.5px;
+}
+
+/* ---------- 반응형 (768px 이하) ---------- */
+/* 임대유형 배지 */
+.rtype-tag {
+  display: inline-block;
+  padding: 2px 8px;
+  border-radius: 10px;
+  font-size: 11px;
+  font-weight: 600;
+  white-space: nowrap;
+}
+.rtype-tag.paid { background: #e0f2fe; color: #0369a1; }
+.rtype-tag.free { background: #dcfce7; color: #15803d; }
+
+/* ---------- 도넛 차트 3열 그리드 ---------- */
+.rs-donut-grid {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 14px;
+  margin-bottom: 20px;
+}
+
+@media (max-width: 900px) {
+  .rs-donut-grid { grid-template-columns: 1fr 1fr; }
+}
+@media (max-width: 600px) {
+  .rs-donut-grid { grid-template-columns: 1fr; }
+}
+
+@media (max-width: 768px) {
+  .rs-kpi-grid { grid-template-columns: repeat(2, 1fr); gap: 8px; }
+  .rs-kpi-value { font-size: 19px; }
+  .rs-kpi-label { font-size: 10px; }
+  .rs-kpi-sub { font-size: 10px; }
+  .rs-chart-grid { grid-template-columns: 1fr; }
+  .rs-chart-body { min-height: 220px; }
+  .rs-header { flex-direction: column; align-items: flex-start; }
+  .rs-header-title h1 { font-size: 18px; }
+  .rs-header-actions { width: 100%; justify-content: flex-end; }
+  .rs-btn { padding: 9px 12px; font-size: 12.5px; min-height: 44px; }
+  .rs-filter-bar input[type="search"],
+  .rs-filter-bar select { flex: 1 1 calc(50% - 8px); min-width: 0; min-height: 44px; }
+  .rs-table-wrap { max-height: none; overflow-x: visible; }
+  .rs-data-table thead { display: none; }
+  .rs-data-table tbody { display: block; }
+  .rs-data-table tbody tr {
+    display: block;
+    padding: 12px 14px;
+    border-bottom: 1px solid var(--rs-border);
+    position: relative;
+  }
+  .rs-data-table tbody tr:last-child { border-bottom: none; }
+  .rs-data-table tbody td {
+    display: flex;
+    align-items: baseline;
+    gap: 6px;
+    padding: 3px 0;
+    border-bottom: none;
+    font-size: 13px;
+    text-align: left !important;
+  }
+  .rs-data-table tbody td::before {
+    content: attr(data-label);
+    flex: 0 0 72px;
+    font-size: 11px;
+    font-weight: 600;
+    color: #64748b;
+    text-transform: uppercase;
+    letter-spacing: .2px;
+    white-space: nowrap;
+  }
+  .hide-mobile { display: none !important; }
+  .rs-modal { max-height: 95vh; border-radius: 10px; }
+  .rs-info-grid { grid-template-columns: 1fr; }
+  .rs-gahu-header { padding: 14px 16px; gap: 10px; }
+  .rs-gahu-accordion-btn { padding: 12px 16px; font-size: 13.5px; }
+  .rs-gahu-accordion-body { padding: 4px 16px 12px 16px; }
+  .rs-gahu-msg { font-size: 13px; }
+}
+@media (max-width: 480px) {
+  .rs-kpi-grid { grid-template-columns: repeat(2, 1fr); gap: 7px; }
+  .rs-kpi-value { font-size: 17px; }
+  .rs-kpi-card { padding: 11px 12px; }
+}
+</style>
+</head>
+<body>
+<main class="container">
+
+  <!-- ===== A. 페이지 헤더 ===== -->
+  <div class="rs-header">
+    <div class="rs-header-title">
+      <h1>임대현황</h1>
+      <p>전체를 살피고 다스리는 곳 — 디직스코리아 자산 운영 전략 대시보드</p>
+    </div>
+    <div class="rs-header-actions">
+      <button class="rs-btn" id="btn-refresh">&#8635; 새로고침</button>
+      <button class="rs-btn" id="btn-export">&#8659; CSV 내보내기</button>
+    </div>
+  </div>
+
+  <!-- 에러 배너 -->
+  <div class="rs-error-banner" id="rs-err-banner" style="display:none;"></div>
+
+  <!-- ===== B. KPI 카드 8개 (4×2) ===== -->
+  <div class="rs-kpi-grid" id="rs-kpi-grid">
+    <!-- 행 1 -->
+    <div class="rs-kpi-card accent-blue">
+      <div class="rs-kpi-label">활성 거래처</div>
+      <div class="rs-kpi-value" id="kpi-cust">–</div>
+      <div class="rs-kpi-sub" id="kpi-cust-sub">로딩 중…</div>
+    </div>
+    <div class="rs-kpi-card">
+      <div class="rs-kpi-label">자산 총수</div>
+      <div class="rs-kpi-value" id="kpi-items">–</div>
+      <div class="rs-kpi-sub" id="kpi-items-sub">–</div>
+    </div>
+    <div class="rs-kpi-card accent-purple">
+      <div class="rs-kpi-label">월 임대료 합계</div>
+      <div class="rs-kpi-value" id="kpi-fee">–</div>
+      <div class="rs-kpi-sub">원 / 활성 배정 기준</div>
+    </div>
+    <div class="rs-kpi-card accent-green">
+      <div class="rs-kpi-label">가동률</div>
+      <div class="rs-kpi-value" id="kpi-util">–<span class="unit">%</span></div>
+      <div class="rs-kpi-sub">배정됨 / 전체 자산</div>
+    </div>
+    <!-- 행 2 -->
+    <div class="rs-kpi-card accent-indigo clickable" id="kpi-card-avg-fee" title="클릭하면 거래처별 청구액 목록을 확인합니다">
+      <div class="rs-kpi-label">거래처당 평균 임대료</div>
+      <div class="rs-kpi-value" id="kpi-avg-fee">–</div>
+      <div class="rs-kpi-sub" id="kpi-avg-fee-sub">원 / 활성 거래처 기준</div>
+    </div>
+    <div class="rs-kpi-card accent-teal">
+      <div class="rs-kpi-label">거래처당 평균 자산</div>
+      <div class="rs-kpi-value" id="kpi-avg-items">–<span class="unit">대</span></div>
+      <div class="rs-kpi-sub" id="kpi-avg-items-sub">활성 배정 기준</div>
+    </div>
+    <div class="rs-kpi-card accent-amber">
+      <div class="rs-kpi-label">평균 노후도</div>
+      <div class="rs-kpi-value" id="kpi-avgage">–<span class="unit">개월</span></div>
+      <div class="rs-kpi-sub" id="kpi-avgage-sub">도입일 있는 자산 기준</div>
+    </div>
+    <div class="rs-kpi-card accent-red">
+      <div class="rs-kpi-label">위험 자산</div>
+      <div class="rs-kpi-value" id="kpi-danger">–</div>
+      <div class="rs-kpi-sub" id="kpi-danger-sub">노후도 60개월+ 자산</div>
+    </div>
+  </div>
+
+  <!-- ===== C. 분포 도넛 차트 3개 ===== -->
+  <div class="rs-donut-grid" id="rs-donut-grid">
+
+    <!-- 카테고리별 자산 수 비중 -->
+    <div class="rs-chart-card" id="card-donut-count" data-chart-drill="donut-count">
+      <div class="rs-chart-head">
+        <h3>카테고리별 자산 비중</h3>
+        <div class="rs-chart-kpi accent-blue" id="kpi-donut-count">–</div>
+      </div>
+      <div class="rs-chart-body rs-donut-body">
+        <canvas id="chart-donut-count"></canvas>
+      </div>
+      <div class="rs-chart-caption" id="cap-donut-count">분석 중…</div>
+    </div>
+
+    <!-- 카테고리별 월 임대료 비중 -->
+    <div class="rs-chart-card" id="card-donut-fee" data-chart-drill="donut-fee">
+      <div class="rs-chart-head">
+        <h3>카테고리별 임대료 비중</h3>
+        <div class="rs-chart-kpi accent-purple" id="kpi-donut-fee">–</div>
+      </div>
+      <div class="rs-chart-body rs-donut-body">
+        <canvas id="chart-donut-fee"></canvas>
+      </div>
+      <div class="rs-chart-caption" id="cap-donut-fee">분석 중…</div>
+    </div>
+
+    <!-- 임대 유형 분포 -->
+    <div class="rs-chart-card" id="card-donut-rtype" data-chart-drill="donut-rtype">
+      <div class="rs-chart-head">
+        <h3>임대 유형 분포</h3>
+        <div class="rs-chart-kpi accent-blue" id="kpi-donut-rtype">–</div>
+      </div>
+      <div class="rs-chart-body rs-donut-body">
+        <canvas id="chart-donut-rtype"></canvas>
+      </div>
+      <div class="rs-chart-caption" id="cap-donut-rtype">분석 중…</div>
+    </div>
+
+  </div><!-- /.rs-donut-grid -->
+
+  <!-- ===== D. 분석 차트 6개 그리드 ===== -->
+  <div class="rs-chart-grid" id="rs-chart-grid">
+
+    <!-- 1. 매출 상위 거래처 TOP 10 -->
+    <div class="rs-chart-card" id="card-top10" data-chart-drill="top10">
+      <div class="rs-chart-head">
+        <h3>매출 상위 거래처</h3>
+        <div class="rs-chart-kpi accent-blue" id="kpi-top10">–</div>
+      </div>
+      <div class="rs-chart-body">
+        <canvas id="chart-top10" style="max-height:280px;"></canvas>
+      </div>
+      <div class="rs-chart-caption" id="cap-top10">분석 중…</div>
+    </div>
+
+    <!-- 2. 거래처 × 카테고리 히트맵 -->
+    <div class="rs-chart-card" id="card-heatmap" data-chart-drill="heatmap">
+      <div class="rs-chart-head">
+        <h3>거래처 &times; 카테고리 히트맵</h3>
+        <div class="rs-chart-kpi" id="kpi-heatmap">–</div>
+      </div>
+      <div class="rs-chart-body" style="display:block; padding:8px 12px; overflow:auto; min-height:260px;">
+        <div class="heatmap-wrap" id="heatmap-wrap">
+          <div class="rs-loading">분석 중…</div>
+        </div>
+      </div>
+      <div class="rs-chart-caption" id="cap-heatmap">분석 중…</div>
+    </div>
+
+    <!-- 3. 매출 기회 -->
+    <div class="rs-chart-card" id="card-opportunity" data-chart-drill="opportunity">
+      <div class="rs-chart-head">
+        <h3>매출 기회</h3>
+        <div class="rs-chart-kpi accent-blue" id="kpi-opportunity">–</div>
+      </div>
+      <div class="rs-chart-body">
+        <canvas id="chart-opportunity" style="max-height:280px;"></canvas>
+      </div>
+      <div class="rs-chart-caption" id="cap-opportunity">분석 중…</div>
+    </div>
+
+    <!-- 4. 이탈 방지 -->
+    <div class="rs-chart-card" id="card-retention" data-chart-drill="retention">
+      <div class="rs-chart-head">
+        <h3>이탈 방지</h3>
+        <div class="rs-chart-kpi accent-amber" id="kpi-retention">–</div>
+      </div>
+      <div class="rs-chart-body">
+        <canvas id="chart-retention" style="max-height:280px;"></canvas>
+      </div>
+      <div class="rs-chart-caption" id="cap-retention">분석 중…</div>
+    </div>
+
+    <!-- 5. 최근 1년 제품 교체 추이 -->
+    <div class="rs-chart-card" id="card-replaced" data-chart-drill="replaced">
+      <div class="rs-chart-head">
+        <h3>최근 1년 제품 교체 추이</h3>
+        <div class="rs-chart-kpi accent-red" id="kpi-replaced">–</div>
+      </div>
+      <div class="rs-chart-body">
+        <canvas id="chart-replaced" style="max-height:280px;"></canvas>
+      </div>
+      <div class="rs-chart-caption" id="cap-replaced">분석 중…</div>
+    </div>
+
+    <!-- 6. 최근 1년 신규 거래처 추이 -->
+    <div class="rs-chart-card" id="card-newcust" data-chart-drill="newcust">
+      <div class="rs-chart-head">
+        <h3>최근 1년 신규 거래처 추이</h3>
+        <div class="rs-chart-kpi accent-green" id="kpi-newcust">–</div>
+      </div>
+      <div class="rs-chart-body">
+        <canvas id="chart-newcust" style="max-height:280px;"></canvas>
+      </div>
+      <div class="rs-chart-caption" id="cap-newcust">분석 중…</div>
+    </div>
+
+  </div><!-- /.rs-chart-grid -->
+
+  <!-- ===== E. 임대 전략 분석 ===== -->
+  <div class="rs-gahu-panel">
+    <div class="rs-gahu-header">
+      <div class="rs-gahu-avatar">&#x1F4CA;</div>
+      <div class="rs-gahu-title-wrap">
+        <h2>임대 전략 분석</h2>
+        <p>Supabase 데이터를 실시간 분석합니다.</p>
+      </div>
+    </div>
+    <div class="rs-gahu-sections" id="rs-gahu-sections">
+
+      <!-- 천기경 -->
+      <div class="rs-gahu-accordion-item">
+        <button class="rs-gahu-accordion-btn" data-acc="cheongi" aria-expanded="true">
+          <span class="acc-left">
+            <span class="acc-icon">&#x1F525;</span>
+            <span>위험자산 경보</span>
+          </span>
+          <span class="acc-arrow">&#9654;</span>
+        </button>
+        <div class="rs-gahu-accordion-body open" id="acc-cheongi">
+          <div class="rs-loading" style="color:#64748b; padding:8px 0;">분석 중…</div>
+        </div>
+      </div>
+
+      <!-- 부민책 -->
+      <div class="rs-gahu-accordion-item">
+        <button class="rs-gahu-accordion-btn" data-acc="bumin" aria-expanded="false">
+          <span class="acc-left">
+            <span class="acc-icon">&#x1F4B0;</span>
+            <span>매출 기회</span>
+          </span>
+          <span class="acc-arrow">&#9654;</span>
+        </button>
+        <div class="rs-gahu-accordion-body" id="acc-bumin">
+          <div class="rs-loading" style="color:#64748b; padding:8px 0;">분석 중…</div>
+        </div>
+      </div>
+
+      <!-- 수성책 -->
+      <div class="rs-gahu-accordion-item">
+        <button class="rs-gahu-accordion-btn" data-acc="suseong" aria-expanded="false">
+          <span class="acc-left">
+            <span class="acc-icon">&#x1F6E1;&#xFE0F;</span>
+            <span>이탈 방지</span>
+          </span>
+          <span class="acc-arrow">&#9654;</span>
+        </button>
+        <div class="rs-gahu-accordion-body" id="acc-suseong">
+          <div class="rs-loading" style="color:#64748b; padding:8px 0;">분석 중…</div>
+        </div>
+      </div>
+
+      <!-- 공략책 -->
+      <div class="rs-gahu-accordion-item">
+        <button class="rs-gahu-accordion-btn" data-acc="gongnyak" aria-expanded="false">
+          <span class="acc-left">
+            <span class="acc-icon">&#x2694;&#xFE0F;</span>
+            <span>확장 타깃</span>
+          </span>
+          <span class="acc-arrow">&#9654;</span>
+        </button>
+        <div class="rs-gahu-accordion-body" id="acc-gongnyak">
+          <div class="rs-loading" style="color:#64748b; padding:8px 0;">분석 중…</div>
+        </div>
+      </div>
+
+      <!-- 간정 -->
+      <div class="rs-gahu-accordion-item">
+        <button class="rs-gahu-accordion-btn" data-acc="ganjung" aria-expanded="false">
+          <span class="acc-left">
+            <span class="acc-icon">&#x26A0;&#xFE0F;</span>
+            <span>데이터 점검</span>
+          </span>
+          <span class="acc-arrow">&#9654;</span>
+        </button>
+        <div class="rs-gahu-accordion-body" id="acc-ganjung">
+          <div class="rs-loading" style="color:#64748b; padding:8px 0;">분석 중…</div>
+        </div>
+      </div>
+
+    </div><!-- /.rs-gahu-sections -->
+    <div class="rs-gahu-sign" id="gahu-sign">분석 대기 중</div>
+  </div>
+
+  <!-- ===== F. 하단 상세 탭 ===== -->
+  <div class="rs-tabs-wrap">
+    <div class="rs-tabs-nav">
+      <button class="rs-tab-btn active" data-tab="customers">
+        거래처별<span class="tc" id="tc-customers">0</span>
+      </button>
+      <button class="rs-tab-btn" data-tab="items">
+        자산별<span class="tc" id="tc-items">0</span>
+      </button>
+      <button class="rs-tab-btn" data-tab="age">
+        노후도 순<span class="tc" id="tc-age">0</span>
+      </button>
+      <button class="rs-tab-btn" data-tab="memo">
+        메모/특이사항<span class="tc" id="tc-memo">0</span>
+      </button>
+    </div>
+
+    <!-- 거래처별 -->
+    <div class="rs-tab-panel active" data-tab="customers">
+      <div class="rs-filter-bar">
+        <input type="search" id="cf-q" placeholder="회사명·주소·메모 검색" />
+        <select id="cf-pay">
+          <option value="">결제방식 전체</option>
+          <option value="선불">선불</option>
+          <option value="후불">후불</option>
+        </select>
+        <select id="cf-cat"><option value="">보유 카테고리 전체</option></select>
+        <span class="rs-filter-count" id="cf-count">0 건</span>
+      </div>
+      <div class="rs-table-wrap">
+        <table class="rs-data-table" id="cust-table">
+          <thead>
+            <tr>
+              <th>#</th>
+              <th>회사명</th>
+              <th class="num">자산수</th>
+              <th>카테고리</th>
+              <th class="num">월 임대료</th>
+              <th class="hide-mobile">주소</th>
+              <th>결제</th>
+              <th class="num hide-mobile">청구일</th>
+              <th class="num">최대 노후도</th>
+            </tr>
+          </thead>
+          <tbody></tbody>
+        </table>
+      </div>
+    </div>
+
+    <!-- 자산별 -->
+    <div class="rs-tab-panel" data-tab="items">
+      <div class="rs-filter-bar">
+        <input type="search" id="if-q" placeholder="모델·시리얼·거래처 검색" />
+        <select id="if-cat"><option value="">전체 카테고리</option></select>
+        <select id="if-status">
+          <option value="">전체 상태</option>
+          <option value="active">active</option>
+          <option value="replaced">replaced</option>
+          <option value="returned">returned</option>
+          <option value="lost">lost</option>
+        </select>
+        <select id="if-assign">
+          <option value="">배정 전체</option>
+          <option value="assigned">배정됨</option>
+          <option value="idle">미배정</option>
+        </select>
+        <select id="if-rtype">
+          <option value="">임대유형 전체</option>
+          <option value="paid">유상</option>
+          <option value="free">무상</option>
+        </select>
+        <span class="rs-filter-count" id="if-count">0 건</span>
+      </div>
+      <div class="rs-table-wrap">
+        <table class="rs-data-table" id="item-table">
+          <thead>
+            <tr>
+              <th>#</th>
+              <th>카테고리</th>
+              <th>브랜드/모델</th>
+              <th class="hide-mobile">시리얼</th>
+              <th>거래처</th>
+              <th class="num hide-mobile">도입일</th>
+              <th class="num">노후도</th>
+              <th class="num">월 임대료</th>
+              <th>유형</th>
+              <th>상태</th>
+            </tr>
+          </thead>
+          <tbody></tbody>
+        </table>
+      </div>
+    </div>
+
+    <!-- 노후도 순 -->
+    <div class="rs-tab-panel" data-tab="age">
+      <div class="rs-filter-bar">
+        <input type="search" id="af-q" placeholder="모델·시리얼·거래처 검색" />
+        <select id="af-cat"><option value="">전체 카테고리</option></select>
+        <select id="af-band">
+          <option value="">노후도 전체</option>
+          <option value="bad">60개월+ (교체)</option>
+          <option value="warn">36~59개월</option>
+          <option value="ok">~35개월</option>
+          <option value="none">미입력</option>
+        </select>
+        <span class="rs-filter-count" id="af-count">0 건</span>
+      </div>
+      <div class="rs-table-wrap">
+        <table class="rs-data-table" id="age-table">
+          <thead>
+            <tr>
+              <th>#</th>
+              <th>카테고리</th>
+              <th>브랜드/모델</th>
+              <th class="hide-mobile">시리얼</th>
+              <th>거래처</th>
+              <th class="num hide-mobile">도입일</th>
+              <th class="num">노후도</th>
+              <th>상태</th>
+              <th>교체</th>
+            </tr>
+          </thead>
+          <tbody></tbody>
+        </table>
+      </div>
+    </div>
+
+    <!-- 메모/특이사항 -->
+    <div class="rs-tab-panel" data-tab="memo">
+      <div class="rs-filter-bar">
+        <input type="search" id="mf-q" placeholder="대상·메모 검색" />
+        <select id="mf-kind">
+          <option value="">종류 전체</option>
+          <option value="customer">거래처</option>
+          <option value="item">자산</option>
+        </select>
+        <span class="rs-filter-count" id="mf-count">0 건</span>
+      </div>
+      <div class="rs-table-wrap">
+        <table class="rs-data-table" id="memo-table">
+          <thead>
+            <tr>
+              <th style="width:80px;">종류</th>
+              <th style="width:200px;">대상</th>
+              <th>메모</th>
+            </tr>
+          </thead>
+          <tbody></tbody>
+        </table>
+      </div>
+    </div>
+
+  </div><!-- /.rs-tabs-wrap -->
+
+  <p style="text-align:center; font-size:11.5px; color:#94a3b8; margin-top:10px;">
+    데이터: Supabase <code>rental_customers</code> + <code>rental_items</code> + <code>rental_assignments</code>
+    &nbsp;·&nbsp; 마지막 갱신: <span id="last-updated">–</span>
+  </p>
+
+</main>
+
+<!-- ===== 드릴다운 모달 (단일 인스턴스) ===== -->
+<div class="rs-drill-backdrop" id="drill-modal-backdrop" role="dialog" aria-modal="true">
+  <div class="rs-drill-modal" id="drill-modal">
+    <div class="rs-drill-head">
+      <h3 id="drill-modal-title">목록</h3>
+      <button type="button" class="rs-btn" id="drill-modal-close" aria-label="닫기">&#x2715;</button>
+    </div>
+    <div class="rs-drill-body" id="drill-modal-body">
+      <div class="rs-loading">로딩 중…</div>
+    </div>
+    <div class="rs-drill-foot">
+      <span class="rs-drill-count" id="drill-modal-count"></span>
+      <button type="button" class="rs-btn" id="drill-modal-csv">&#8659; CSV</button>
+    </div>
+  </div>
+</div>
+
+<script src="index.js?v=20260612b"></script>
+</body>
+</html>

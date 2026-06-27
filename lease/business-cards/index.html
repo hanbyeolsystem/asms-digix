@@ -1,0 +1,1115 @@
+<!doctype html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>명함관리 — 디직스코리아</title>
+<link rel="stylesheet" href="../styles.css?v=20260611">
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<script src="../config.js?v=20260611"></script>
+<script src="../auth.js"></script>
+<style>
+  :root { --bc-border:#e5e7eb; --bc-muted:#6b7280; --bc-primary:#2563eb; --bc-soft:#eff6ff; }
+  .bc-wrap { padding: 14px 0; }
+  .bc-head { display:flex; align-items:center; gap:10px; flex-wrap:wrap; margin-bottom:12px; }
+  .bc-head h1 { margin:0; font-size:20px; font-weight:700; }
+  .bc-head .sub { font-size:12.5px; color:var(--bc-muted); }
+  .bc-btn { padding:8px 14px; border:1px solid var(--bc-border); border-radius:8px; background:#fff;
+            font-size:13px; font-weight:600; cursor:pointer; font-family:inherit; transition:.12s; }
+  .bc-btn:hover { background:var(--bc-soft); border-color:var(--bc-primary); }
+  .bc-btn.primary { background:var(--bc-primary); color:#fff; border-color:var(--bc-primary); }
+  .bc-btn.primary:hover { background:#1d4ed8; }
+  .bc-btn:disabled { opacity:.5; cursor:not-allowed; }
+  .bc-layout { display:grid; grid-template-columns:260px 1fr; gap:16px; align-items:start; }
+  @media (max-width:900px){ .bc-layout{ grid-template-columns:1fr; } }
+  .bc-side { border:1px solid var(--bc-border); border-radius:12px; background:#fff; padding:12px; }
+  .bc-side h3 { margin:0 0 8px; font-size:13px; color:var(--bc-muted); }
+  .bc-group-cat { font-size:11px; color:#9ca3af; margin:10px 0 4px; font-weight:700; display:flex; align-items:center; gap:4px; }
+  .bc-group-cat .lab { flex:1; }
+  .bc-group-cat .act { padding:1px 5px; border:1px solid transparent; background:transparent; color:#9ca3af; font-size:10px; cursor:pointer; border-radius:4px; font-family:inherit; }
+  .bc-group-cat .act:hover { background:#f3f4f6; color:#111; }
+  .bc-group-cat .act.del:hover { background:#fee2e2; color:#dc2626; }
+  .bc-chip-edit { padding:3px 5px; margin-left:-1px; border:1px solid var(--bc-border); border-left:none; border-right:none; background:#fff; color:#9ca3af; font-size:10px; cursor:pointer; font-family:inherit; }
+  .bc-chip-edit:hover { background:#eff6ff; color:var(--bc-primary); border-color:#bfdbfe; }
+  .bc-chip { display:inline-flex; align-items:center; gap:6px; padding:4px 10px; margin:3px 3px 3px 0;
+             border-radius:999px; font-size:12px; cursor:pointer; border:1px solid var(--bc-border); background:#fff; }
+  .bc-chip.active { color:#fff; }
+  .bc-chip .cnt { opacity:.7; font-size:11px; }
+  .bc-main { border:1px solid var(--bc-border); border-radius:12px; background:#fff; padding:14px; }
+  .bc-toolbar { display:flex; gap:8px; flex-wrap:wrap; margin-bottom:12px; }
+  .bc-toolbar input[type=text]{ flex:1; min-width:160px; padding:8px 12px; border:1px solid var(--bc-border); border-radius:8px; font-size:13px; }
+  .bc-company { border:1px solid var(--bc-border); border-radius:10px; margin-bottom:10px; overflow:hidden; }
+  .bc-company.isnew { border-color:#f59e0b; box-shadow:0 0 0 2px #fef3c7; }
+  .bc-company-head { display:flex; align-items:center; gap:10px; padding:11px 14px; cursor:pointer; background:#fafbfc; user-select:none; }
+  .bc-company-head:hover { background:#f3f4f6; }
+  .bc-company-name { font-weight:700; font-size:14.5px; }
+  .bc-new-badge { font-size:10.5px; background:#f59e0b; color:#fff; padding:2px 7px; border-radius:6px; font-weight:700; }
+  .bc-company-meta { font-size:11.5px; color:var(--bc-muted); margin-left:auto; }
+  .bc-contacts { padding:4px 14px 12px; }
+  /* 컴팩트 카드 그리드 — 1행 3개(데스크탑) / 2개(태블릿) / 1개(모바일) */
+  .bc-card-grid { display:grid; grid-template-columns:repeat(3, minmax(0,1fr)); gap:8px; padding:8px 14px 12px; }
+  @media (max-width:1100px){ .bc-card-grid{ grid-template-columns:repeat(2, minmax(0,1fr)); } }
+  @media (max-width:600px) { .bc-card-grid{ grid-template-columns:1fr; } }
+  .bc-mini { position:relative; display:flex; gap:8px; padding:8px 9px; border:1px solid var(--bc-border); border-radius:10px; background:#fff; min-height:64px; }
+  .bc-mini:hover { border-color:var(--bc-primary); box-shadow:0 2px 6px rgba(37,99,235,.08); }
+  .bc-mini .thumb { width:48px; height:48px; flex-shrink:0; border-radius:6px; object-fit:cover; background:#f3f4f6; cursor:zoom-in; }
+  .bc-mini .thumb.empty { display:flex; align-items:center; justify-content:center; font-size:20px; color:#cbd5e1; }
+  .bc-mini .body { flex:1; min-width:0; display:flex; flex-direction:column; justify-content:space-between; gap:2px; }
+  .bc-mini .line1 { display:flex; align-items:baseline; gap:5px; min-width:0; }
+  .bc-mini .line1 .co { font-weight:700; font-size:13px; color:#111; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; cursor:pointer; }
+  .bc-mini .line1 .co:hover { color:var(--bc-primary); text-decoration:underline; }
+  .bc-mini .line1 .tt { font-size:11px; color:var(--bc-muted); white-space:nowrap; overflow:hidden; text-overflow:ellipsis; flex-shrink:1; }
+  .bc-mini .line2 { color:#374151; font-size:11.5px; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+  .bc-mini .line2 .nm { font-weight:600; color:#111; margin-right:5px; }
+  .bc-mini .ctel { color:#2563eb; text-decoration:none; }
+  .bc-mini .ctel:hover { text-decoration:underline; }
+  .bc-mini .acts { display:flex; gap:3px; margin-top:3px; }
+  .bc-mini .acts button { padding:2px 7px; border:1px solid var(--bc-border); background:#fff; border-radius:5px; font-size:10.5px; cursor:pointer; font-family:inherit; line-height:1.4; }
+  .bc-mini .acts button:hover { background:var(--bc-soft); border-color:var(--bc-primary); color:var(--bc-primary); }
+  .bc-mini .acts .del { color:#dc2626; border-color:#fecaca; }
+  .bc-mini .acts .del:hover { background:#fee2e2; border-color:#dc2626; color:#dc2626; }
+  .bc-mini .badge { position:absolute; top:5px; right:6px; font-size:9.5px; padding:1px 5px; border-radius:4px; font-weight:700; }
+  .bc-mini .badge.yes { background:#dcfce7; color:#166534; }
+  .bc-mini .badge.no  { background:#fee2e2; color:#991b1b; }
+  /* 이미지 확대 모달 */
+  .bc-img-modal { position:fixed; inset:0; background:rgba(0,0,0,.85); display:none; align-items:center; justify-content:center; z-index:1100; padding:16px; cursor:zoom-out; }
+  .bc-img-modal.show { display:flex; }
+  .bc-img-modal img { max-width:96vw; max-height:92vh; border-radius:8px; box-shadow:0 12px 48px rgba(0,0,0,.6); }
+  /* 그룹 chip 삭제 ✕ */
+  .bc-chip-wrap { display:inline-flex; align-items:center; gap:0; margin:3px 3px 3px 0; }
+  .bc-chip-del { padding:3px 6px; margin-left:-1px; border:1px solid var(--bc-border); border-left:none; border-radius:0 999px 999px 0; background:#fff; color:#9ca3af; font-size:10px; cursor:pointer; font-family:inherit; }
+  .bc-chip-del:hover { background:#fee2e2; color:#dc2626; border-color:#fecaca; }
+  .bc-chip.has-del { border-radius:999px 0 0 999px; margin-right:0; }
+  /* 검색결과 일괄삭제 버튼 */
+  .bc-btn.danger { background:#dc2626; color:#fff; border-color:#dc2626; }
+  .bc-btn.danger:hover { background:#b91c1c; border-color:#b91c1c; }
+  .bc-btn.danger:disabled { background:#fecaca; border-color:#fecaca; color:#fff; cursor:not-allowed; }
+  .bc-contact { display:flex; align-items:center; gap:10px; padding:9px 0; border-top:1px dashed #f0f0f0; flex-wrap:wrap; }
+  .bc-contact:first-child { border-top:none; }
+  .bc-contact .nm { font-weight:600; font-size:13.5px; }
+  .bc-contact .tt { font-size:12px; color:var(--bc-muted); }
+  .bc-contact .ct { font-size:12px; color:#374151; }
+  .bc-consent { font-size:11px; padding:2px 8px; border-radius:6px; font-weight:700; }
+  .bc-consent.yes { background:#dcfce7; color:#166534; }
+  .bc-consent.no  { background:#fee2e2; color:#991b1b; }
+  .bc-tags { margin-left:8px; }
+  .bc-tag { display:inline-block; font-size:10.5px; padding:1px 7px; border-radius:5px; margin-right:3px; color:#fff; }
+  .bc-empty { text-align:center; color:var(--bc-muted); padding:40px 10px; font-size:13.5px; }
+  .bc-modal-bg { position:fixed; inset:0; background:rgba(0,0,0,.45); display:none; align-items:center; justify-content:center; z-index:1000; padding:16px; }
+  .bc-modal-bg.show { display:flex; }
+  .bc-modal { background:#fff; border-radius:14px; width:100%; max-width:560px; max-height:90vh; overflow:auto; box-shadow:0 12px 48px rgba(0,0,0,.25); }
+  .bc-modal-h { padding:16px 20px; border-bottom:1px solid var(--bc-border); display:flex; align-items:center; justify-content:space-between; position:sticky; top:0; background:#fff; }
+  .bc-modal-h h2 { margin:0; font-size:16px; }
+  .bc-modal-b { padding:18px 20px; }
+  .bc-modal-f { padding:14px 20px; border-top:1px solid var(--bc-border); display:flex; gap:8px; justify-content:flex-end; position:sticky; bottom:0; background:#fff; }
+  .bc-field { margin-bottom:12px; }
+  .bc-field label { display:block; font-size:12px; color:var(--bc-muted); margin-bottom:4px; font-weight:600; }
+  .bc-field input, .bc-field textarea, .bc-field select { width:100%; box-sizing:border-box; padding:8px 10px; border:1px solid var(--bc-border); border-radius:8px; font-size:13px; font-family:inherit; }
+  .bc-field textarea { resize:vertical; min-height:60px; }
+  .bc-grid2 { display:grid; grid-template-columns:1fr 1fr; gap:10px; }
+  .bc-drop { border:2px dashed var(--bc-border); border-radius:12px; padding:28px; text-align:center; color:var(--bc-muted); cursor:pointer; transition:.12s; }
+  .bc-drop:hover, .bc-drop.over { border-color:var(--bc-primary); background:var(--bc-soft); color:var(--bc-primary); }
+  .bc-preview { max-width:100%; max-height:200px; border-radius:8px; margin-top:10px; }
+  .bc-spinner { display:inline-block; width:16px; height:16px; border:2px solid #cbd5e1; border-top-color:var(--bc-primary); border-radius:50%; animation:bcspin .7s linear infinite; vertical-align:middle; }
+  @keyframes bcspin { to{ transform:rotate(360deg); } }
+  .bc-match-box { background:#f9fafb; border:1px solid var(--bc-border); border-radius:10px; padding:12px; margin-bottom:12px; font-size:13px; }
+  .bc-match-box .hit { color:#166534; font-weight:700; }
+  .bc-match-box .new { color:#b45309; font-weight:700; }
+  .bc-warn { background:#fffbeb; border:1px solid #fde68a; color:#92400e; border-radius:8px; padding:10px 12px; font-size:12.5px; margin-bottom:12px; line-height:1.5; }
+  .bc-info { background:#eff6ff; border:1px solid #bfdbfe; color:#1e40af; border-radius:8px; padding:10px 12px; font-size:12.5px; margin-bottom:12px; line-height:1.5; }
+  .bc-cfg-row { display:flex; gap:6px; align-items:center; }
+  .bc-cfg-row input { flex:1; }
+  .bc-grp-list { max-height:340px; overflow:auto; border:1px solid var(--bc-border); border-radius:8px; padding:8px; }
+  .bc-grp-list .cat { font-size:11px; color:#9ca3af; font-weight:700; margin:8px 0 2px; }
+  .bc-grp-list .cat:first-child { margin-top:0; }
+  .bc-grp-item { display:flex; align-items:center; gap:8px; padding:5px 4px; }
+  .bc-grp-item input { width:auto; margin:0; }
+  .bc-grp-item .dot { display:inline-block; width:10px; height:10px; border-radius:3px; }
+  .bc-grp-item label { margin:0; font-size:13px; color:#111; font-weight:500; cursor:pointer; flex:1; }
+  .bc-toggle { display:inline-flex; align-items:center; gap:8px; padding:8px 12px; border:1px solid var(--bc-border); border-radius:8px; background:#fff; font-size:13px; cursor:pointer; }
+  .bc-toggle input { width:auto; margin:0; }
+</style>
+</head>
+<body data-embed="1">
+<div class="bc-wrap">
+  <div class="bc-head">
+    <h1>📇 명함관리</h1>
+    <span class="sub">사진 → 텍스트 추출 → 거래처 매칭 → 그룹 → 영업 발송</span>
+    <div style="margin-left:auto; display:flex; gap:8px;">
+      <button class="bc-btn" id="btnImport" title="리멤버/엑셀 JSON 가져오기">📥 가져오기</button>
+      <input type="file" id="importFile" accept=".json,application/json" hidden>
+      <button class="bc-btn" id="btnSync" title="리멤버 Excel/JSON 업로드 + 거래처 재매칭/중복정리 (자동: 매일 03:30)">🔁 자동 동기화</button>
+      <input type="file" id="syncFile" accept=".json,.xlsx,.xls,.csv,application/json,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet,application/vnd.ms-excel,text/csv" hidden>
+      <button class="bc-btn" id="btnSend">📨 그룹 발송</button>
+      <button class="bc-btn" id="btnCfg" title="OCR/발송 설정">⚙️</button>
+      <button class="bc-btn primary" id="btnScan">＋ 명함 추가</button>
+    </div>
+  </div>
+  <div class="bc-layout">
+    <aside class="bc-side">
+      <h3>그룹 필터</h3>
+      <div id="groupChips"><span class="bc-chip active" data-gid="all">전체</span></div>
+      <button class="bc-btn" id="btnAddGroup" style="margin-top:10px; width:100%; font-size:12px;">＋ 새 그룹</button>
+    </aside>
+    <main class="bc-main">
+      <div class="bc-toolbar">
+        <input type="text" id="search" placeholder="회사명·이름·전화·이메일 검색">
+        <button class="bc-btn" id="btnConsentOnly">동의자만</button>
+        <button class="bc-btn danger" id="btnBulkDel" disabled title="검색어와 일치하는 모든 명함 삭제">🗑 검색결과 일괄삭제</button>
+      </div>
+      <div id="list"><div class="bc-empty">불러오는 중…</div></div>
+    </main>
+  </div>
+</div>
+
+<!-- ===== 명함 추가/수정 모달 ===== -->
+<div class="bc-modal-bg" id="scanModal"><div class="bc-modal">
+  <div class="bc-modal-h"><h2 id="scanTitle">명함 추가</h2><button class="bc-btn" onclick="BC.closeScan()">✕</button></div>
+  <div class="bc-modal-b">
+    <div class="bc-drop" id="dropZone">📷 클릭하거나 명함 사진을 끌어다 놓으세요<br><span style="font-size:11px;">(JPG/PNG)</span>
+      <input type="file" id="fileInput" accept="image/*" capture="environment" hidden></div>
+    <img id="preview" class="bc-preview" style="display:none;">
+    <div id="ocrStatus" style="margin:10px 0; font-size:13px;"></div>
+    <div class="bc-match-box" id="matchBox" style="display:none;"></div>
+    <div class="bc-field"><label>회사명</label><input id="f_company"></div>
+    <div class="bc-grid2"><div class="bc-field"><label>이름</label><input id="f_name"></div>
+      <div class="bc-field"><label>직책</label><input id="f_title"></div></div>
+    <div class="bc-grid2"><div class="bc-field"><label>부서</label><input id="f_dept"></div>
+      <div class="bc-field"><label>휴대폰</label><input id="f_mobile"></div></div>
+    <div class="bc-grid2"><div class="bc-field"><label>사무실 전화</label><input id="f_office"></div>
+      <div class="bc-field"><label>팩스</label><input id="f_fax"></div></div>
+    <div class="bc-field"><label>이메일</label><input id="f_email"></div>
+    <div class="bc-field"><label>주소</label><input id="f_addr"></div>
+    <div class="bc-grid2"><div class="bc-field"><label>홈페이지</label><input id="f_web"></div>
+      <div class="bc-field"><label>사업자번호</label><input id="f_bizno"></div></div>
+    <div class="bc-field"><label>영업 메모</label><textarea id="f_memo"></textarea></div>
+    <div class="bc-field" style="display:flex; align-items:center; gap:8px;">
+      <input type="checkbox" id="f_consent" style="width:auto;">
+      <label style="margin:0;">✅ 광고 수신동의 받음 (정보통신망법 §50 — 동의자만 영업 발송 가능)</label></div>
+  </div>
+  <div class="bc-modal-f"><button class="bc-btn" onclick="BC.closeScan()">취소</button>
+    <button class="bc-btn primary" id="btnSaveCard">저장</button></div>
+</div></div>
+
+<!-- ===== 그룹 발송 모달 ===== -->
+<div class="bc-modal-bg" id="sendModal"><div class="bc-modal">
+  <div class="bc-modal-h"><h2>그룹 발송</h2><button class="bc-btn" onclick="BC.closeSend()">✕</button></div>
+  <div class="bc-modal-b">
+    <div class="bc-field">
+      <label class="bc-toggle" style="width:100%; justify-content:flex-start;">
+        <input type="checkbox" id="s_is_ad" checked>
+        <span><b>📢 광고성 메시지</b> — 수신동의자에게만 발송, 야간 차단, 본문에 (광고)+무료수신거부 자동 삽입</span>
+      </label>
+      <div class="bc-info" id="adInfoBox" style="margin-top:8px;">광고성 모드 — 정보통신망법 §50 준수. 미동의자 자동 제외.</div>
+    </div>
+    <div class="bc-field"><label>대상 그룹</label><select id="s_group"></select></div>
+    <div class="bc-field"><label>채널</label><select id="s_channel"><option value="email">이메일</option><option value="kakao">카카오 알림톡(연동 필요)</option></select></div>
+    <div class="bc-field"><label>템플릿 불러오기</label>
+      <div style="display:flex; gap:6px;">
+        <select id="s_template" style="flex:1;"><option value="">-- 새 본문 작성 --</option></select>
+        <button class="bc-btn" id="btnSaveTemplate" type="button" title="현재 제목/본문을 템플릿으로 저장">💾 템플릿 저장</button>
+      </div>
+    </div>
+    <div class="bc-field"><label>제목(메일)</label><input id="s_subject" value="디직스코리아 안내드립니다"></div>
+    <div class="bc-field"><label>본문 — {{company}} {{name}} {{title}} 변수 사용</label>
+      <textarea id="s_body" style="min-height:140px;">{{company}} {{name}} {{title}}님 안녕하세요, 디직스코리아입니다.
+
+시놀로지 NAS 기반 AI 데이터 서버 구축 + 업무 자동화 컨설팅을 안내드립니다.
+상담을 원하시면 회신 부탁드립니다.
+
+디직스코리아 | 경상북도 문경시 점촌동 141-9</textarea></div>
+    <div id="sendPreview" style="font-size:12.5px; color:var(--bc-muted);"></div>
+  </div>
+  <div class="bc-modal-f"><button class="bc-btn" onclick="BC.closeSend()">취소</button>
+    <button class="bc-btn" id="btnSendPreview">대상 확인</button>
+    <button class="bc-btn primary" id="btnSendGo" disabled>발송</button></div>
+</div></div>
+
+<!-- ===== OCR/발송 설정 모달 ===== -->
+<div class="bc-modal-bg" id="cfgModal"><div class="bc-modal" style="max-width:460px;">
+  <div class="bc-modal-h"><h2>OCR · 발송 설정</h2><button class="bc-btn" onclick="BC.closeCfg()">✕</button></div>
+  <div class="bc-modal-b">
+    <div class="bc-warn">OCR은 <b>Google Gemini API</b>(무료)로 명함을 읽어 필드를 자동 추출합니다. 키는 <a href="https://aistudio.google.com/app/apikey" target="_blank" style="color:#06b;">aistudio.google.com/app/apikey</a> 에서 카드 등록 없이 발급되며, <b>이 브라우저에만</b> 저장됩니다(서버 미전송).</div>
+    <div class="bc-field"><label>Gemini API 키 (AIza...)</label><div class="bc-cfg-row"><input id="cfg_apikey" type="password" placeholder="AIzaSy..."></div></div>
+    <div class="bc-field"><label>모델</label><input id="cfg_model" value="gemini-2.5-flash"></div>
+  </div>
+  <div class="bc-modal-f"><button class="bc-btn" onclick="BC.closeCfg()">취소</button>
+    <button class="bc-btn primary" id="btnSaveCfg">저장</button></div>
+</div></div>
+
+<!-- ===== 명함 상세 모달 ===== -->
+<div class="bc-modal-bg" id="detailModal"><div class="bc-modal" style="max-width:640px;">
+  <div class="bc-modal-h"><h2 id="detailTitle">명함 상세</h2><button class="bc-btn" onclick="BC.closeDetail()">✕</button></div>
+  <div class="bc-modal-b">
+    <div id="detailImgWrap" style="text-align:center; margin-bottom:14px; background:#f9fafb; border-radius:10px; padding:10px;">
+      <img id="detailImg" alt="명함 이미지" style="max-width:100%; max-height:280px; border-radius:6px; cursor:zoom-in;">
+    </div>
+    <div id="detailBody"></div>
+  </div>
+  <div class="bc-modal-f">
+    <button class="bc-btn" onclick="BC.closeDetail()">닫기</button>
+    <button class="bc-btn" id="btnDetailGroup">🏷 그룹</button>
+    <button class="bc-btn" id="btnDetailEdit">✏ 수정</button>
+    <button class="bc-btn danger" id="btnDetailDel">🗑 삭제</button>
+  </div>
+</div></div>
+
+<!-- ===== 이미지 확대 모달 ===== -->
+<div class="bc-img-modal" id="imgModal" onclick="this.classList.remove('show'); document.getElementById('imgModalImg').src='';">
+  <img id="imgModalImg" alt="명함 이미지">
+</div>
+
+<!-- ===== 그룹 지정 모달 ===== -->
+<div class="bc-modal-bg" id="groupEditModal"><div class="bc-modal" style="max-width:480px;">
+  <div class="bc-modal-h"><h2 id="groupEditTitle">🏷 그룹 지정</h2><button class="bc-btn" onclick="BC.closeGroupEdit()">✕</button></div>
+  <div class="bc-modal-b">
+    <div class="bc-info">아래에서 이 거래처에 속할 그룹을 다중 선택하세요. 발송/필터에 즉시 반영됩니다.</div>
+    <div class="bc-grp-list" id="groupEditList"></div>
+  </div>
+  <div class="bc-modal-f"><button class="bc-btn" onclick="BC.closeGroupEdit()">취소</button>
+    <button class="bc-btn primary" id="btnSaveGroupEdit">저장</button></div>
+</div></div>
+
+<script>
+const BC = (() => {
+  const LS_KEY = 'digix_bc_cfg';
+  let supa = null;
+  const STATE = {
+    cards:[], customers:[], groups:[], groupMap:{}, templates:[],
+    filterGid:'all', consentOnly:false, q:'', editId:null, pendingImageUrl:null,
+    sendTargets:[], groupEditCardId:null
+  };
+
+  function normalize(s){
+    if(!s) return '';
+    return s.replace(/㈜|\(주\)|주식회사|유한회사|Co\.,?\s*Ltd|Inc\.?/gi,'').replace(/\s+/g,'').toLowerCase().normalize('NFKC');
+  }
+  const PERSONAL_DOMAINS = ['gmail.com','naver.com','daum.net','hanmail.net','kakao.com','nate.com','outlook.com','hotmail.com'];
+  function domainOf(email){ const m=(email||'').split('@'); return m.length===2 ? m[1].toLowerCase() : ''; }
+  function esc(s){ return String(s==null?'':s).replace(/[&<>"']/g,m=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[m])); }
+  function cfg(){ try{ return JSON.parse(localStorage.getItem(LS_KEY)||'{}'); }catch(e){ return {}; } }
+  function isNight(){ const h=new Date().getHours(); return (h>=21||h<8); }
+
+  // ── 기기 공용 키 동기화: DB(app_settings) ↔ localStorage ──
+  // 키가 로컬에 없으면 DB에서 자동으로 받아온다 (PC에서 1회 입력하면 핸드폰도 자동).
+  async function syncCfgFromDB(){
+    try{
+      const c = cfg();
+      if(c.apikey) return c;                 // 로컬에 이미 있으면 그대로 사용
+      const r = await supa.from('app_settings').select('key,value').in('key',['gemini_apikey','gemini_model']);
+      if(r.error || !r.data || !r.data.length) return c;
+      const map = {}; r.data.forEach(x=>map[x.key]=x.value);
+      if(map.gemini_apikey){
+        const merged = { ...c, apikey:map.gemini_apikey, model:map.gemini_model||c.model||'gemini-2.5-flash' };
+        localStorage.setItem(LS_KEY, JSON.stringify(merged));
+        return merged;
+      }
+      return c;
+    }catch(e){ return cfg(); }
+  }
+  // 키 저장 시 DB에도 함께 올린다 (한 번 저장하면 모든 기기 공유).
+  async function saveCfgToDB(apikey, model){
+    try{
+      const r = await supa.from('app_settings').upsert([
+        { key:'gemini_apikey', value:apikey, updated_at:new Date().toISOString() },
+        { key:'gemini_model',  value:model||'gemini-2.5-flash', updated_at:new Date().toISOString() }
+      ], { onConflict:'key' });
+      if(r.error){ console.warn('saveCfgToDB:', r.error); return false; }
+      return true;
+    }catch(e){ console.warn('saveCfgToDB ex:', e); return false; }
+  }
+
+  async function loadAll(){
+    await syncCfgFromDB();   // 기기 공용 키 자동 로드 (핸드폰에서도 입력 불필요)
+    // rental_customers.id 는 text. select 에 mobile 도 포함 (휴대폰 매칭용)
+    const [cardsR, custR, grpR, mapR, tplR] = await Promise.all([
+      supa.from('business_cards').select('*').order('created_at',{ascending:false}),
+      supa.from('rental_customers').select('id, company, contact_name, biz_no, phone, mobile, email').eq('active', true).range(0,9999),
+      supa.from('card_groups').select('*').order('category').order('name'),
+      supa.from('card_group_map').select('*'),
+      supa.from('card_templates').select('*').order('created_at',{ascending:false}),
+    ]);
+    STATE.cards = cardsR.data||[];
+    STATE.customers = custR.data||[];
+    STATE.groups = grpR.data||[];
+    STATE.templates = tplR.data||[];
+    STATE.groupMap = {};
+    (mapR.data||[]).forEach(m=>{ (STATE.groupMap[m.customer_id]=STATE.groupMap[m.customer_id]||[]).push(m.group_id); });
+    renderGroups(); render();
+  }
+
+  function matchCustomer(card){
+    const norm = normalize(card.company);
+    const dom = domainOf(card.email);
+    if(card.biz_no){ const h=STATE.customers.find(c=>c.biz_no && c.biz_no.replace(/\D/g,'')===card.biz_no.replace(/\D/g,'')); if(h) return {match:'exact',customer:h,reason:'사업자번호 일치'}; }
+    if(dom && !PERSONAL_DOMAINS.includes(dom)){ const h=STATE.customers.find(c=>domainOf(c.email)===dom); if(h) return {match:'exact',customer:h,reason:'이메일 도메인 일치'}; }
+    const ex=STATE.customers.find(c=>normalize(c.company)===norm && norm); if(ex) return {match:'exact',customer:ex,reason:'회사명 일치'};
+    if(norm){ const cand=STATE.customers.filter(c=>{const cn=normalize(c.company); return cn && (cn.includes(norm)||norm.includes(cn));}); if(cand.length) return {match:'maybe',candidates:cand,reason:'유사 회사명 발견'}; }
+    return {match:'new'};
+  }
+
+  // 그룹 chip 카운트 — 거래처 매핑(card_group_map) + 카드 자체(pending_group_ids) 모두 합산
+  function countCardsInGroup(gid){
+    let n=0;
+    STATE.cards.forEach(c=>{ if(groupIdsOfCard(c).includes(gid)) n++; });
+    return n;
+  }
+
+  function renderGroups(){
+    const box=document.getElementById('groupChips');
+    let html='<span class="bc-chip '+(STATE.filterGid==='all'?'active':'')+'" data-gid="all" style="'+(STATE.filterGid==='all'?'background:#374151;border-color:#374151;':'')+'">전체 <span class="cnt">'+STATE.cards.length+'</span></span>';
+    const byCat={}; STATE.groups.forEach(g=>{ (byCat[g.category||'기타']=byCat[g.category||'기타']||[]).push(g); });
+    Object.keys(byCat).forEach(cat=>{
+      const catGroupCnt = byCat[cat].length;
+      html+='<div class="bc-group-cat">'+
+        '<span class="lab">'+esc(cat)+'</span>'+
+        '<button class="act" data-add-cat="'+esc(cat)+'" title="이 분류에 새 그룹 추가">＋</button>'+
+        '<button class="act" data-edit-cat="'+esc(cat)+'" title="분류 이름 변경">✏</button>'+
+        '<button class="act del" data-del-cat="'+esc(cat)+'" data-cat-cnt="'+catGroupCnt+'" title="이 분류와 하위 그룹 삭제">✕</button>'+
+      '</div>';
+      byCat[cat].forEach(g=>{
+        const cnt=countCardsInGroup(g.id);
+        const on=STATE.filterGid===g.id;
+        html+='<span class="bc-chip-wrap">'+
+          '<span class="bc-chip has-del '+(on?'active':'')+'" data-gid="'+g.id+'" style="'+(on?'background:'+g.color+';border-color:'+g.color+';':'')+'">'+esc(g.name)+' <span class="cnt">'+cnt+'</span></span>'+
+          '<button class="bc-chip-edit" data-edit-gid="'+g.id+'" title="그룹 수정">✏</button>'+
+          '<button class="bc-chip-del" data-del-gid="'+g.id+'" data-del-name="'+esc(g.name)+'" data-del-cnt="'+cnt+'" title="이 그룹 삭제">✕</button>'+
+        '</span>';
+      });
+    });
+    box.innerHTML=html;
+    box.querySelectorAll('.bc-chip').forEach(c=>c.onclick=()=>{ STATE.filterGid=c.dataset.gid; renderGroups(); render(); });
+    box.querySelectorAll('.bc-chip-del').forEach(b=>b.onclick=ev=>{
+      ev.stopPropagation();
+      deleteGroup(b.dataset.delGid, b.dataset.delName, parseInt(b.dataset.delCnt,10)||0);
+    });
+    box.querySelectorAll('.bc-chip-edit').forEach(b=>b.onclick=ev=>{ ev.stopPropagation(); editGroup(b.dataset.editGid); });
+    box.querySelectorAll('[data-edit-cat]').forEach(b=>b.onclick=ev=>{ ev.stopPropagation(); renameCategory(b.dataset.editCat); });
+    box.querySelectorAll('[data-del-cat]').forEach(b=>b.onclick=ev=>{ ev.stopPropagation(); deleteCategory(b.dataset.delCat, parseInt(b.dataset.catCnt,10)||0); });
+    box.querySelectorAll('[data-add-cat]').forEach(b=>b.onclick=ev=>{ ev.stopPropagation(); addGroupToCategory(b.dataset.addCat); });
+  }
+
+  // 그룹 수정 — 이름·분류·색
+  async function editGroup(gid){
+    const g = STATE.groups.find(x=>x.id===gid);
+    if(!g){ alert('그룹을 찾을 수 없습니다.'); return; }
+    const newName = prompt('그룹 이름:', g.name);
+    if(newName===null) return;                                   // 취소
+    if(!newName.trim()){ alert('이름이 비어있습니다.'); return; }
+    const newCat = prompt('분류 (업종/거래단계/서비스/지역 등):', g.category||'기타');
+    if(newCat===null) return;
+    const newColor = prompt('색상 hex (예: #2563eb):', g.color||'#2563eb');
+    if(newColor===null) return;
+    const upd = { name:newName.trim(), category:(newCat.trim()||'기타'), color:(newColor.trim()||'#2563eb') };
+    const r = await supa.from('card_groups').update(upd).eq('id', gid);
+    if(r.error){ alert('그룹 수정 실패: '+r.error.message); return; }
+    await loadAll();
+  }
+
+  // 분류 이름 일괄 변경 — 해당 카테고리의 모든 그룹 category 컬럼 업데이트
+  async function renameCategory(oldCat){
+    const newCat = prompt('분류 "'+oldCat+'" 의 새 이름:', oldCat);
+    if(newCat===null) return;
+    const v = newCat.trim();
+    if(!v){ alert('이름이 비어있습니다.'); return; }
+    if(v===oldCat) return;
+    const r = await supa.from('card_groups').update({category:v}).eq('category', oldCat);
+    if(r.error){ alert('분류 변경 실패: '+r.error.message); return; }
+    await loadAll();
+  }
+
+  // 분류 삭제 — 해당 카테고리 하위 모든 그룹을 삭제
+  async function deleteCategory(cat, cnt){
+    const groupsInCat = STATE.groups.filter(g=>(g.category||'기타')===cat);
+    if(!groupsInCat.length){ return; }
+    const ids = groupsInCat.map(g=>g.id);
+    // 영향 받는 카드 수 추정 (card_group_map + pending_group_ids 모두)
+    let affectedCards = 0;
+    STATE.cards.forEach(c=>{ if(groupIdsOfCard(c).some(id=>ids.includes(id))) affectedCards++; });
+    if(!confirm('분류 "'+cat+'" 와 그 하위 그룹 '+groupsInCat.length+'개를 모두 삭제할까요?\n\n영향 받는 명함: '+affectedCards+'건 (명함 자체는 보존, 태그만 풀림)\n\n되돌릴 수 없습니다.')) return;
+    if(!confirm('정말 삭제하시겠습니까? (그룹 '+groupsInCat.length+'개)')) return;
+    const r = await supa.from('card_groups').delete().in('id', ids);
+    if(r.error){ alert('분류 삭제 실패: '+r.error.message); return; }
+    // pending_group_ids 정리
+    const targets = STATE.cards.filter(c=>Array.isArray(c.pending_group_ids) && c.pending_group_ids.some(x=>ids.includes(x)));
+    for(const c of targets){
+      const next = c.pending_group_ids.filter(x=>!ids.includes(x));
+      await supa.from('business_cards').update({pending_group_ids: next.length?next:null}).eq('id', c.id);
+    }
+    if(ids.includes(STATE.filterGid)) STATE.filterGid='all';
+    await loadAll();
+  }
+
+  async function deleteGroup(gid, name, cnt){
+    const msg = cnt>0
+      ? '그룹 "'+name+'" 을 삭제할까요?\n\n이 그룹에 묶여있는 명함 '+cnt+'건이 그룹 태그에서 제외됩니다. (명함 자체는 보존)'
+      : '그룹 "'+name+'" 을 삭제할까요?';
+    if(!confirm(msg)) return;
+    // card_group_map 은 FK cascade 로 자동 정리. pending_group_ids 는 수동 정리(유령 ID 무시되지만 깔끔하게).
+    const r = await supa.from('card_groups').delete().eq('id', gid);
+    if(r.error){ alert('그룹 삭제 실패: '+r.error.message); return; }
+    // pending_group_ids 정리 — RPC 없이 안전하게: 해당 그룹을 포함한 카드만 가져와 배열에서 제거 후 업데이트
+    const targets = STATE.cards.filter(c=>Array.isArray(c.pending_group_ids) && c.pending_group_ids.includes(gid));
+    for(const c of targets){
+      const next = c.pending_group_ids.filter(x=>x!==gid);
+      await supa.from('business_cards').update({pending_group_ids: next.length?next:null}).eq('id', c.id);
+    }
+    if(STATE.filterGid===gid) STATE.filterGid='all';
+    await loadAll();
+  }
+
+  // 카드의 그룹 ID 배열을 일관되게 반환 (거래처 연결: card_group_map / 미연결: pending_group_ids)
+  function groupIdsOfCard(c){
+    if(c.customer_id) return STATE.groupMap[c.customer_id]||[];
+    return Array.isArray(c.pending_group_ids) ? c.pending_group_ids : [];
+  }
+
+  function filteredCards(){
+    let cards=STATE.cards.slice();
+    if(STATE.q){
+      const q=STATE.q.toLowerCase();
+      cards=cards.filter(c=>[c.company_raw,c.name,c.phone_mobile,c.phone_office,c.email].some(v=>(v||'').toLowerCase().includes(q)));
+    }
+    if(STATE.consentOnly) cards=cards.filter(c=>c.consent_marketing);
+    if(STATE.filterGid!=='all'){ cards=cards.filter(c=>groupIdsOfCard(c).includes(STATE.filterGid)); }
+    return cards;
+  }
+
+  function render(){
+    const list=document.getElementById('list');
+    const groupsMap=new Map();
+    const cards=filteredCards();
+    // 검색결과 일괄삭제 버튼 상태 — 검색어 있고 결과 있을 때만 활성
+    const bulkBtn=document.getElementById('btnBulkDel');
+    if(bulkBtn){
+      const active = !!(STATE.q && cards.length>0);
+      bulkBtn.disabled = !active;
+      bulkBtn.textContent = active ? ('🗑 검색결과 '+cards.length+'건 일괄삭제') : '🗑 검색결과 일괄삭제';
+    }
+    cards.forEach(card=>{
+      const cust=card.customer_id ? STATE.customers.find(c=>c.id===card.customer_id) : null;
+      const key=cust?('c:'+cust.id):('r:'+(card.company_raw||'(미상)'));
+      if(!groupsMap.has(key)) groupsMap.set(key,{cust, company:cust?cust.company:(card.company_raw||'(회사 미상)'), isNew:!cust, cards:[]});
+      groupsMap.get(key).cards.push(card);
+    });
+    if(groupsMap.size===0){ list.innerHTML='<div class="bc-empty">명함이 없습니다. <b>＋ 명함 추가</b>로 시작하세요.</div>'; return; }
+    const arr=[...groupsMap.values()].sort((a,b)=> (a.isNew===b.isNew)?0:(a.isNew?-1:1));
+    let html='';
+    arr.forEach(g=>{
+      // 그룹 태그: 거래처 단위 매핑(card_group_map) 우선 — 같은 회사 카드는 같은 색
+      const gids = g.cust ? (STATE.groupMap[g.cust.id]||[])
+                          : (g.cards[0] && Array.isArray(g.cards[0].pending_group_ids) ? g.cards[0].pending_group_ids : []);
+      const tags=gids.map(gid=>{const gg=STATE.groups.find(x=>x.id===gid); return gg?'<span class="bc-tag" style="background:'+gg.color+'">'+esc(gg.name)+'</span>':'';}).join('');
+      html+='<div class="bc-company '+(g.isNew?'isnew':'')+'">'+
+        '<div class="bc-company-head" onclick="this.nextElementSibling.style.display=this.nextElementSibling.style.display===\'none\'?\'block\':\'none\'">'+
+        '<span class="bc-company-name">'+esc(g.company)+'</span>'+
+        (g.isNew?'<span class="bc-new-badge">신규</span>':'')+
+        '<span class="bc-tags">'+tags+'</span>'+
+        '<span class="bc-company-meta">담당자 '+g.cards.length+'명'+(g.cust?'':' · 거래처 미연결')+'</span></div>'+
+        '<div class="bc-card-grid">';
+      g.cards.forEach(c=>{
+        const coName = (g.cust?g.cust.company:(c.company_raw||'(회사 미상)'));
+        // 연락처는 휴대폰 > 사무실 > 이메일 우선순위. 전화는 tel:, 이메일은 mailto:.
+        const phone = c.phone_mobile || c.phone_office;
+        const ctHtml = phone
+          ? '<a class="ctel" href="tel:'+esc(phone.replace(/[^0-9+]/g,''))+'" onclick="event.stopPropagation();">'+esc(phone)+'</a>'
+          : (c.email ? '<a class="ctel" href="mailto:'+esc(c.email)+'" onclick="event.stopPropagation();">'+esc(c.email)+'</a>' : '');
+        const thumb = c.card_image_url
+          ? '<img class="thumb" src="'+esc(c.card_image_url)+'" alt="" loading="lazy" onclick="event.stopPropagation();BC.openImage(this.src)" onerror="BC.handleImgError(this, \''+esc(c.card_image_url)+'\')">'
+          : '<div class="thumb empty">📇</div>';
+        html+='<div class="bc-mini">'+
+          thumb+
+          '<div class="body">'+
+            '<div class="line1">'+
+              '<span class="co" onclick="BC.openDetail(\''+c.id+'\')" title="상세 보기">'+esc(coName)+'</span>'+
+              (c.title?'<span class="tt">'+esc(c.title)+'</span>':'')+
+            '</div>'+
+            '<div class="line2"><span class="nm">'+esc(c.name||'-')+'</span>'+ctHtml+'</div>'+
+            '<div class="acts">'+
+              '<button onclick="BC.editCard(\''+c.id+'\')">수정</button>'+
+              '<button onclick="BC.openGroupEdit(\''+c.id+'\')">🏷 그룹</button>'+
+              '<button class="del" onclick="BC.deleteCard(\''+c.id+'\')">삭제</button>'+
+            '</div>'+
+          '</div>'+
+          '<span class="badge '+(c.consent_marketing?'yes':'no')+'">'+(c.consent_marketing?'✅':'❌')+'</span>'+
+        '</div>';
+      });
+      html+='</div></div>';
+    });
+    list.innerHTML=html;
+  }
+
+  function activeModel(c){
+    const m = (c.model||'').trim();
+    return (m && m.startsWith('gemini-')) ? m : 'gemini-2.5-flash';
+  }
+
+  async function runOCR(file){
+    let c=cfg();
+    if(!c.apikey){
+      // 핸드폰 첫 사용 시 — 로컬에 키가 아직 없으면 DB에서 한 번 더 받아온다.
+      c = await syncCfgFromDB();
+    }
+    if(!c.apikey){ document.getElementById('ocrStatus').innerHTML='<span style="color:#dc2626">⚠️ Gemini API 키가 없습니다. PC에서 ⚙️ 설정으로 한 번만 입력하면 핸드폰에도 자동 동기화됩니다. (지금은 수동 입력 가능)</span>'; return; }
+    document.getElementById('ocrStatus').innerHTML='<span class="bc-spinner"></span> 명함 분석 중…';
+    const dataUrl=await fileToB64(file);
+    const m = /^data:([^;]+);base64,(.+)$/.exec(dataUrl);
+    const mime = m ? m[1] : (file.type || 'image/jpeg');
+    const b64  = m ? m[2] : dataUrl;
+    const prompt='이 명함 이미지에서 정보를 추출해 JSON으로만 응답하세요. 키: company, name, title, department, phone_mobile, phone_office, fax, email, address, website, biz_no. 없으면 null. 설명 없이 JSON만.';
+    const model = activeModel(c);
+    try{
+      const res=await fetch('https://generativelanguage.googleapis.com/v1beta/models/'+encodeURIComponent(model)+':generateContent?key='+encodeURIComponent(c.apikey),{
+        method:'POST', headers:{'Content-Type':'application/json'},
+        body:JSON.stringify({
+          contents:[{ parts:[ {text:prompt}, {inline_data:{mime_type:mime, data:b64}} ] }],
+          generationConfig:{ response_mime_type:'application/json', temperature:0 }
+        })
+      });
+      const j=await res.json();
+      if(!res.ok) throw new Error((j.error&&j.error.message)||('Gemini 실패 ('+res.status+')'));
+      const txt = (((j.candidates||[])[0]||{}).content?.parts||[])[0]?.text || '';
+      if(!txt) throw new Error('Gemini 응답 비어있음');
+      const cleaned = txt.trim().replace(/^```json\s*/i,'').replace(/```\s*$/,'').trim();
+      const d=JSON.parse(cleaned);
+      fillForm(d);
+      const prev=document.getElementById('ocrStatus').innerHTML;
+      const imgWarn = prev.includes('이미지 저장 실패') ? '<br>' + prev : '';
+      document.getElementById('ocrStatus').innerHTML='<span style="color:#16a34a">✅ 추출 완료 — 내용을 확인/수정 후 저장하세요.</span>'+imgWarn;
+      showMatch({company:d.company,email:d.email,biz_no:d.biz_no});
+    }catch(e){ document.getElementById('ocrStatus').innerHTML='<span style="color:#dc2626">⚠️ '+esc(e.message)+' — 수동 입력하세요.</span>'; }
+  }
+  function fileToB64(file){ return new Promise((rs,rj)=>{ const r=new FileReader(); r.onload=()=>rs(r.result); r.onerror=rj; r.readAsDataURL(file); }); }
+
+  // OCR 가 한글 이름을 "홍 길 동" 처럼 글자 사이 공백으로 분리해주는 케이스 보정.
+  // 전체가 한글+공백만으로 이루어진 경우에만 공백 제거 (영어/혼합 풀네임 보존).
+  function fixKoreanName(s){
+    if(s==null) return s;
+    const t = String(s).trim().replace(/\s+/g,' ');
+    if(!t) return t;
+    if(/^[가-힣\s]+$/.test(t)) return t.replace(/\s+/g,'');
+    return t;
+  }
+  function fillForm(d){
+    if(d) d.name = fixKoreanName(d.name);
+    const set=(id,v)=>{ if(v!=null) document.getElementById(id).value=v; };
+    set('f_company',d.company); set('f_name',d.name); set('f_title',d.title); set('f_dept',d.department);
+    set('f_mobile',d.phone_mobile); set('f_office',d.phone_office); set('f_fax',d.fax); set('f_email',d.email);
+    set('f_addr',d.address); set('f_web',d.website); set('f_bizno',d.biz_no);
+  }
+  function showMatch(card){
+    const box=document.getElementById('matchBox');
+    const r=matchCustomer(card); box.style.display='block';
+    if(r.match==='exact') box.innerHTML='🔍 <span class="hit">기존 거래처 "'+esc(r.customer.company)+'"</span>에 연결됩니다. ('+r.reason+')';
+    else if(r.match==='maybe') box.innerHTML='🔍 유사 거래처 후보: '+r.candidates.map(c=>esc(c.company)).join(', ')+' — 저장 시 확인합니다.';
+    else box.innerHTML='🆕 <span class="new">신규 거래처</span> — 기존 목록에 없습니다.';
+  }
+
+  async function saveCard(){
+    // 저장 직전 이름 정규화 (수동 수정 후도 포함)
+    const nameInput = document.getElementById('f_name');
+    nameInput.value = fixKoreanName(nameInput.value) || '';
+    const v=id=>document.getElementById(id).value.trim()||null;
+    const card={
+      company_raw:v('f_company'), company_normalized:normalize(v('f_company')),
+      name:v('f_name'), title:v('f_title'), department:v('f_dept'),
+      phone_mobile:v('f_mobile'), phone_office:v('f_office'), fax:v('f_fax'),
+      email:v('f_email'), email_domain:domainOf(v('f_email')), address:v('f_addr'),
+      website:v('f_web'), biz_no:v('f_bizno'), memo:v('f_memo'),
+      consent_marketing:document.getElementById('f_consent').checked,
+      consent_date:document.getElementById('f_consent').checked?new Date().toISOString():null,
+      card_image_url:STATE.pendingImageUrl||null,
+    };
+    if(!card.company_raw && !card.name){ alert('회사명 또는 이름을 입력하세요.'); return; }
+    const m=matchCustomer({company:card.company_raw,email:card.email,biz_no:card.biz_no});
+    if(m.match==='exact') card.customer_id=m.customer.id;
+    else if(m.match==='maybe'){ if(confirm('"'+m.candidates[0].company+'" 거래처와 같은 회사인가요?\n확인=연결 / 취소=신규로 저장')) card.customer_id=m.candidates[0].id; }
+    let res;
+    if(STATE.editId){ res=await supa.from('business_cards').update(card).eq('id',STATE.editId); }
+    else { res=await supa.from('business_cards').insert(card); }
+    if(res.error){ alert('저장 실패: '+res.error.message); return; }
+    closeScan(); await loadAll();
+  }
+
+  function refreshAdMode(){
+    const isAd = document.getElementById('s_is_ad').checked;
+    const box = document.getElementById('adInfoBox');
+    if (isAd) {
+      box.className = 'bc-info';
+      box.innerHTML = '광고성 모드 — 정보통신망법 §50 준수. 미동의자/이메일없음은 자동 제외, 야간(21~08시) 발송 차단, 본문에 (광고)+무료수신거부 자동 삽입.';
+    } else {
+      box.className = 'bc-info';
+      box.style.background = '#f0fdf4';
+      box.style.borderColor = '#bbf7d0';
+      box.style.color = '#166534';
+      box.innerHTML = '정보성 모드 — 거래/서비스 안내 등. 동의 여부와 무관하게 이메일 보유자 전체에 발송. (광고) 표기 미삽입.';
+    }
+  }
+
+  function openSend(){
+    const sel=document.getElementById('s_group');
+    sel.innerHTML=STATE.groups.map(g=>'<option value="'+g.id+'">'+esc(g.name)+' ('+esc(g.category||'')+')</option>').join('');
+    const tplSel = document.getElementById('s_template');
+    tplSel.innerHTML='<option value="">-- 새 본문 작성 --</option>'+
+      STATE.templates.map(t=>'<option value="'+t.id+'">'+esc(t.name||'(이름없음)')+' / '+esc(t.channel||'')+(t.is_ad===false?' · 정보성':'')+'</option>').join('');
+    document.getElementById('s_is_ad').checked = true;
+    refreshAdMode();
+    document.getElementById('sendModal').classList.add('show');
+    document.getElementById('btnSendGo').disabled=true;
+    document.getElementById('sendPreview').innerHTML='';
+  }
+
+  function applyTemplate(){
+    const id = document.getElementById('s_template').value;
+    if(!id) return;
+    const t = STATE.templates.find(x=>x.id===id);
+    if(!t) return;
+    if(t.channel) document.getElementById('s_channel').value = t.channel;
+    if(t.subject) document.getElementById('s_subject').value = t.subject;
+    if(t.body) document.getElementById('s_body').value = t.body;
+    document.getElementById('s_is_ad').checked = (t.is_ad !== false);
+    refreshAdMode();
+  }
+
+  async function saveTemplate(){
+    const name = prompt('템플릿 이름:'); if(!name) return;
+    const row = {
+      name,
+      channel: document.getElementById('s_channel').value,
+      subject: document.getElementById('s_subject').value,
+      body: document.getElementById('s_body').value,
+      is_ad: document.getElementById('s_is_ad').checked,
+    };
+    const res = await supa.from('card_templates').insert(row).select().single();
+    if(res.error){ alert('템플릿 저장 실패: '+res.error.message); return; }
+    STATE.templates.unshift(res.data);
+    const tplSel = document.getElementById('s_template');
+    tplSel.innerHTML='<option value="">-- 새 본문 작성 --</option>'+
+      STATE.templates.map(t=>'<option value="'+t.id+'">'+esc(t.name||'(이름없음)')+' / '+esc(t.channel||'')+(t.is_ad===false?' · 정보성':'')+'</option>').join('');
+    tplSel.value = res.data.id;
+    alert('템플릿이 저장되었습니다.');
+  }
+
+  function computeTargets(isAd){
+    const gid=document.getElementById('s_group').value;
+    const custIds=Object.entries(STATE.groupMap).filter(([cid,arr])=>arr.includes(gid)).map(([cid])=>cid);
+    const targets=STATE.cards.filter(c=>c.customer_id && custIds.includes(c.customer_id));
+    // 광고: 동의 + 이메일 필수. 정보성: 이메일만 필수.
+    const eligible = isAd
+      ? targets.filter(c=>c.consent_marketing && c.email)
+      : targets.filter(c=>c.email);
+    return { targets, eligible };
+  }
+
+  function previewSend(){
+    const isAd = document.getElementById('s_is_ad').checked;
+    const { targets, eligible } = computeTargets(isAd);
+    const blocked = targets.length - eligible.length;
+    const reasonText = isAd ? '(미동의/이메일없음)' : '(이메일없음)';
+    const nightBlock = isAd && isNight();
+    document.getElementById('sendPreview').innerHTML =
+      '대상 '+targets.length+'명 중 <b style="color:#16a34a">발송 가능 '+eligible.length+'명</b>, 제외 '+blocked+'명'+reasonText+'.'+
+      (nightBlock?'<br><b style="color:#dc2626">⚠️ 현재 야간(21~08시) — 광고 발송 차단됨. 주간(08~21시)에 발송하거나 정보성 모드로 전환하세요.</b>':'');
+    document.getElementById('btnSendGo').disabled = (eligible.length===0 || nightBlock);
+    STATE.sendTargets = eligible;
+  }
+
+  async function doSend(){
+    const isAd = document.getElementById('s_is_ad').checked;
+    // doSend 시점 재검증 — 미리보기에서 통과한 후 시간/체크 상태가 바뀌었을 가능성 차단
+    if (isAd && isNight()) {
+      alert('야간(21~08시) 광고 발송이 차단됩니다. 주간에 다시 시도하거나 정보성 모드로 전환하세요.');
+      return;
+    }
+    const { eligible } = computeTargets(isAd);
+    if (!eligible.length) { alert('발송 가능한 대상이 없습니다.'); return; }
+
+    const tpl = document.getElementById('s_body').value;
+    const subj = document.getElementById('s_subject').value;
+    const ch = document.getElementById('s_channel').value;
+    if (!confirm(eligible.length+'명에게 '+(isAd?'광고성':'정보성')+' 메시지를 발송하시겠습니까?\n(실제 메일/카톡 연동은 별도 설정 필요 — 지금은 발송 이력만 기록됩니다)')) return;
+
+    const rows = eligible.map(c=>{
+      const cust = STATE.customers.find(x=>x.id===c.customer_id);
+      const company = cust ? cust.company : (c.company_raw||'');
+      let body = tpl
+        .replace(/\{\{company\}\}/g, company)
+        .replace(/\{\{name\}\}/g, c.name||'')
+        .replace(/\{\{title\}\}/g, c.title||'');
+      if (isAd) body = '(광고) ' + body + '\n\n무료수신거부: 회신에 "거부" 입력';
+      return { card_id:c.id, customer_id:c.customer_id, channel:ch, subject:subj, body, status:'sent', is_ad:isAd };
+    });
+
+    const res = await supa.from('card_send_logs').insert(rows);
+    if (res.error) { alert('발송 기록 실패: '+res.error.message); return; }
+    alert('✅ '+rows.length+'건 발송 이력이 기록되었습니다.\n실제 메일/카톡 전송 연동은 README 를 참고하세요.');
+    closeSend();
+  }
+
+  // 그룹 지정 — 카드 단위. 거래처 연결된 카드는 card_group_map(회사 전체에 영향),
+  // 미연결 카드는 business_cards.pending_group_ids 에 저장(해당 카드만).
+  function openGroupEdit(cardId){
+    const card = STATE.cards.find(c=>c.id===cardId);
+    if(!card){ alert('명함을 찾을 수 없습니다.'); return; }
+    STATE.groupEditCardId = cardId;
+    const cust = card.customer_id ? STATE.customers.find(c=>c.id===card.customer_id) : null;
+    const subTitle = cust ? (cust.company+' (회사 단위)') : ((card.company_raw||'(회사 미상)')+' — '+(card.name||'-')+' (이 카드만)');
+    document.getElementById('groupEditTitle').textContent = '🏷 그룹 지정 — ' + subTitle;
+    const cur = new Set(groupIdsOfCard(card));
+    const byCat = {};
+    STATE.groups.forEach(g=>{ (byCat[g.category||'기타']=byCat[g.category||'기타']||[]).push(g); });
+    let html = '';
+    Object.keys(byCat).forEach(cat=>{
+      html += '<div class="cat">'+esc(cat)+'</div>';
+      byCat[cat].forEach(g=>{
+        const checked = cur.has(g.id) ? 'checked' : '';
+        html += '<div class="bc-grp-item"><input type="checkbox" id="ge_'+g.id+'" value="'+g.id+'" '+checked+'>'+
+          '<span class="dot" style="background:'+esc(g.color||'#9ca3af')+'"></span>'+
+          '<label for="ge_'+g.id+'">'+esc(g.name)+'</label></div>';
+      });
+    });
+    document.getElementById('groupEditList').innerHTML = html || '<div class="bc-empty">그룹이 없습니다. + 새 그룹으로 추가하세요.</div>';
+    document.getElementById('groupEditModal').classList.add('show');
+  }
+
+  async function saveGroupEdit(){
+    const cardId = STATE.groupEditCardId;
+    if (!cardId) { closeGroupEdit(); return; }
+    const card = STATE.cards.find(c=>c.id===cardId);
+    if(!card){ closeGroupEdit(); return; }
+    const checked = [...document.querySelectorAll('#groupEditList input[type=checkbox]:checked')].map(i=>i.value);
+    if(card.customer_id){
+      // 거래처 연결 — card_group_map 사용 (같은 회사 전체에 적용)
+      const del = await supa.from('card_group_map').delete().eq('customer_id', card.customer_id);
+      if (del.error) { alert('기존 그룹 정리 실패: '+del.error.message); return; }
+      if (checked.length) {
+        const ins = await supa.from('card_group_map').insert(checked.map(gid=>({customer_id:card.customer_id, group_id:gid})));
+        if (ins.error) { alert('그룹 저장 실패: '+ins.error.message); return; }
+      }
+    } else {
+      // 미연결 카드 — pending_group_ids 만 갱신
+      const r = await supa.from('business_cards').update({pending_group_ids: checked.length?checked:null}).eq('id', cardId);
+      if(r.error){
+        if(/pending_group_ids/i.test(r.error.message||'')){
+          alert('이 명함은 거래처에 연결되지 않은 상태입니다.\n\n거래처 미연결 카드에 그룹을 저장하려면 DB 컬럼이 필요합니다.\n\n해결: Supabase SQL Editor 에서\n  business-cards/migrate_pending_group_ids.sql\n파일을 한 번 실행해주세요. (alter table ... pending_group_ids uuid[])\n\n임시 우회: 명함 카드의 ✏ 수정 → 회사명을 기존 거래처와 동일하게 맞추거나, 사업자번호/이메일 도메인을 일치시키면 자동 매칭되어 그룹 저장이 가능합니다.');
+        } else {
+          alert('그룹 저장 실패: '+r.error.message);
+        }
+        return;
+      }
+    }
+    closeGroupEdit();
+    await loadAll();
+  }
+
+  async function addGroup(){
+    const name=prompt('새 그룹 이름:'); if(!name) return;
+    const cat=prompt('분류(업종/거래단계/서비스/지역 등):','서비스')||'기타';
+    const res=await supa.from('card_groups').insert({name,category:cat}); if(res.error){alert(res.error.message);return;} await loadAll();
+  }
+
+  // 분류 헤더의 ＋ 버튼 — 분류는 고정, 이름·색만 받아 빠르게 추가
+  async function addGroupToCategory(cat){
+    const name = prompt('"'+cat+'" 분류에 새 그룹 이름:');
+    if(!name) return;
+    const color = prompt('색상 hex (예: #2563eb):', '#2563eb') || '#2563eb';
+    const res = await supa.from('card_groups').insert({ name:name.trim(), category:cat, color:color.trim() });
+    if(res.error){ alert('그룹 추가 실패: '+res.error.message); return; }
+    await loadAll();
+  }
+
+  // 명함 개별 삭제
+  async function deleteCard(id){
+    const c = STATE.cards.find(x=>x.id===id);
+    const label = c ? ((c.company_raw||'(회사 미상)')+' / '+(c.name||'-')) : id;
+    if(!confirm('이 명함을 삭제할까요?\n\n'+label+'\n\n(되돌릴 수 없습니다. 사진은 Storage에 남습니다.)')) return;
+    const r = await supa.from('business_cards').delete().eq('id', id);
+    if(r.error){ alert('삭제 실패: '+r.error.message); return; }
+    await loadAll();
+  }
+
+  // 검색결과(현재 필터된 결과) 일괄 삭제
+  async function bulkDeleteFiltered(){
+    if(!STATE.q){ alert('검색어를 먼저 입력하세요. (검색어로 좁힌 결과만 삭제됩니다)'); return; }
+    const cards = filteredCards();
+    if(!cards.length){ alert('삭제할 결과가 없습니다.'); return; }
+    const sample = cards.slice(0,3).map(c=>'• '+(c.company_raw||'(회사 미상)')+' / '+(c.name||'-')).join('\n');
+    const extra = cards.length>3 ? '\n• …외 '+(cards.length-3)+'건' : '';
+    if(!confirm('검색어 "'+STATE.q+'" 와 일치하는 '+cards.length+'건을 모두 삭제할까요?\n\n'+sample+extra+'\n\n되돌릴 수 없습니다.')) return;
+    // 한 번 더 확인 — 위험 작업
+    if(!confirm('정말 삭제하시겠습니까? ('+cards.length+'건)')) return;
+    const ids = cards.map(c=>c.id);
+    const r = await supa.from('business_cards').delete().in('id', ids);
+    if(r.error){ alert('일괄 삭제 실패: '+r.error.message); return; }
+    alert('✅ '+cards.length+'건 삭제 완료');
+    STATE.q=''; document.getElementById('search').value='';
+    await loadAll();
+  }
+
+  // 명함 이미지 확대
+  function openImage(url){
+    if(!url) return;
+    document.getElementById('imgModalImg').src = url;
+    document.getElementById('imgModal').classList.add('show');
+  }
+
+  // 명함 상세 보기 — 사진 + 모든 필드
+  function openDetail(cardId){
+    const c = STATE.cards.find(x=>x.id===cardId);
+    if(!c) return;
+    const cust = c.customer_id ? STATE.customers.find(x=>x.id===c.customer_id) : null;
+    const company = cust?cust.company:(c.company_raw||'(회사 미상)');
+    document.getElementById('detailTitle').textContent = '📇 ' + company + (c.name?' — '+c.name:'');
+    const imgWrap = document.getElementById('detailImgWrap');
+    const img = document.getElementById('detailImg');
+    if(c.card_image_url){
+      imgWrap.style.display='block';
+      img.src = c.card_image_url;
+      img.onclick = ()=>openImage(img.src);
+      img.onerror = ()=>handleImgError(img, c.card_image_url);
+    } else {
+      imgWrap.style.display='none';
+    }
+    // 연락처는 클릭하면 바로 통화/메일/지도/웹.
+    const telLink  = v => '<a href="tel:'+esc(String(v).replace(/[^0-9+]/g,''))+'" style="color:#2563eb; text-decoration:none;">'+esc(v)+'</a>';
+    const mailLink = v => '<a href="mailto:'+esc(v)+'" style="color:#2563eb; text-decoration:none;">'+esc(v)+'</a>';
+    const webLink  = v => '<a href="'+esc(/^https?:\/\//i.test(v)?v:('http://'+v))+'" target="_blank" rel="noopener" style="color:#2563eb; text-decoration:none;">'+esc(v)+'</a>';
+    const mapLink  = v => '<a href="https://map.naver.com/v5/search/'+encodeURIComponent(v)+'" target="_blank" rel="noopener" style="color:#2563eb; text-decoration:none;">'+esc(v)+'</a>';
+    const rows = [
+      ['회사명', c.company_raw,           null],
+      ['이름',   c.name,                   null],
+      ['직책',   c.title,                  null],
+      ['부서',   c.department,             null],
+      ['휴대폰', c.phone_mobile,           telLink],
+      ['사무실 전화', c.phone_office,      telLink],
+      ['팩스',   c.fax,                    telLink],
+      ['이메일', c.email,                  mailLink],
+      ['주소',   c.address,                mapLink],
+      ['홈페이지', c.website,              webLink],
+      ['사업자번호', c.biz_no,             null],
+      ['수신동의', c.consent_marketing?'✅ 동의':'❌ 미동의', null],
+      ['메모',   c.memo,                   null],
+      ['연결된 거래처', cust?cust.company:'(미연결)', null],
+    ].filter(r=>r[1]);
+    document.getElementById('detailBody').innerHTML = rows.map(r=>
+      '<div style="display:flex; padding:7px 2px; border-bottom:1px solid #f3f4f6; font-size:13px;">'+
+        '<div style="width:110px; color:#6b7280; font-size:12px; flex-shrink:0;">'+esc(r[0])+'</div>'+
+        '<div style="flex:1; color:#111; word-break:break-all;">'+(r[2]?r[2](r[1]):esc(r[1]))+'</div>'+
+      '</div>'
+    ).join('');
+    document.getElementById('btnDetailEdit').onclick  = ()=>{ closeDetail(); editCard(cardId); };
+    document.getElementById('btnDetailDel').onclick   = ()=>{ closeDetail(); deleteCard(cardId); };
+    document.getElementById('btnDetailGroup').onclick = ()=>{ closeDetail(); openGroupEdit(cardId); };
+    document.getElementById('detailModal').classList.add('show');
+  }
+  function closeDetail(){ document.getElementById('detailModal').classList.remove('show'); }
+
+  // 이미지 로딩 실패 시 (private 버킷이면 publicUrl 401 → signed URL 로 재시도)
+  const imgCache = {};
+  async function handleImgError(imgEl, originalUrl){
+    if(!supa || !originalUrl) return;
+    if(imgCache[originalUrl]==='failed'){ imgEl.style.display='none'; return; }
+    if(imgCache[originalUrl]){ imgEl.src = imgCache[originalUrl]; return; }
+    const m = originalUrl.match(/\/business-cards\/(.+?)(\?|$)/);
+    if(!m){ imgCache[originalUrl]='failed'; imgEl.style.display='none'; return; }
+    const path = decodeURIComponent(m[1]);
+    try{
+      const r = await supa.storage.from('business-cards').createSignedUrl(path, 3600);
+      if(r.error || !r.data?.signedUrl){ imgCache[originalUrl]='failed'; imgEl.style.display='none'; return; }
+      imgCache[originalUrl] = r.data.signedUrl;
+      imgEl.src = r.data.signedUrl;
+    }catch(e){ imgCache[originalUrl]='failed'; imgEl.style.display='none'; }
+  }
+  function editCard(id){
+    const c=STATE.cards.find(x=>x.id===id); if(!c) return;
+    STATE.editId=id; STATE.pendingImageUrl=c.card_image_url;
+    document.getElementById('scanTitle').textContent='명함 수정';
+    const set=(fid,v)=>document.getElementById(fid).value=v||'';
+    set('f_company',c.company_raw);set('f_name',c.name);set('f_title',c.title);set('f_dept',c.department);
+    set('f_mobile',c.phone_mobile);set('f_office',c.phone_office);set('f_fax',c.fax);set('f_email',c.email);
+    set('f_addr',c.address);set('f_web',c.website);set('f_bizno',c.biz_no);set('f_memo',c.memo);
+    document.getElementById('f_consent').checked=!!c.consent_marketing;
+    document.getElementById('matchBox').style.display='none'; document.getElementById('ocrStatus').innerHTML='';
+    document.getElementById('preview').style.display='none';
+    document.getElementById('scanModal').classList.add('show');
+  }
+
+  function openScan(){ STATE.editId=null; STATE.pendingImageUrl=null; document.getElementById('scanTitle').textContent='명함 추가';
+    ['f_company','f_name','f_title','f_dept','f_mobile','f_office','f_fax','f_email','f_addr','f_web','f_bizno','f_memo'].forEach(id=>document.getElementById(id).value='');
+    document.getElementById('f_consent').checked=false; document.getElementById('matchBox').style.display='none';
+    document.getElementById('ocrStatus').innerHTML=''; document.getElementById('preview').style.display='none';
+    document.getElementById('scanModal').classList.add('show'); }
+  function closeScan(){ document.getElementById('scanModal').classList.remove('show'); }
+  function closeSend(){ document.getElementById('sendModal').classList.remove('show'); }
+  function closeCfg(){ document.getElementById('cfgModal').classList.remove('show'); }
+  function closeGroupEdit(){ document.getElementById('groupEditModal').classList.remove('show'); STATE.groupEditCardId=null; }
+  function openCfg(){ const c=cfg(); document.getElementById('cfg_apikey').value=c.apikey||''; document.getElementById('cfg_model').value=activeModel(c); document.getElementById('cfgModal').classList.add('show'); }
+
+  // ===== 자동 동기화 =====
+  // 옵션 A: JSON 새 파일을 Storage(imports/)에 업로드 후 Edge Function 호출
+  // 옵션 B: 파일 없이 Edge Function 만 호출 (보정·재매칭만 수행)
+  function openSync(){
+    const useFile = confirm(
+      '🔁 명함 자동 동기화\n\n' +
+      '확인 = 리멤버 Excel(.xlsx) / JSON / CSV 업로드 후 동기화\n' +
+      '취소 = 파일 없이 재매칭/중복정리만 실행\n\n' +
+      '(매일 새벽 03:30 에는 자동으로 실행됩니다)'
+    );
+    if(useFile){
+      const fi = document.getElementById('syncFile');
+      fi.value = '';
+      fi.onchange = async ()=>{
+        const f = fi.files && fi.files[0];
+        if(!f) return;
+        await uploadAndSync(f);
+      };
+      fi.click();
+    } else {
+      runSync('manual');
+    }
+  }
+
+  async function uploadAndSync(file){
+    const btn = document.getElementById('btnSync');
+    const orig = btn.textContent;
+    btn.disabled = true; btn.textContent = '⬆ 업로드 중…';
+    try {
+      const ts = new Date().toISOString().replace(/[:.]/g,'-');
+      const safe = file.name.replace(/[^\w.\-]/g,'_');
+      const path = `imports/${ts}_${safe}`;
+      const up = await supa.storage.from('business-cards').upload(path, file, { upsert:false });
+      if(up.error) throw up.error;
+      btn.textContent = '🔁 동기화 중…';
+      await runSync('manual+upload', btn);
+    } catch(e){
+      alert('업로드 실패: ' + (e.message || e));
+    } finally {
+      btn.disabled = false; btn.textContent = orig;
+    }
+  }
+
+  async function runSync(triggerLabel, btnRef){
+    const btn = btnRef || document.getElementById('btnSync');
+    const orig = btn.textContent;
+    btn.disabled = true; btn.textContent = '🔁 동기화 중…';
+    try {
+      const r = await supa.functions.invoke('cards-sync', { body: { trigger: triggerLabel } });
+      if(r.error) throw r.error;
+      const d = r.data || {};
+      alert(
+        '✅ 동기화 완료\n\n' +
+        `처리 파일: ${d.files_processed||0}\n` +
+        `신규 추가: ${d.inserted_count||0}\n` +
+        `빈필드 보강: ${d.updated_count||0}\n` +
+        `스킵: ${d.skipped_count||0}\n` +
+        `\n--- 보정 ---\n` +
+        `거래처 자동 연결: ${d.relinked_customer||0}\n` +
+        `회사명 정규화: ${d.fixed_normalized||0}\n` +
+        `이메일 도메인 보정: ${d.fixed_email_domain||0}\n` +
+        `그룹 승격: ${d.pending_promoted||0}`
+      );
+      await loadAll();
+    } catch(e){
+      alert('❌ 동기화 실패: ' + (e.message || e));
+    } finally {
+      btn.disabled = false; btn.textContent = orig;
+    }
+  }
+
+  function init(){
+    if(supa) return;
+    supa = window.totalasAuth;
+    if(!supa){ document.getElementById('list').innerHTML='<div class="bc-empty">⚠️ 인증 클라이언트 로드 실패 — 로그인이 필요합니다.</div>'; return; }
+    document.getElementById('btnScan').onclick=openScan;
+    document.getElementById('btnSend').onclick=openSend;
+    document.getElementById('btnCfg').onclick=openCfg;
+    document.getElementById('btnSync').onclick=openSync;
+    document.getElementById('btnAddGroup').onclick=addGroup;
+    document.getElementById('btnSaveCard').onclick=saveCard;
+    document.getElementById('btnSaveCfg').onclick=async ()=>{
+      const cur=cfg();
+      const apikey = document.getElementById('cfg_apikey').value.trim();
+      const model  = document.getElementById('cfg_model').value.trim()||'gemini-2.5-flash';
+      cur.apikey = apikey;
+      cur.model  = model;
+      delete cur.openai; // 옛 슬롯 정리
+      localStorage.setItem(LS_KEY,JSON.stringify(cur));
+      const btn = document.getElementById('btnSaveCfg');
+      btn.disabled = true; const old = btn.textContent; btn.textContent = '저장 중…';
+      const ok = await saveCfgToDB(apikey, model);   // ← 핸드폰 동기화용 DB 업로드
+      btn.disabled = false; btn.textContent = old;
+      if(!ok){
+        alert('이 기기에는 저장되었지만 DB(app_settings) 업로드에 실패했습니다.\n핸드폰 동기화가 필요하면 Supabase에 app_settings 테이블이 있는지 확인하세요.\n(business-cards/app_settings.sql)');
+      }
+      closeCfg();
+    };
+    document.getElementById('btnSendPreview').onclick=previewSend;
+    document.getElementById('btnSendGo').onclick=doSend;
+    document.getElementById('btnSaveGroupEdit').onclick=saveGroupEdit;
+    document.getElementById('btnSaveTemplate').onclick=saveTemplate;
+    document.getElementById('s_template').onchange=applyTemplate;
+    document.getElementById('s_is_ad').onchange=refreshAdMode;
+    document.getElementById('btnConsentOnly').onclick=function(){ STATE.consentOnly=!STATE.consentOnly; this.classList.toggle('primary',STATE.consentOnly); render(); };
+    document.getElementById('btnBulkDel').onclick=bulkDeleteFiltered;
+    document.getElementById('search').oninput=e=>{ STATE.q=e.target.value; render(); };
+    const dz=document.getElementById('dropZone'), fi=document.getElementById('fileInput');
+    dz.onclick=()=>fi.click();
+    fi.onchange=e=>{ if(e.target.files[0]) handleFile(e.target.files[0]); };
+    dz.ondragover=e=>{ e.preventDefault(); dz.classList.add('over'); };
+    dz.ondragleave=()=>dz.classList.remove('over');
+    dz.ondrop=e=>{ e.preventDefault(); dz.classList.remove('over'); if(e.dataTransfer.files[0]) handleFile(e.dataTransfer.files[0]); };
+    loadAll();
+  }
+
+  async function handleFile(file){
+    const url=await fileToB64(file);
+    const img=document.getElementById('preview'); img.src=url; img.style.display='block';
+    const status = document.getElementById('ocrStatus');
+    try{
+      const path='cards/'+Date.now()+'_'+file.name.replace(/[^\w.]/g,'_');
+      const up=await supa.storage.from('business-cards').upload(path,file,{upsert:true});
+      if(up.error){
+        // Storage 업로드 실패 → 사진을 잃지 않게 DB(base64) 보관
+        STATE.pendingImageUrl = await shrinkToDataUrl(file, 1200, 0.82);
+        status.innerHTML='<span style="color:#b45309">ℹ️ Storage 업로드 실패 — 사진을 DB(base64)로 보관합니다. (버킷 생성하면 다음 등록부터 정상 업로드)</span>';
+      } else {
+        const pub=supa.storage.from('business-cards').getPublicUrl(path);
+        STATE.pendingImageUrl=pub.data.publicUrl;
+      }
+    }catch(e){
+      try{ STATE.pendingImageUrl = await shrinkToDataUrl(file, 1200, 0.82); }catch(_){ STATE.pendingImageUrl = null; }
+      status.innerHTML='<span style="color:#b45309">ℹ️ Storage 오류 — 사진을 DB(base64)로 보관합니다. ('+esc(e.message)+')</span>';
+    }
+    runOCR(file);
+  }
+
+  // Storage 업로드가 실패해도 사진을 잃지 않도록 — 긴 변 maxSide(px) 안으로 리사이즈 후 JPEG dataURL 반환
+  async function shrinkToDataUrl(file, maxSide, quality){
+    const dataUrl = await fileToB64(file);
+    return await new Promise((resolve)=>{
+      const img = new Image();
+      img.onload = ()=>{
+        const w = img.naturalWidth, h = img.naturalHeight;
+        const scale = Math.min(1, maxSide / Math.max(w, h));
+        const tw = Math.max(1, Math.round(w*scale));
+        const th = Math.max(1, Math.round(h*scale));
+        const cv = document.createElement('canvas');
+        cv.width = tw; cv.height = th;
+        cv.getContext('2d').drawImage(img, 0, 0, tw, th);
+        try{ resolve(cv.toDataURL('image/jpeg', quality||0.82)); }
+        catch(e){ resolve(dataUrl); }
+      };
+      img.onerror = ()=>resolve(dataUrl);
+      img.src = dataUrl;
+    });
+  }
+
+  if(window.totalasAuth) init();
+  else document.addEventListener('totalas:ready', init, {once:true});
+  setTimeout(()=>{ if(!supa && window.totalasAuth) init(); }, 1500);
+
+  return { openScan, closeScan, closeSend, closeCfg, closeGroupEdit, saveCard, editCard, openGroupEdit, addGroup, deleteCard, openImage, openDetail, closeDetail, handleImgError };
+})();
+</script>
+</body>
+</html>

@@ -1,0 +1,41 @@
+# 추출된 시드 데이터 (소스: NAS 한별시스템 임대현황.xlsx + 세부현황 폴더)
+# 이 파일들은 운영 시 Supabase에서 동기화되므로 repo에 포함하지 않습니다.
+seed-data.js
+tools/seed_customers.json
+tools/seed_counters.json
+tools/seed_contracts.json
+
+# DB 백업 / 분석 중간 산출물 (운영 데이터 포함 — push 금지)
+tools/db_customers.json
+tools/_*.json
+
+# 원본 엑셀 / 임시 작업 폴더
+*.xlsx
+*.xls
+_temp_inspect/
+data/
+
+# 작업 캡처/실수 산출물
+임대관리폴더.jpg
+*.png.png
+
+# 단, 가격표 페이지에 공개되는 단가표는 추적
+!prices/*.xlsx
+!prices/*.xls
+
+# 자격증명
+.env
+.env.*
+*.key
+service_role.txt
+
+# OS / 에디터
+.DS_Store
+Thumbs.db
+desktop.ini
+.vscode/
+.idea/
+
+# Python
+__pycache__/
+*.pyc

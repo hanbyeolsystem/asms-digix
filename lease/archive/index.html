@@ -1,0 +1,1496 @@
+<!doctype html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>소프트웨어고객자료실 — 디직스코리아</title>
+<script>
+  if (window === window.top && !new URLSearchParams(location.search).has('standalone')) {
+    location.replace('../asms.html#archive/index.html');
+  }
+</script>
+<link rel="stylesheet" href="../styles.css">
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<script src="../config.js?v=20260611"></script>
+<script src="../auth.js"></script>
+<style>
+  .alert-banner {
+    background: #fef3c7;
+    border: 1px solid #fbbf24;
+    border-radius: 10px;
+    padding: 10px 14px;
+    margin-top: 14px;
+    font-size: 13px;
+    display: none;
+  }
+  .alert-banner.show { display: block; }
+  .alert-banner h3 { margin: 0 0 6px 0; font-size: 13px; color: #92400e; }
+  .alert-banner ul { margin: 0; padding-left: 18px; }
+  .alert-banner li { padding: 3px 0; cursor: pointer; }
+  .alert-banner li:hover { text-decoration: underline; }
+  .alert-banner .dday { font-weight: 700; margin-right: 6px; }
+  .alert-banner .dday.red    { color: #dc2626; }
+  .alert-banner .dday.orange { color: #d97706; }
+  .alert-banner .dday.gray   { color: #6b7280; }
+
+  .archive-layout {
+    display: grid;
+    grid-template-columns: 280px 1fr;
+    gap: 14px;
+    margin-top: 14px;
+    min-height: calc(100vh - 240px);
+  }
+  /* grid item 의 기본 min-width: auto 차단 — 자식 긴 콘텐츠가 grid 폭을 밀어내는 현상 방지 */
+  .archive-layout > * { min-width: 0; }
+  .content-pane, .customer-pane { min-width: 0; overflow: hidden; }
+
+  /* 첫 화면 영역 단어 끊기 안전망 (긴 거래처명·소프트웨어명이 viewport 초과 방지) */
+  .alert-banner li,
+  .ov-lic,
+  .ov-name,
+  .pc-row,
+  .pc-name { min-width: 0; overflow-wrap: anywhere; word-break: break-word; }
+  .alert-banner li b,
+  .ov-lic b      { word-break: break-all; }
+  .product-chart, .pc-list, .ov-section { min-width: 0; max-width: 100%; }
+
+  @media (max-width: 880px) {
+    .archive-layout { grid-template-columns: 1fr; min-height: auto; }
+    .customer-pane { max-height: none; }
+    .customer-list { max-height: 240px; }
+  }
+
+  /* ===== 모바일 전용 가독성 보강 (~640px) ===== */
+  @media (max-width: 640px) {
+    /* 폰트 인상: 10~12.5px → 13~14px */
+    .file-card .cat-tag           { font-size: 12px; padding: 2px 7px; }
+    .file-card .label             { font-size: 14px; padding-right: 90px; }
+    .file-card .meta              { font-size: 13px; }
+    .file-card.ov-card .meta      { font-size: 12.5px; max-width: 60%; }
+    .lic-head .name               { font-size: 14.5px; }
+    .lic-head .vendor             { font-size: 12.5px; }
+    .lic-meta                     { font-size: 13px; }
+    .ov-counts                    { font-size: 12.5px; }
+    .ov-lic                       { font-size: 13.5px; }
+    .ov-lic-dday                  { font-size: 12px; padding: 2px 8px; }
+    .ov-lic-exp                   { font-size: 12px; }
+    .ov-name                      { font-size: 15px; }
+    .pc-row                       { font-size: 13.5px; padding: 8px 6px; }
+    .pc-name                      { font-size: 13.5px; flex: 0 0 42%; }
+    .pc-count                     { font-size: 13.5px; min-width: 46px; }
+    .pc-vendor                    { font-size: 12px; }
+    .product-chart .pc-head h3    { font-size: 14.5px; }
+    .product-chart .pc-head .pc-sub { font-size: 12.5px; }
+    .cat-filter button            { padding: 8px 14px; font-size: 13px; min-height: 36px; }
+
+    /* 터치 영역 확대 (iOS HIG 44px 근접) */
+    .customer-toolbar .tool-btn   { padding: 11px 14px; font-size: 14px; min-height: 42px; }
+    .customer-search              { padding: 11px 12px; font-size: 14px; min-height: 42px; }
+    .customer-list .row-btn       { padding: 12px 12px; min-height: 44px; font-size: 14px; }
+    .file-card .del-btn,
+    .file-card .edit-btn          { padding: 7px 11px; font-size: 13px; top: 8px; }
+    .file-card .del-btn           { right: 8px; }
+    .file-card .edit-btn          { right: 56px; }
+
+    /* 모달: iOS 자동 줌인 방지 (input 16px) + 1열 */
+    .pm-field                     { font-size: 14px; margin-bottom: 12px; }
+    .pm-field input,
+    .pm-field select,
+    .pm-field textarea            { font-size: 16px; padding: 10px 12px; }
+    .pm-row                       { grid-template-columns: 1fr; }
+    .pm-card                      { padding: 16px; }
+    .pm-card h3                   { font-size: 17px; }
+    .viewer-modal .pm-card        { width: 96vw; height: 92vh; max-height: 92vh; }
+    .viewer-modal .pm-card-head h3 { font-size: 15px; }
+
+    /* 알림 배너 가독성 */
+    .alert-banner                 { font-size: 14px; }
+    .alert-banner h3              { font-size: 14px; }
+    .alert-banner li              { padding: 6px 0; min-height: 32px; }
+  }
+
+  /* ===== 소형 폰 (~480px) ===== */
+  @media (max-width: 480px) {
+    .file-grid                    { grid-template-columns: 1fr; gap: 6px; }
+    .file-card.ov-card .meta      { max-width: 100%; flex: 1 1 100%; }
+    .lic-actions                  { flex-wrap: wrap; }
+    .ct-head h2                   { font-size: 17px; }
+  }
+
+  .customer-pane, .content-pane {
+    background: var(--card);
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    padding: 12px;
+    box-shadow: var(--shadow);
+  }
+  .customer-pane {
+    max-height: calc(100vh - 240px);
+    display: flex;
+    flex-direction: column;
+  }
+  .customer-toolbar {
+    display: flex;
+    gap: 6px;
+    margin-bottom: 8px;
+    flex-wrap: wrap;
+  }
+  .customer-search {
+    flex: 1 1 140px;
+    min-width: 0;
+    padding: 7px 10px;
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    font-size: 13px;
+    box-sizing: border-box;
+  }
+  .customer-toolbar .tool-btn {
+    flex: 0 0 auto;
+    padding: 7px 10px;
+    border-radius: 6px;
+    font-size: 12.5px;
+    font-weight: 600;
+    cursor: pointer;
+    font-family: inherit;
+    white-space: nowrap;
+    transition: background .12s, border-color .12s;
+  }
+  .customer-toolbar .tool-btn.new {
+    border: 1px solid var(--primary);
+    background: var(--primary);
+    color: #fff;
+  }
+  .customer-toolbar .tool-btn.new:hover { filter: brightness(.92); }
+  .customer-toolbar .tool-btn.menu {
+    border: 1px solid var(--border);
+    background: #fff;
+    color: var(--text);
+  }
+  .customer-toolbar .tool-btn.menu:hover { background: var(--primary-soft); border-color: var(--primary); }
+  .customer-list { flex: 1; overflow: auto; }
+  .customer-list .row-btn {
+    display: block; width: 100%;
+    text-align: left;
+    background: transparent;
+    border: 1px solid transparent;
+    border-radius: 8px;
+    padding: 8px 10px;
+    margin: 2px 0;
+    cursor: pointer;
+    font: inherit;
+    color: var(--text);
+    transition: background .12s;
+  }
+  .customer-list .row-btn:hover { background: var(--primary-soft); }
+  .customer-list .row-btn.active {
+    background: var(--primary-soft);
+    border-color: var(--primary);
+    color: var(--primary-hover);
+    font-weight: 600;
+  }
+  .customer-list .row-btn.new {
+    color: var(--primary);
+    border: 1px dashed var(--primary);
+  }
+  .customer-list .count {
+    float: right;
+    font-size: 11px;
+    background: var(--bg);
+    color: var(--muted);
+    padding: 1px 6px;
+    border-radius: 4px;
+    margin-left: 6px;
+    font-weight: 400;
+  }
+  .customer-list .count.has-alert { background: #fee2e2; color: #dc2626; }
+
+  .content-pane.empty {
+    display: flex; align-items: center; justify-content: center;
+    color: var(--muted); font-size: 14px; min-height: 300px;
+    text-align: center; padding: 30px;
+  }
+
+  .ct-head {
+    display: flex;
+    justify-content: space-between;
+    align-items: flex-start;
+    gap: 10px;
+    padding: 0 4px 12px;
+    border-bottom: 1px solid var(--border);
+    margin-bottom: 12px;
+    flex-wrap: wrap;
+  }
+  .ct-head h2 { margin: 0; font-size: 16px; }
+  .ct-head .sub { font-size: 12px; color: var(--muted); margin-top: 2px; }
+
+  .ct-section { margin-bottom: 18px; }
+  .ct-section-head {
+    display: flex; justify-content: space-between; align-items: center;
+    margin-bottom: 8px;
+  }
+  .ct-section-head h3 { margin: 0; font-size: 14px; color: var(--text-soft); }
+
+  .cat-filter { display: flex; gap: 4px; margin-bottom: 8px; flex-wrap: wrap; }
+  .cat-filter button {
+    padding: 4px 10px;
+    border: 1px solid var(--border);
+    background: #fff;
+    border-radius: 14px;
+    font-size: 12px;
+    cursor: pointer;
+    font: inherit;
+    color: var(--text-soft);
+  }
+  .cat-filter button.active {
+    background: var(--primary); color: #fff; border-color: var(--primary);
+  }
+
+  /* === 거래처 상세 화면: 카드 그리드 (3줄 카드형) === */
+  .file-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(180px, 1fr));
+    gap: 8px;
+  }
+  .file-card {
+    background: #fff;
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    padding: 10px;
+    cursor: pointer;
+    transition: border-color .12s, box-shadow .12s;
+    display: flex; flex-direction: column; gap: 4px;
+    position: relative;
+  }
+  .file-card:hover { border-color: var(--primary); box-shadow: var(--shadow); }
+  .file-card .cat-tag {
+    align-self: flex-start;
+    background: var(--bg); color: var(--muted);
+    font-size: 10px; padding: 1px 6px; border-radius: 3px;
+  }
+  .file-card .label { font-size: 13px; font-weight: 600; line-height: 1.3; word-break: break-all; }
+  .file-card .meta  { font-size: 11px; color: var(--muted); }
+  .file-card .meta.meta-edited {
+    color: var(--primary);
+    font-weight: 500;
+    margin-top: 1px;
+  }
+  .file-card .del-btn,
+  .file-card .edit-btn {
+    position: absolute; top: 6px;
+    background: #fff; border: 1px solid var(--border);
+    color: var(--muted); font-size: 12px; cursor: pointer;
+    padding: 1px 6px; border-radius: 4px;
+  }
+  .file-card .del-btn  { right: 6px; }
+  .file-card .edit-btn { right: 36px; }
+
+  /* === 전체 보기(ov-section 내부): 1줄 리스트 === */
+  .ov-section .file-grid {
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+  }
+  .file-card.ov-card {
+    flex-direction: row;
+    align-items: center;
+    gap: 10px;
+    padding: 8px 12px;
+  }
+  .file-card.ov-card .cat-tag {
+    flex: 0 0 auto;
+    align-self: auto;
+    white-space: nowrap;
+  }
+  .file-card.ov-card .label {
+    flex: 1 1 auto;
+    min-width: 0;
+    word-break: normal;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+  .file-card.ov-card .meta {
+    flex: 0 0 auto;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    max-width: 45%;
+  }
+  .file-card.ov-card .meta.meta-edited {
+    margin-top: 0;
+  }
+  .file-card .del-btn:hover  { background: #fee2e2; color: var(--danger); border-color: var(--danger); }
+  .file-card .edit-btn:hover { background: var(--primary-soft); color: var(--primary); border-color: var(--primary); }
+
+  .lic-list { display: flex; flex-direction: column; gap: 8px; }
+  .lic-card {
+    background: #fff;
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    padding: 10px 12px;
+  }
+  .lic-card.alert-red    { border-color: #dc2626; background: #fef2f2; }
+  .lic-card.alert-orange { border-color: #f59e0b; background: #fffbeb; }
+  .lic-head {
+    display: flex; justify-content: space-between;
+    gap: 8px; align-items: flex-start; flex-wrap: wrap;
+  }
+  .lic-head .name   { font-weight: 600; font-size: 13.5px; }
+  .lic-head .vendor { font-size: 11px; color: var(--muted); }
+  .lic-dday {
+    font-weight: 700; font-size: 13px;
+    padding: 2px 8px; border-radius: 4px;
+    background: var(--bg); color: var(--text-soft);
+    white-space: nowrap;
+  }
+  .lic-dday.red    { background: #fee2e2; color: #dc2626; }
+  .lic-dday.orange { background: #fed7aa; color: #9a3412; }
+  .lic-dday.gray   { background: var(--bg);  color: var(--muted); }
+  .lic-meta {
+    margin-top: 6px; font-size: 12px; color: var(--text-soft);
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
+    gap: 4px 12px;
+  }
+  .lic-actions {
+    margin-top: 8px; display: flex; gap: 6px; justify-content: flex-end;
+  }
+
+  .pm-modal {
+    position: fixed; inset: 0; z-index: 1000;
+    display: flex; align-items: center; justify-content: center;
+  }
+  .pm-modal[hidden] { display: none; }
+  .pm-backdrop { position: absolute; inset: 0; background: rgba(15,23,42,.55); }
+  .pm-card {
+    position: relative; background: #fff;
+    border-radius: 10px; padding: 18px;
+    width: min(480px, 92vw); max-height: 90vh; overflow: auto;
+    box-shadow: var(--shadow-md);
+  }
+  .pm-card h3 { margin: 0 0 12px 0; font-size: 16px; }
+  .pm-field { display: block; margin-bottom: 10px; font-size: 13px; }
+  .pm-field span { display: block; margin-bottom: 3px; color: var(--text-soft); }
+  .pm-field input, .pm-field select, .pm-field textarea {
+    width: 100%; padding: 7px 10px;
+    border: 1px solid var(--border); border-radius: 6px;
+    font-size: 13px; font: inherit;
+    background: #fff; box-sizing: border-box;
+  }
+  .pm-field textarea { resize: vertical; min-height: 60px; }
+  .pm-row { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
+  .pm-actions { display: flex; gap: 8px; justify-content: flex-end; margin-top: 12px; }
+  .pm-status { margin-top: 8px; font-size: 12px; color: var(--muted); min-height: 18px; }
+  .pm-status.err { color: var(--danger); }
+  .pm-status.ok  { color: var(--success); }
+
+  .viewer-modal .pm-card {
+    width: min(900px, 96vw);
+    height: min(90vh, 800px);
+    padding: 0;
+    display: flex; flex-direction: column;
+  }
+  .viewer-modal .pm-card-head {
+    display: flex; justify-content: space-between; align-items: center;
+    padding: 10px 14px; border-bottom: 1px solid var(--border);
+  }
+  .viewer-modal .pm-card-head h3 { margin: 0; font-size: 14px; }
+  .viewer-modal iframe { flex: 1; width: 100%; border: 0; min-height: 0; }
+
+  /* ===== 첫 화면 전체 보기 ===== */
+  .ov-list { display: flex; flex-direction: column; gap: 16px; }
+  .ov-section {
+    background: #fff;
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    padding: 10px 12px;
+  }
+  .ov-head {
+    display: flex; align-items: center; justify-content: space-between;
+    gap: 8px;
+    padding: 4px 0 8px 0;
+    border-bottom: 1px solid var(--border);
+    margin-bottom: 8px;
+    flex-wrap: wrap;
+  }
+  .ov-name {
+    background: transparent; border: 0;
+    padding: 2px 4px;
+    font: inherit; font-size: 14px; font-weight: 700;
+    color: var(--primary);
+    cursor: pointer;
+    text-align: left;
+  }
+  .ov-name:hover { text-decoration: underline; }
+  .ov-counts { font-size: 11.5px; color: var(--muted); }
+  .ov-lic-list {
+    display: flex; flex-direction: column; gap: 4px;
+    margin-top: 8px;
+  }
+  .ov-lic {
+    display: flex; align-items: center; gap: 8px;
+    padding: 5px 8px;
+    background: #f8fafc;
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    font-size: 12.5px;
+    flex-wrap: wrap;
+  }
+  .ov-lic.red    { border-color: #fecaca; background: #fef2f2; }
+  .ov-lic.orange { border-color: #fed7aa; background: #fffbeb; }
+  .ov-lic-dday {
+    font-size: 11px; font-weight: 700;
+    padding: 1px 6px; border-radius: 999px;
+    background: #fff; border: 1px solid var(--border);
+    color: var(--muted);
+  }
+  .ov-lic.red    .ov-lic-dday { color: #dc2626; border-color: #fecaca; }
+  .ov-lic.orange .ov-lic-dday { color: #b45309; border-color: #fed7aa; }
+  .ov-lic-exp { color: var(--muted); margin-left: auto; font-size: 11px; }
+
+  /* ===== 제품별 보유 현황 도표 ===== */
+  .product-chart {
+    background: #fff;
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    padding: 12px 14px;
+    margin-bottom: 14px;
+    box-shadow: var(--shadow);
+  }
+  .product-chart .pc-head {
+    display: flex; align-items: center; justify-content: space-between;
+    margin-bottom: 10px; gap: 8px; flex-wrap: wrap;
+  }
+  .product-chart .pc-head h3 {
+    margin: 0; font-size: 13.5px; color: var(--text);
+  }
+  .product-chart .pc-head .pc-sub {
+    font-size: 11.5px; color: var(--muted);
+  }
+  .pc-list {
+    display: flex; flex-direction: column; gap: 3px;
+    max-height: 340px; overflow-y: auto;
+  }
+  .pc-row {
+    display: flex; align-items: center; gap: 8px;
+    padding: 5px 6px;
+    cursor: pointer;
+    border-radius: 4px;
+    font-size: 12.5px;
+    transition: background .12s;
+  }
+  .pc-row:hover { background: var(--primary-soft); }
+  .pc-name {
+    flex: 0 0 38%;
+    font-weight: 600;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    color: var(--text);
+  }
+  .pc-vendor {
+    color: var(--muted);
+    font-weight: 400;
+    font-size: 11px;
+    margin-left: 4px;
+  }
+  .pc-bar {
+    flex: 1 1 auto;
+    height: 12px;
+    background: var(--bg);
+    border-radius: 3px;
+    position: relative;
+    overflow: hidden;
+    min-width: 60px;
+  }
+  .pc-bar-fill {
+    height: 100%;
+    background: var(--primary);
+    border-radius: 3px;
+    transition: width .2s;
+  }
+  .pc-bar-fill.red    { background: #dc2626; }
+  .pc-bar-fill.orange { background: #f59e0b; }
+  .pc-count {
+    flex: 0 0 auto;
+    min-width: 42px;
+    text-align: right;
+    font-variant-numeric: tabular-nums;
+    font-weight: 700;
+    color: var(--primary);
+    font-size: 12.5px;
+  }
+  .pc-empty {
+    padding: 14px; text-align: center;
+    color: var(--muted); font-size: 12.5px;
+  }
+</style>
+</head>
+<body>
+<main class="container">
+  <div class="page-head">
+    <div>
+      <h1>📁 소프트웨어고객자료실</h1>
+      <p class="muted" style="margin:2px 0 0 0;">고객별 자료 보관 + 소프트웨어 만기 추적.</p>
+    </div>
+  </div>
+
+  <div id="alert-banner" class="alert-banner">
+    <h3>⚠ 만기 임박 소프트웨어</h3>
+    <ul id="alert-list"></ul>
+  </div>
+
+  <div class="archive-layout">
+    <aside class="customer-pane">
+      <div class="customer-toolbar">
+        <button type="button" id="btn-toggle-menu" class="tool-btn menu" title="전체 메뉴 열기/닫기" style="flex:1 1 auto;">☰ 전체메뉴</button>
+        <button type="button" id="btn-new-customer" class="tool-btn new" title="신규 고객 추가" style="flex:1 1 auto;">+ 신규</button>
+        <input type="text" id="customer-search" class="customer-search"
+               placeholder="고객명 검색" autocomplete="off" style="flex:1 1 100%;">
+        <input type="text" id="product-search" class="customer-search"
+               placeholder="🔍 제품 / 소프트웨어 검색"
+               autocomplete="off" style="flex:1 1 100%;">
+      </div>
+      <div class="customer-list" id="customer-list"></div>
+    </aside>
+
+    <section id="content-pane" class="content-pane empty">
+      좌측에서 고객을 선택하거나, 검색창에 새 고객명을 입력해 시작하세요.
+    </section>
+  </div>
+
+  <!-- 자료 등록/수정 -->
+  <div id="upload-modal" class="pm-modal" hidden>
+    <div class="pm-backdrop" data-close="1"></div>
+    <div class="pm-card">
+      <h3 id="up-title">자료 등록</h3>
+      <label class="pm-field"><span>고객명</span><input type="text" id="up-customer" readonly></label>
+      <label class="pm-field"><span id="up-file-label">파일 (선택)</span><input type="file" id="up-file"></label>
+      <div id="up-current-file" class="muted" style="font-size:11.5px;margin:-4px 0 6px 0;display:none;"></div>
+      <label class="pm-field"><span>카테고리 *</span>
+        <select id="up-category">
+          <option value="NAS설정">NAS설정</option>
+          <option value="소프트웨어">소프트웨어</option>
+          <option value="계약서">계약서</option>
+          <option value="사진">사진</option>
+          <option value="기타">기타</option>
+        </select>
+      </label>
+      <label class="pm-field"><span>표시명 *</span><input type="text" id="up-label" placeholder="예: DS220+ 초기 설정값"></label>
+      <label class="pm-field"><span>메모 (선택)</span><textarea id="up-notes" placeholder="설치 위치 / IP / 관련 라이선스 등 — 파일 없이 메모만 등록 가능"></textarea></label>
+      <div class="pm-actions">
+        <button class="btn ghost" data-close="1">취소</button>
+        <button id="up-submit" class="btn primary">등록</button>
+      </div>
+      <div id="up-status" class="pm-status"></div>
+    </div>
+  </div>
+
+  <!-- 라이선스 등록/수정 -->
+  <div id="lic-modal" class="pm-modal" hidden>
+    <div class="pm-backdrop" data-close="1"></div>
+    <div class="pm-card">
+      <h3 id="lic-title">소프트웨어 라이선스 등록</h3>
+      <label class="pm-field"><span>고객명</span><input type="text" id="lic-customer" readonly></label>
+      <label class="pm-field"><span>소프트웨어명 *</span>
+        <input type="text" id="lic-software" placeholder="예: Windows Server 2022 / 한컴오피스 2024"></label>
+      <div class="pm-row">
+        <label class="pm-field"><span>제조사</span><input type="text" id="lic-vendor" placeholder="예: 한글과컴퓨터"></label>
+        <label class="pm-field"><span>수량</span><input type="number" id="lic-seats" min="1" value="1"></label>
+      </div>
+      <div class="pm-row">
+        <label class="pm-field"><span>구매일</span><input type="date" id="lic-purchase"></label>
+        <label class="pm-field"><span>만기일 *</span><input type="date" id="lic-expiry"></label>
+      </div>
+      <div class="pm-row">
+        <label class="pm-field"><span>구매 금액 (원)</span><input type="number" id="lic-amount" min="0"></label>
+        <label class="pm-field"><span>알림 시작 (D-N)</span><input type="number" id="lic-alert" min="0" value="30"></label>
+      </div>
+      <label class="pm-field"><span>라이선스 키 (선택)</span><input type="text" id="lic-key"></label>
+      <label class="pm-field"><span>메모 (선택)</span><textarea id="lic-notes"></textarea></label>
+      <div class="pm-actions">
+        <button class="btn ghost" data-close="1">취소</button>
+        <button id="lic-submit" class="btn primary">저장</button>
+      </div>
+      <div id="lic-status" class="pm-status"></div>
+    </div>
+  </div>
+
+  <!-- 자료 뷰어 -->
+  <div id="viewer-modal" class="pm-modal viewer-modal" hidden>
+    <div class="pm-backdrop" data-close="1"></div>
+    <div class="pm-card">
+      <div class="pm-card-head">
+        <h3 id="vw-title"></h3>
+        <div style="display:flex;gap:6px;">
+          <a id="vw-download" class="btn ghost small" target="_blank" rel="noopener">⬇ 다운로드</a>
+          <a id="vw-open" class="btn ghost small" target="_blank" rel="noopener">↗ 새 창</a>
+          <button class="btn ghost small" data-close="1">닫기</button>
+        </div>
+      </div>
+      <iframe id="vw-frame" src="about:blank"></iframe>
+    </div>
+  </div>
+</main>
+
+<script>
+const $  = sel => document.querySelector(sel);
+const $$ = sel => document.querySelectorAll(sel);
+
+// 확장자 기반 contentType 추정 — 브라우저가 file.type 을 비워둘 때 사용
+const MIME_BY_EXT = {
+  jpg: 'image/jpeg', jpeg: 'image/jpeg', png: 'image/png',
+  gif: 'image/gif', webp: 'image/webp', svg: 'image/svg+xml',
+  bmp: 'image/bmp', avif: 'image/avif',
+  pdf: 'application/pdf',
+  txt: 'text/plain', csv: 'text/csv', json: 'application/json',
+  html: 'text/html', md: 'text/markdown',
+  mp4: 'video/mp4', webm: 'video/webm', mov: 'video/quicktime',
+  mp3: 'audio/mpeg', wav: 'audio/wav', m4a: 'audio/mp4', ogg: 'audio/ogg',
+  xls: 'application/vnd.ms-excel',
+  xlsx: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+  doc: 'application/msword',
+  docx: 'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+  ppt: 'application/vnd.ms-powerpoint',
+  pptx: 'application/vnd.openxmlformats-officedocument.presentationml.presentation',
+  zip: 'application/zip',
+};
+function guessContentType(ext) {
+  return MIME_BY_EXT[(ext || '').toLowerCase()] || 'application/octet-stream';
+}
+
+function esc(s) {
+  return String(s == null ? '' : s).replace(/[&<>"']/g, m =>
+    ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[m]));
+}
+function fmtDate(d) { return d ? String(d).slice(0,10) : ''; }
+function fmtDateTime(d) {
+  if (!d) return '';
+  // 'YYYY-MM-DD HH:MM' (로컬 시각 변환은 비용 대비 효익 작음 — ISO 슬라이스)
+  return String(d).slice(0, 16).replace('T', ' ');
+}
+function dday(expiryStr) {
+  if (!expiryStr) return null;
+  const today = new Date(); today.setHours(0,0,0,0);
+  const exp = new Date(expiryStr); exp.setHours(0,0,0,0);
+  return Math.round((exp - today) / 86400000);
+}
+function ddayColor(d, alertDays) {
+  if (d == null) return 'gray';
+  if (d < 0)  return 'red';
+  if (d <= 7) return 'red';
+  if (d <= (alertDays || 30)) return 'orange';
+  return 'gray';
+}
+function ddayLabel(d) {
+  if (d == null) return '-';
+  if (d < 0)  return `D+${-d} 만료`;
+  if (d === 0) return 'D-0 (오늘)';
+  return `D-${d}`;
+}
+
+const STATE = {
+  customers:       [],
+  rental_names:    [],
+  selected:        null,
+  archives:        [],
+  licenses:        [],
+  category_filter: '전체',
+  alerts:          [],
+  editLicId:       null,
+  editArchiveId:   null,
+  editArchive:     null,
+  // 첫 화면(전체 보기) 용 — 모든 거래처의 자료/라이선스
+  all_archives:    {},   // customer_name → [archive rows]
+  all_licenses:    {},   // customer_name → [license rows]
+};
+
+function sb() { return window.totalasAuth; }
+
+async function loadRentalCustomers() {
+  const { data, error } = await sb().from('rental_customers')
+    .select('id, company').eq('active', true).order('company');
+  if (error) return;
+  STATE.rental_names = (data || []).map(r => ({ id: r.id, name: r.company }));
+}
+
+async function loadCustomerIndex() {
+  const [arch, lic] = await Promise.all([
+    sb().from('customer_archives').select('customer_name'),
+    sb().from('software_licenses').select('customer_name, expiry_date, alert_days, status'),
+  ]);
+  const map = new Map();
+  (arch.data || []).forEach(r => {
+    const e = map.get(r.customer_name) || { name: r.customer_name, archives_count: 0, licenses_count: 0, has_alert: false };
+    e.archives_count++;
+    map.set(r.customer_name, e);
+  });
+  (lic.data || []).forEach(r => {
+    const e = map.get(r.customer_name) || { name: r.customer_name, archives_count: 0, licenses_count: 0, has_alert: false };
+    e.licenses_count++;
+    const d = dday(r.expiry_date);
+    if (r.status === 'active' && d != null && d <= (r.alert_days || 30)) e.has_alert = true;
+    map.set(r.customer_name, e);
+  });
+  STATE.customers = Array.from(map.values()).sort((a, b) => a.name.localeCompare(b.name, 'ko'));
+  renderCustomerList();
+}
+
+async function loadAllData() {
+  // 첫 화면(전체 거래처 보기) 용 — 모든 자료/라이선스를 한 번에 로드 후 거래처별 그룹화
+  const [arch, lic] = await Promise.all([
+    sb().from('customer_archives').select('*').order('created_at', { ascending: false }),
+    sb().from('software_licenses').select('*').order('expiry_date', { ascending: true }),
+  ]);
+  const grpA = {}, grpL = {};
+  (arch.data || []).forEach(r => {
+    (grpA[r.customer_name] = grpA[r.customer_name] || []).push(r);
+  });
+  (lic.data || []).forEach(r => {
+    (grpL[r.customer_name] = grpL[r.customer_name] || []).push(r);
+  });
+  STATE.all_archives = grpA;
+  STATE.all_licenses = grpL;
+}
+
+async function loadAlerts() {
+  const { data } = await sb().from('software_licenses')
+    .select('id, customer_name, software_name, expiry_date, alert_days, status')
+    .eq('status', 'active');
+  STATE.alerts = (data || [])
+    .map(r => ({ ...r, d: dday(r.expiry_date) }))
+    .filter(r => r.d != null && r.d <= (r.alert_days || 30))
+    .sort((a, b) => a.d - b.d);
+  renderAlertBanner();
+}
+
+async function loadCustomerDetail(name) {
+  STATE.selected = name;
+  STATE.category_filter = '전체';
+  const [arch, lic] = await Promise.all([
+    sb().from('customer_archives').select('*').eq('customer_name', name)
+      .order('created_at', { ascending: false }),
+    sb().from('software_licenses').select('*').eq('customer_name', name)
+      .order('expiry_date', { ascending: true }),
+  ]);
+  STATE.archives = arch.data || [];
+  STATE.licenses = lic.data || [];
+  renderCustomerList();
+  renderContent();
+}
+
+function renderAlertBanner() {
+  const banner = $('#alert-banner');
+  const ul = $('#alert-list');
+  if (!STATE.alerts.length) { banner.classList.remove('show'); return; }
+  ul.innerHTML = '';
+  STATE.alerts.forEach(a => {
+    const li = document.createElement('li');
+    const color = ddayColor(a.d, a.alert_days);
+    li.innerHTML = `<span class="dday ${color}">${esc(ddayLabel(a.d))}</span>
+      <b>${esc(a.customer_name)}</b> — ${esc(a.software_name)}
+      <span class="muted">(${esc(fmtDate(a.expiry_date))})</span>`;
+    li.addEventListener('click', () => {
+      // 검색창은 손대지 않음 — 왼쪽 메뉴가 한 건으로 좁혀지지 않도록 유지
+      loadCustomerDetail(a.customer_name);
+    });
+    ul.appendChild(li);
+  });
+  banner.classList.add('show');
+}
+
+function getProductQ() {
+  const el = $('#product-search');
+  return el ? el.value.trim().toLowerCase() : '';
+}
+function matchLicense(r, pq) {
+  return !pq
+      || (r.software_name || '').toLowerCase().includes(pq)
+      || (r.vendor        || '').toLowerCase().includes(pq)
+      || (r.notes         || '').toLowerCase().includes(pq);
+}
+function matchArchive(r, pq) {
+  return !pq
+      || (r.label    || '').toLowerCase().includes(pq)
+      || (r.notes    || '').toLowerCase().includes(pq)
+      || (r.category || '').toLowerCase().includes(pq);
+}
+
+function renderCustomerList() {
+  const list = $('#customer-list');
+  const q = $('#customer-search').value.trim();
+  const ql = q.toLowerCase();
+  const pq = getProductQ();
+  let items = STATE.customers;
+  if (q) items = items.filter(c => c.name.toLowerCase().includes(ql));
+  if (pq) {
+    items = items.filter(c => {
+      const lics = STATE.all_licenses[c.name] || [];
+      const arch = STATE.all_archives[c.name] || [];
+      return lics.some(r => matchLicense(r, pq))
+          || arch.some(r => matchArchive(r, pq));
+    });
+  }
+
+  list.innerHTML = '';
+
+  if (!items.length) {
+    const hint = document.createElement('div');
+    hint.style.cssText = 'padding:14px;text-align:center;color:var(--muted);font-size:12.5px;line-height:1.5;';
+    hint.innerHTML = pq
+      ? `'${esc(pq)}' 제품을 보유한 고객이 없습니다.`
+      : (q
+          ? `'${esc(q)}' 와 일치하는 고객이 없습니다.<br>신규 고객은 <b>+ 신규</b> 버튼을 누르세요.`
+          : '등록된 고객이 없습니다.<br><b>+ 신규</b> 버튼으로 시작하세요.');
+    list.appendChild(hint);
+    return;
+  }
+  items.forEach(c => {
+    const btn = document.createElement('button');
+    btn.type = 'button';
+    btn.className = 'row-btn' + (STATE.selected === c.name ? ' active' : '');
+    btn.innerHTML = `
+      <span class="count ${c.has_alert ? 'has-alert' : ''}">${c.archives_count}/${c.licenses_count}</span>
+      ${esc(c.name)}`;
+    btn.addEventListener('click', () => {
+      // 검색창은 손대지 않음 — 좌측 목록이 그대로 유지되도록
+      loadCustomerDetail(c.name);
+    });
+    list.appendChild(btn);
+  });
+}
+
+function buildProductStats() {
+  // 모든 거래처의 라이선스를 software_name 기준으로 집계
+  const map = new Map();
+  for (const lics of Object.values(STATE.all_licenses)) {
+    for (const l of lics) {
+      const name = (l.software_name || '').trim();
+      if (!name) continue;
+      const key = name.toLowerCase();
+      if (!map.has(key)) {
+        map.set(key, {
+          name, vendor: l.vendor || '',
+          count: 0, customers: new Set(),
+          alert: 0, expired: 0,
+        });
+      }
+      const e = map.get(key);
+      e.count++;
+      e.customers.add(l.customer_name);
+      if (l.status === 'active') {
+        const d = dday(l.expiry_date);
+        if (d != null) {
+          if (d < 0) e.expired++;
+          else if (d <= (l.alert_days || 30)) e.alert++;
+        }
+      }
+    }
+  }
+  return Array.from(map.values()).sort((a, b) =>
+    b.customers.size - a.customers.size || b.count - a.count
+  );
+}
+
+function renderProductChart() {
+  const list = buildProductStats();
+  if (!list.length) {
+    return `<div class="product-chart">
+      <div class="pc-head"><h3>📊 제품별 보유 현황</h3></div>
+      <div class="pc-empty">등록된 라이선스가 없습니다.</div>
+    </div>`;
+  }
+  const maxCust = list[0].customers.size;
+  const totalSeats = list.reduce((s, p) => s + p.count, 0);
+  const rows = list.map(p => {
+    const custN = p.customers.size;
+    const w = Math.max(4, Math.round(custN / maxCust * 100));
+    const color = p.expired ? 'red' : (p.alert ? 'orange' : '');
+    const badge = p.expired
+      ? `<span class="pc-vendor" style="color:#dc2626;">⚠ 만료 ${p.expired}</span>`
+      : (p.alert ? `<span class="pc-vendor" style="color:#b45309;">⏰ 임박 ${p.alert}</span>` : '');
+    const vendor = p.vendor ? `<span class="pc-vendor">${esc(p.vendor)}</span>` : '';
+    const seats = p.count > custN ? ` <span class="pc-vendor">×${p.count}</span>` : '';
+    return `<div class="pc-row" data-name="${esc(p.name)}" title="${esc(p.name)}: 거래처 ${custN}곳 · 라이선스 ${p.count}건">
+      <span class="pc-name">${esc(p.name)}${vendor}${badge}</span>
+      <div class="pc-bar"><div class="pc-bar-fill ${color}" style="width:${w}%"></div></div>
+      <span class="pc-count">${custN}곳${seats}</span>
+    </div>`;
+  }).join('');
+  return `<div class="product-chart">
+    <div class="pc-head">
+      <h3>📊 제품별 보유 현황</h3>
+      <span class="pc-sub">${list.length}종 · 라이선스 ${totalSeats}건 (클릭하여 검색)</span>
+    </div>
+    <div class="pc-list">${rows}</div>
+  </div>`;
+}
+
+function renderAllOverview(pane) {
+  // 모든 거래처의 자료/라이선스를 거래처별 섹션으로 한꺼번에 표시
+  pane.classList.remove('empty');
+  const customers = STATE.customers;
+  if (!customers.length) {
+    pane.classList.add('empty');
+    pane.innerHTML = '등록된 자료가 없습니다.<br>좌측 <b>+ 신규</b> 버튼으로 시작하세요.';
+    return;
+  }
+  const pq = getProductQ();
+  let totalA = 0, totalL = 0, matchedCustomers = 0;
+  const sections = customers.map(c => {
+    let archives = (STATE.all_archives[c.name] || []);
+    let licenses = (STATE.all_licenses[c.name] || []);
+    if (pq) {
+      archives = archives.filter(r => matchArchive(r, pq));
+      licenses = licenses.filter(r => matchLicense(r, pq));
+      if (!archives.length && !licenses.length) return '';
+    }
+    totalA += archives.length;
+    totalL += licenses.length;
+    matchedCustomers++;
+    const cards = archives.map(r => {
+      const notesShort = r.notes ? ' · ' + r.notes.slice(0, 30) + (r.notes.length > 30 ? '…' : '') : '';
+      const extLabel = r.ext ? ' · ' + r.ext.toUpperCase() : (r.file_path ? '' : ' · 메모');
+      const isEdited = r.updated_at && r.created_at
+                       && (new Date(r.updated_at).getTime() - new Date(r.created_at).getTime() > 60 * 1000);
+      const editedLine = isEdited
+        ? `<div class="meta meta-edited" title="${esc(fmtDateTime(r.updated_at))}">✎ 수정 ${esc(fmtDate(r.updated_at))}</div>`
+        : '';
+      return `<div class="file-card ov-card" data-aid="${r.id}">
+        <span class="cat-tag">${esc(r.category)}${esc(extLabel)}</span>
+        <div class="label">${esc(r.label)}</div>
+        <div class="meta">${esc(fmtDate(r.created_at))}${esc(notesShort)}</div>
+        ${editedLine}
+      </div>`;
+    }).join('');
+    const lics = licenses.map(r => {
+      const d = dday(r.expiry_date);
+      const color = r.status !== 'active' ? 'gray' : ddayColor(d, r.alert_days);
+      return `<div class="ov-lic ${color}">
+        <b>${esc(r.software_name)}</b>
+        <span class="ov-lic-dday">${esc(ddayLabel(d))}</span>
+        <span class="ov-lic-exp">만기 ${esc(fmtDate(r.expiry_date))}</span>
+      </div>`;
+    }).join('');
+    return `<section class="ov-section" data-name="${esc(c.name)}">
+      <div class="ov-head">
+        <button type="button" class="ov-name" data-name="${esc(c.name)}">${esc(c.name)}</button>
+        <span class="ov-counts">자료 ${archives.length} · 라이선스 ${licenses.length}</span>
+      </div>
+      ${archives.length ? `<div class="file-grid">${cards}</div>` : ''}
+      ${licenses.length ? `<div class="ov-lic-list">${lics}</div>` : ''}
+    </section>`;
+  }).join('');
+  const title = pq ? `'${esc(pq)}' 검색 결과` : '전체 거래처 자료';
+  const subInfo = pq
+    ? `${matchedCustomers}개 거래처 · 자료 ${totalA}건 · 라이선스 ${totalL}건`
+    : `${customers.length}개 거래처 · 자료 ${totalA}건 · 라이선스 ${totalL}건`;
+  // 검색 중이 아닐 때만 상단 도표 표시
+  const chartHtml = pq ? '' : renderProductChart();
+  pane.innerHTML = `
+    <div class="ct-head">
+      <div>
+        <h2>${title}</h2>
+        <div class="sub">${subInfo}</div>
+      </div>
+    </div>
+    ${chartHtml}
+    <div class="ov-list">${sections || '<div style="padding:20px;text-align:center;color:var(--muted);">매칭되는 제품이 없습니다.</div>'}</div>`;
+
+  // 도표 행 클릭 → 해당 제품으로 검색
+  pane.querySelectorAll('.pc-row').forEach(row => {
+    row.addEventListener('click', () => {
+      $('#product-search').value = row.dataset.name;
+      renderCustomerList();
+      renderContent();
+    });
+  });
+
+  // 거래처명 클릭 → 상세 진입
+  pane.querySelectorAll('.ov-name').forEach(b => {
+    b.addEventListener('click', () => loadCustomerDetail(b.dataset.name));
+  });
+  // 카드 클릭 → viewer 열기
+  pane.querySelectorAll('.ov-card').forEach(card => {
+    card.addEventListener('click', () => {
+      const aid = Number(card.dataset.aid);
+      const row = (Object.values(STATE.all_archives).flat()).find(x => x.id === aid);
+      if (row) openViewer(row);
+    });
+  });
+}
+
+function renderContent() {
+  const pane = $('#content-pane');
+  if (!STATE.selected) {
+    renderAllOverview(pane);
+    return;
+  }
+  pane.classList.remove('empty');
+  const cats = ['전체','NAS설정','소프트웨어','계약서','사진','기타'];
+  pane.innerHTML = `
+    <div class="ct-head">
+      <div>
+        <h2>${esc(STATE.selected)}</h2>
+        <div class="sub">자료 ${STATE.archives.length}건 · 라이선스 ${STATE.licenses.length}건</div>
+      </div>
+      <div style="display:flex;gap:6px;flex-wrap:wrap;">
+        <button class="btn primary small" id="btn-upload">+ 자료 등록</button>
+        <button class="btn primary small" id="btn-add-lic">+ 라이선스 등록</button>
+      </div>
+    </div>
+    <div class="ct-section">
+      <div class="ct-section-head"><h3>📂 자료 (${STATE.archives.length})</h3></div>
+      <div class="cat-filter" id="cat-filter">
+        ${cats.map(c => `<button data-cat="${esc(c)}" class="${STATE.category_filter === c ? 'active' : ''}">${esc(c)}</button>`).join('')}
+      </div>
+      <div class="file-grid" id="file-grid"></div>
+    </div>
+    <div class="ct-section">
+      <div class="ct-section-head"><h3>💿 소프트웨어 라이선스 (${STATE.licenses.length})</h3></div>
+      <div class="lic-list" id="lic-list"></div>
+    </div>
+  `;
+  $('#btn-upload').addEventListener('click', openUploadModal);
+  $('#btn-add-lic').addEventListener('click', () => openLicModal(null));
+  $$('#cat-filter button').forEach(b => {
+    b.addEventListener('click', () => { STATE.category_filter = b.dataset.cat; renderContent(); });
+  });
+  renderFileGrid();
+  renderLicList();
+}
+
+function renderFileGrid() {
+  const grid = $('#file-grid');
+  const pq = getProductQ();
+  let items = STATE.archives;
+  if (STATE.category_filter !== '전체') {
+    items = items.filter(r => r.category === STATE.category_filter);
+  }
+  if (pq) items = items.filter(r => matchArchive(r, pq));
+  if (!items.length) {
+    const msg = pq
+      ? `'${esc(pq)}' 검색 결과 없음`
+      : (STATE.category_filter === '전체' ? '등록된 자료가 없습니다.' : `'${esc(STATE.category_filter)}' 자료가 없습니다.`);
+    grid.innerHTML = `<div style="grid-column:1/-1;padding:18px;text-align:center;color:var(--muted);font-size:12.5px;">${msg}</div>`;
+    return;
+  }
+  grid.innerHTML = '';
+  items.forEach(r => {
+    const card = document.createElement('div');
+    card.className = 'file-card';
+    const notesShort = r.notes ? ' · ' + r.notes.slice(0, 30) + (r.notes.length > 30 ? '…' : '') : '';
+    const extLabel = r.ext ? ' · ' + r.ext.toUpperCase() : (r.file_path ? '' : ' · 메모');
+    // 등록 후 수정된 경우(분 단위 이상 차이)에만 수정 시각 함께 표시
+    const cDate = fmtDate(r.created_at);
+    const uDate = fmtDate(r.updated_at);
+    const editedFull = fmtDateTime(r.updated_at);
+    const isEdited = r.updated_at && r.created_at
+                     && (new Date(r.updated_at).getTime() - new Date(r.created_at).getTime() > 60 * 1000);
+    const editedLine = isEdited
+      ? `<div class="meta meta-edited" title="${esc(editedFull)}">✎ 수정 ${esc(uDate)}</div>`
+      : '';
+    card.innerHTML = `
+      <button class="del-btn" title="삭제">✕</button>
+      <button class="edit-btn" title="수정">✎</button>
+      <span class="cat-tag">${esc(r.category)}${esc(extLabel)}</span>
+      <div class="label">${esc(r.label)}</div>
+      <div class="meta">${esc(cDate)}${esc(notesShort)}</div>
+      ${editedLine}`;
+    card.querySelector('.del-btn').addEventListener('click', e => { e.stopPropagation(); deleteArchive(r); });
+    card.querySelector('.edit-btn').addEventListener('click', e => { e.stopPropagation(); openUploadModal(r); });
+    card.addEventListener('click', () => openViewer(r));
+    grid.appendChild(card);
+  });
+}
+
+function renderLicList() {
+  const list = $('#lic-list');
+  const pq = getProductQ();
+  let items = STATE.licenses;
+  if (pq) items = items.filter(r => matchLicense(r, pq));
+  if (!items.length) {
+    const msg = pq ? `'${esc(pq)}' 검색 결과 없음` : '등록된 라이선스가 없습니다.';
+    list.innerHTML = `<div style="padding:14px;text-align:center;color:var(--muted);font-size:12.5px;">${msg}</div>`;
+    return;
+  }
+  list.innerHTML = '';
+  items.forEach(r => {
+    const d = dday(r.expiry_date);
+    const color = r.status !== 'active' ? 'gray' : ddayColor(d, r.alert_days);
+    const cls = r.status !== 'active' ? '' : (color === 'red' ? 'alert-red' : color === 'orange' ? 'alert-orange' : '');
+    const card = document.createElement('div');
+    card.className = 'lic-card ' + cls;
+    card.innerHTML = `
+      <div class="lic-head">
+        <div>
+          <div class="name">${esc(r.software_name)}${r.seats > 1 ? ` <span class="vendor">×${r.seats}</span>` : ''}</div>
+          ${r.vendor ? `<div class="vendor">${esc(r.vendor)}</div>` : ''}
+        </div>
+        <div class="lic-dday ${color}">${esc(ddayLabel(d))}</div>
+      </div>
+      <div class="lic-meta">
+        ${r.purchase_date ? `<div>구매일: ${esc(fmtDate(r.purchase_date))}</div>` : ''}
+        <div>만기일: ${esc(fmtDate(r.expiry_date))}</div>
+        ${r.amount ? `<div>금액: ${Number(r.amount).toLocaleString()}원</div>` : ''}
+        ${r.license_key ? `<div>키: ${esc(r.license_key)}</div>` : ''}
+        ${r.status !== 'active' ? `<div>상태: ${esc(r.status)}</div>` : ''}
+      </div>
+      ${r.notes ? `<div class="muted" style="margin-top:4px;font-size:12px;">${esc(r.notes)}</div>` : ''}
+      <div class="lic-actions">
+        <button class="btn ghost small" data-act="edit">✎ 수정</button>
+        <button class="btn danger small" data-act="del">🗑 삭제</button>
+      </div>`;
+    card.querySelector('[data-act=edit]').addEventListener('click', () => openLicModal(r));
+    card.querySelector('[data-act=del]').addEventListener('click', () => deleteLicense(r));
+    list.appendChild(card);
+  });
+}
+
+function openUploadModal(row) {
+  if (!STATE.selected) return alert('고객을 먼저 선택하세요.');
+  STATE.editArchiveId = row ? row.id : null;
+  STATE.editArchive   = row || null;
+  const isEdit = !!row;
+  $('#up-title').textContent = isEdit ? '자료 수정' : '자료 등록';
+  $('#up-submit').textContent = isEdit ? '저장' : '등록';
+  $('#up-file-label').textContent = isEdit ? '파일 교체 (선택)' : '파일 (선택)';
+  $('#up-customer').value = STATE.selected;
+  $('#up-file').value = '';
+  $('#up-label').value    = row?.label    || '';
+  $('#up-category').value = row?.category || 'NAS설정';
+  $('#up-notes').value    = row?.notes    || '';
+  // 현재 첨부 파일 안내 (수정 모드)
+  const cur = $('#up-current-file');
+  if (isEdit && row.file_path) {
+    const fname = row.label + (row.ext ? '.' + row.ext : '');
+    cur.textContent = '현재 파일: ' + fname + ' (비워두면 유지)';
+    cur.style.display = 'block';
+  } else if (isEdit && !row.file_path) {
+    cur.textContent = '현재 첨부 파일 없음 (메모만)';
+    cur.style.display = 'block';
+  } else {
+    cur.textContent = '';
+    cur.style.display = 'none';
+  }
+  setStatus('#up-status', '', '');
+  $('#upload-modal').hidden = false;
+}
+
+$('#up-file').addEventListener('change', () => {
+  const f = $('#up-file').files[0];
+  if (f && !$('#up-label').value) {
+    $('#up-label').value = f.name.replace(/\.[^.]+$/, '');
+  }
+});
+
+function setStatus(sel, text, kind) {
+  const el = $(sel);
+  el.textContent = text;
+  el.className = 'pm-status' + (kind ? ' ' + kind : '');
+}
+
+$('#up-submit').addEventListener('click', async () => {
+  const customer = STATE.selected;
+  const file  = $('#up-file').files[0];
+  const cat   = $('#up-category').value;
+  const label = $('#up-label').value.trim();
+  const notes = $('#up-notes').value.trim();
+  const editId  = STATE.editArchiveId;
+  const editRow = STATE.editArchive;
+
+  if (!label) return setStatus('#up-status', '표시명을 입력하세요.', 'err');
+  if (file && file.size > 100 * 1024 * 1024) return setStatus('#up-status', '파일이 100MB 를 초과합니다.', 'err');
+
+  // 새 파일 업로드 (신규 / 교체 공통)
+  let newPath = null, newExt = null, newSize = null;
+  if (file) {
+    setStatus('#up-status', editId ? '파일 교체 중...' : '업로드 중...');
+    const ts   = Date.now();
+    const rand = Math.random().toString(36).slice(2, 10);
+    newExt     = (file.name.match(/\.([^.]+)$/) || [, ''])[1].toLowerCase() || null;
+    const rc   = STATE.rental_names.find(r => r.name === customer);
+    const folder = rc ? rc.id : '_misc';
+    newPath = `${folder}/${ts}_${rand}${newExt ? '.' + newExt : ''}`;
+    newSize = file.size;
+
+    const ctype = (file.type && file.type !== 'application/octet-stream')
+      ? file.type
+      : guessContentType(newExt);
+    const up = await sb().storage.from('archives').upload(newPath, file, {
+      cacheControl: '3600', upsert: false, contentType: ctype,
+    });
+    if (up.error) return setStatus('#up-status', 'Storage 실패: ' + up.error.message, 'err');
+  } else if (!editId) {
+    setStatus('#up-status', '등록 중...');
+  } else {
+    setStatus('#up-status', '저장 중...');
+  }
+
+  const rc2 = STATE.rental_names.find(r => r.name === customer);
+
+  if (editId) {
+    // ===== 수정 =====
+    const patch = {
+      category: cat,
+      label,
+      notes: notes || null,
+      rental_customer_id: rc2 ? rc2.id : null,
+      updated_at: new Date().toISOString(),
+    };
+    if (file) {
+      patch.file_path = newPath;
+      patch.ext       = newExt;
+      patch.file_size = newSize;
+    }
+    const upd = await sb().from('customer_archives').update(patch).eq('id', editId);
+    if (upd.error) {
+      if (newPath) await sb().storage.from('archives').remove([newPath]);
+      return setStatus('#up-status', '수정 실패: ' + upd.error.message, 'err');
+    }
+    // 파일 교체 성공 → 기존 storage 파일 삭제
+    if (file && editRow?.file_path) {
+      await sb().storage.from('archives').remove([editRow.file_path]);
+    }
+    setStatus('#up-status', '완료', 'ok');
+  } else {
+    // ===== 신규 등록 =====
+    const ins = await sb().from('customer_archives').insert({
+      customer_name: customer,
+      rental_customer_id: rc2 ? rc2.id : null,
+      category: cat, label,
+      file_path: newPath,
+      ext: newExt,
+      file_size: newSize,
+      notes: notes || null,
+      created_by: window.currentUser?.id || null,
+    }).select().single();
+    if (ins.error) {
+      if (newPath) await sb().storage.from('archives').remove([newPath]);
+      return setStatus('#up-status', 'DB 등록 실패: ' + ins.error.message, 'err');
+    }
+    setStatus('#up-status', '완료', 'ok');
+  }
+
+  await Promise.all([loadCustomerDetail(customer), loadCustomerIndex(), loadAllData()]);
+  setTimeout(() => {
+    $('#upload-modal').hidden = true;
+    STATE.editArchiveId = null;
+    STATE.editArchive   = null;
+  }, 300);
+});
+
+async function deleteArchive(row) {
+  if (!confirm(`"${row.label}" 자료를 삭제할까요?`)) return;
+  if (row.file_path) {
+    const r1 = await sb().storage.from('archives').remove([row.file_path]);
+    if (r1.error) return alert('파일 삭제 실패: ' + r1.error.message);
+  }
+  const r2 = await sb().from('customer_archives').delete().eq('id', row.id);
+  if (r2.error) return alert('DB 삭제 실패: ' + r2.error.message);
+  await Promise.all([loadCustomerDetail(STATE.selected), loadCustomerIndex(), loadAllData()]);
+}
+
+async function openViewer(row) {
+  $('#vw-title').textContent = row.label;
+
+  // 파일 없는 메모 글 — 메모 내용을 viewer 안에 표시
+  if (!row.file_path) {
+    $('#vw-open').href = '#';
+    $('#vw-open').style.display = 'none';
+    $('#vw-download').href = '#';
+    $('#vw-download').style.display = 'none';
+    const memo = row.notes ? row.notes : '(메모 없음)';
+    const memoHtml = `
+      <div style="padding:24px;height:100%;overflow:auto;background:#fff;">
+        <div style="font-size:11px;color:#94a3b8;margin-bottom:8px;">
+          ${esc(row.category)} · ${esc(fmtDate(row.created_at))}
+        </div>
+        <div style="font-size:14px;line-height:1.7;white-space:pre-wrap;word-break:break-all;color:#0f172a;">
+          ${esc(memo)}
+        </div>
+      </div>`;
+    $('#vw-frame').srcdoc = memoHtml;
+    $('#viewer-modal').hidden = false;
+    return;
+  }
+
+  $('#vw-open').style.display = '';
+  $('#vw-download').style.display = '';
+
+  // 1) inline 보기용 signed URL
+  const inlineRes = await sb().storage.from('archives').createSignedUrl(row.file_path, 3600);
+  if (inlineRes.error) return alert('URL 생성 실패: ' + inlineRes.error.message);
+  const inlineUrl = inlineRes.data.signedUrl;
+  $('#vw-open').href = inlineUrl;
+
+  // 2) 다운로드 전용 signed URL — Content-Disposition: attachment 강제, 원본 표시명 사용
+  const dlName = (row.label || 'file') + (row.ext ? '.' + row.ext : '');
+  const dlRes = await sb().storage.from('archives').createSignedUrl(row.file_path, 3600, { download: dlName });
+  $('#vw-download').href = (dlRes.error ? inlineUrl : dlRes.data.signedUrl);
+  $('#vw-download').setAttribute('download', dlName);
+
+  // 3) 파일 형식별 인라인 렌더
+  const fp = row.file_path.toLowerCase();
+  const isImage  = /\.(jpe?g|png|gif|webp|svg|bmp|avif)$/i.test(fp);
+  const isPdf    = /\.pdf$/i.test(fp);
+  const isOffice = /\.(xlsx?|docx?|pptx?)$/i.test(fp);
+  const isVideo  = /\.(mp4|webm|ogv|mov)$/i.test(fp);
+  const isAudio  = /\.(mp3|wav|ogg|m4a)$/i.test(fp);
+
+  let body;
+  if (isImage) {
+    // 이미지: srcdoc 으로 <img> 페이지 — Content-Disposition 무관하게 inline 표시
+    body = `<!doctype html><html><head><meta charset="utf-8"><style>
+      html,body{margin:0;height:100%;background:#0f172a;display:flex;align-items:center;justify-content:center;overflow:auto;}
+      img{max-width:100%;max-height:100%;object-fit:contain;display:block;}
+    </style></head><body><img src="${esc(inlineUrl)}" alt="${esc(row.label)}"></body></html>`;
+    $('#vw-frame').srcdoc = body;
+  } else if (isVideo) {
+    body = `<!doctype html><html><head><meta charset="utf-8"><style>
+      html,body{margin:0;height:100%;background:#000;display:flex;align-items:center;justify-content:center;}
+      video{max-width:100%;max-height:100%;}
+    </style></head><body><video src="${esc(inlineUrl)}" controls autoplay></video></body></html>`;
+    $('#vw-frame').srcdoc = body;
+  } else if (isAudio) {
+    body = `<!doctype html><html><head><meta charset="utf-8"><style>
+      html,body{margin:0;height:100%;background:#fff;display:flex;align-items:center;justify-content:center;padding:24px;}
+      audio{width:100%;max-width:480px;}
+    </style></head><body><audio src="${esc(inlineUrl)}" controls></audio></body></html>`;
+    $('#vw-frame').srcdoc = body;
+  } else if (isOffice) {
+    $('#vw-frame').removeAttribute('srcdoc');
+    $('#vw-frame').src = 'https://view.officeapps.live.com/op/embed.aspx?src=' + encodeURIComponent(inlineUrl);
+  } else if (isPdf) {
+    $('#vw-frame').removeAttribute('srcdoc');
+    $('#vw-frame').src = inlineUrl;
+  } else {
+    // 기타 — 직접 iframe (브라우저 핸들러에 위임). 다운로드만 가능할 수 있음.
+    $('#vw-frame').removeAttribute('srcdoc');
+    $('#vw-frame').src = inlineUrl;
+  }
+
+  $('#viewer-modal').hidden = false;
+}
+
+function openLicModal(row) {
+  if (!STATE.selected) return alert('고객을 먼저 선택하세요.');
+  STATE.editLicId = row ? row.id : null;
+  $('#lic-title').textContent = row ? '라이선스 수정' : '소프트웨어 라이선스 등록';
+  $('#lic-customer').value = STATE.selected;
+  $('#lic-software').value = row?.software_name || '';
+  $('#lic-vendor').value   = row?.vendor || '';
+  $('#lic-seats').value    = row?.seats || 1;
+  $('#lic-purchase').value = row?.purchase_date || '';
+  $('#lic-expiry').value   = row?.expiry_date || '';
+  $('#lic-amount').value   = row?.amount || '';
+  $('#lic-alert').value    = row?.alert_days || 30;
+  $('#lic-key').value      = row?.license_key || '';
+  $('#lic-notes').value    = row?.notes || '';
+  setStatus('#lic-status', '', '');
+  $('#lic-modal').hidden = false;
+}
+
+$('#lic-submit').addEventListener('click', async () => {
+  const customer = STATE.selected;
+  const software = $('#lic-software').value.trim();
+  const expiry   = $('#lic-expiry').value;
+  if (!customer) return setStatus('#lic-status', '고객이 선택되지 않았습니다.', 'err');
+  if (!software) return setStatus('#lic-status', '소프트웨어명을 입력하세요.', 'err');
+  if (!expiry)   return setStatus('#lic-status', '만기일을 입력하세요.', 'err');
+
+  const rc = STATE.rental_names.find(r => r.name === customer);
+  const payload = {
+    customer_name: customer,
+    rental_customer_id: rc ? rc.id : null,
+    software_name: software,
+    vendor: $('#lic-vendor').value.trim() || null,
+    seats: parseInt($('#lic-seats').value) || 1,
+    purchase_date: $('#lic-purchase').value || null,
+    expiry_date: expiry,
+    amount: parseInt($('#lic-amount').value) || null,
+    alert_days: parseInt($('#lic-alert').value) || 30,
+    license_key: $('#lic-key').value.trim() || null,
+    notes: $('#lic-notes').value.trim() || null,
+  };
+  setStatus('#lic-status', '저장 중...');
+  let res;
+  if (STATE.editLicId) {
+    res = await sb().from('software_licenses').update(payload).eq('id', STATE.editLicId);
+  } else {
+    payload.created_by = window.currentUser?.id || null;
+    res = await sb().from('software_licenses').insert(payload);
+  }
+  if (res.error) return setStatus('#lic-status', '저장 실패: ' + res.error.message, 'err');
+  setStatus('#lic-status', '완료', 'ok');
+  await Promise.all([loadCustomerDetail(customer), loadCustomerIndex(), loadAlerts(), loadAllData()]);
+  setTimeout(() => $('#lic-modal').hidden = true, 300);
+});
+
+async function deleteLicense(row) {
+  if (!confirm(`"${row.software_name}" 라이선스를 삭제할까요?`)) return;
+  const { error } = await sb().from('software_licenses').delete().eq('id', row.id);
+  if (error) return alert('삭제 실패: ' + error.message);
+  await Promise.all([loadCustomerDetail(STATE.selected), loadCustomerIndex(), loadAlerts(), loadAllData()]);
+}
+
+// 모달 닫기 (모든 [data-close="1"] 공통)
+$$('[data-close="1"]').forEach(el => {
+  el.addEventListener('click', () => {
+    const m = el.closest('.pm-modal');
+    if (!m) return;
+    m.hidden = true;
+    if (m.id === 'viewer-modal') {
+      $('#vw-frame').removeAttribute('srcdoc');
+      $('#vw-frame').src = 'about:blank';
+    } else if (m.id === 'upload-modal') {
+      STATE.editArchiveId = null;
+      STATE.editArchive   = null;
+    } else if (m.id === 'lic-modal') {
+      STATE.editLicId = null;
+    }
+  });
+});
+
+$('#customer-search').addEventListener('input', renderCustomerList);
+
+// 제품/소프트웨어 검색 — 좌측 목록과 우측 컨텐츠 모두 필터
+$('#product-search').addEventListener('input', () => {
+  renderCustomerList();
+  renderContent();
+});
+
+// 신규 고객 — prompt 로 이름 받기
+$('#btn-new-customer').addEventListener('click', () => {
+  const defaultName = $('#customer-search').value.trim();
+  const name = (window.prompt('신규 고객명을 입력하세요.', defaultName) || '').trim();
+  if (!name) return;
+  // 기존 고객이면 그냥 선택, 신규면 빈 상세 화면으로 진입
+  loadCustomerDetail(name);
+  $('#customer-search').value = '';
+  renderCustomerList();
+});
+
+// ☰ 전체 메뉴 — 소프트웨어고객자료실 첫 진입 상태로 완전 초기화
+$('#btn-toggle-menu').addEventListener('click', () => {
+  $('#customer-search').value = '';
+  $('#product-search').value = '';
+  STATE.selected        = null;
+  STATE.category_filter = '전체';
+  renderCustomerList();
+  renderContent();
+});
+
+async function boot() {
+  await Promise.all([loadRentalCustomers(), loadCustomerIndex(), loadAlerts(), loadAllData()]);
+  if (!STATE.selected) renderContent();   // 첫 화면 전체 보기 렌더
+}
+if (window.currentUser) {
+  boot();
+} else {
+  document.addEventListener('totalas:ready', boot, { once: true });
+  setTimeout(() => { if (!STATE.customers.length) boot(); }, 2500);
+}
+</script>
+</body>
+</html>
