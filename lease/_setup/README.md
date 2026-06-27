@@ -16,7 +16,7 @@
 > **이미 운영 데이터가 들어간 뒤에는 재실행 금지**(데이터 날아감).
 
 ## 로그인 확인
-- 임대관리: `https://hanbyeolsystem.github.io/asms-digix/lease/asms.html`
+- 임대관리: `https://digix.co.kr/lease/asms.html`
 - 아이디 `admin` / 비번 `admin` (A/S 와 동일 계정 공용)
 - 추가 직원 계정은 [사용자 관리] 메뉴에서 발급(Supabase service key 필요).
 
