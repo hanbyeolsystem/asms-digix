@@ -1305,6 +1305,11 @@ COMMENT ON COLUMN rental_customers.billing_types IS
   '발행 구분 다중 선택 (체크박스). 가능 값: 전자세금계산서 / 거래명세표 / (예전: 종이세금계산서 / 현금영수증).
    기존 billing_type 단일 컬럼도 호환성 유지(첫 번째 값과 동기화).';
 
+-- (디직스 보강) 호환용 단일 컬럼 billing_type — 한별 원본은 MCP로 직접 추가돼 있던 컬럼이라
+-- 추적된 마이그레이션엔 없어 빈 디직스 DB엔 존재하지 않음. 먼저 만들어 둔다.
+ALTER TABLE rental_customers
+  ADD COLUMN IF NOT EXISTS billing_type TEXT NULL;
+
 -- 기존 데이터 마이그레이션 — billing_type 에 값 있고 billing_types 가 NULL 이면 1원소 배열로 채움
 UPDATE rental_customers
    SET billing_types = ARRAY[billing_type]
