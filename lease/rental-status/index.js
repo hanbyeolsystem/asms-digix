@@ -39,6 +39,7 @@
     billingGroups: [],    // rental_billing_groups 원본
     items: [],
     assignments: [],
+    orders: [],           // ASMS 접수(orders) 중 임대 관련 건 (교체/초기설치/회수)
     loaded: false,
     activeTab: 'customers',
     charts: {},  // 차트 인스턴스 보관
@@ -363,20 +364,28 @@
     const supa = window.totalasAuth;
     if (!supa) throw new Error('Supabase 클라이언트 미초기화');
     await loadCategoriesFromMaster();
-    const [cuRes, itRes, asRes, bgRes] = await Promise.all([
+    const leaseKindList = '("임대초기설치","임대제품교체","임대제품회수")';
+    const [cuRes, itRes, asRes, bgRes, odRes] = await Promise.all([
       supa.from('rental_customers').select('*').range(0, 9999),
       supa.from('rental_items').select('*').range(0, 9999),
       supa.from('rental_assignments').select('*').range(0, 9999),
       supa.from('rental_billing_groups').select('*').range(0, 999),
+      // ASMS 접수관리툴(orders) — 임대 관련 건만 (product 또는 mo_engname 기준)
+      supa.from('orders')
+        .select('seq_no, cu_name, product, mo_engname, process_date, re_now, status')
+        .or(`product.in.${leaseKindList},mo_engname.in.${leaseKindList}`)
+        .range(0, 9999),
     ]);
     if (cuRes.error) throw cuRes.error;
     if (itRes.error) throw itRes.error;
     if (asRes.error) throw asRes.error;
-    // billing_groups 실패는 치명적이지 않음 — 빈 배열로 폴백
+    // billing_groups / orders 실패는 치명적이지 않음 — 빈 배열로 폴백
     state.customers = cuRes.data || [];
     state.items = itRes.data || [];
     state.assignments = asRes.data || [];
     state.billingGroups = bgRes.error ? [] : (bgRes.data || []);
+    state.orders = odRes.error ? [] : (odRes.data || []);
+    if (odRes.error) console.warn('[rental-status] ASMS orders 로드 실패:', odRes.error);
     state.loaded = true;
   }
 
@@ -987,263 +996,222 @@
   const _chartDrills = {};
 
   // ============================================================
-  // Chart 7: 최근 1년 제품 교체 추이 (월별 막대)
-  // 데이터: rental_items.status='replaced' + updated_at (교체 처리 시점)
+  // ASMS 접수관리툴(orders) 기반 임대 추이 공통 헬퍼
+  // 데이터: orders.product(또는 mo_engname), 상태(re_now/status)가 완료·출고 인 건만,
+  //         process_date('YYYY/MM/DD') 월별 집계
   // ============================================================
-  function renderChartReplaced() {
-    destroyChart('replaced');
+  const LEASE_KIND = { replace: '임대제품교체', install: '임대초기설치', recover: '임대제품회수' };
 
-    // 최근 12개월 레이블 생성
+  function last12Months() {
     const now = new Date();
     const months = [];
     for (let i = 11; i >= 0; i--) {
       const d = new Date(now.getFullYear(), now.getMonth() - i, 1);
       months.push(`${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`);
     }
+    return months;
+  }
 
-    // status='replaced' 자산 필터 — updated_at 기준 월 집계
-    const replacedItems = state.items.filter(it => (it.status || '') === 'replaced');
+  // 지정 임대 항목(kind)의 완료/출고 접수만 추출
+  function leaseOrders(kind) {
+    return (state.orders || []).filter(o => {
+      const k = o.product || o.mo_engname || '';
+      const st = o.re_now || o.status || '';
+      return k === kind && (st === '완료' || st === '출고');
+    });
+  }
 
-    // updated_at 컬럼 존재 여부 확인
-    const hasUpdatedAt = replacedItems.length === 0 ||
-      replacedItems.some(it => it.updated_at != null);
+  // process_date('YYYY/MM/DD' 또는 'YYYY-MM-DD') → 'YYYY-MM'
+  function orderYM(o) {
+    return String(o.process_date || '').replace(/\//g, '-').slice(0, 7);
+  }
 
-    const monthlyCounts = {};
-    months.forEach(m => { monthlyCounts[m] = []; });
+  // 드릴 항목(orders 타입) 변환 — 최신순
+  function makeOrderDrillItems(list) {
+    return list.map(o => ({
+      company: String(o.cu_name || '').trim() || '–',
+      kind: o.product || o.mo_engname || '–',
+      date: String(o.process_date || '').replace(/\//g, '-'),
+      seq: o.seq_no,
+    })).sort((a, b) => (b.date || '').localeCompare(a.date || ''));
+  }
 
-    if (hasUpdatedAt) {
-      for (const it of replacedItems) {
-        const raw = it.updated_at || '';
-        if (!raw) continue;
-        const ym = raw.slice(0, 7); // 'YYYY-MM'
-        if (monthlyCounts[ym] !== undefined) {
-          monthlyCounts[ym].push(it);
-        }
-      }
+  // 월별 집계 — orders 를 month 버킷에 적재
+  function bucketOrdersByMonth(kind, months) {
+    const buckets = {};
+    months.forEach(m => { buckets[m] = []; });
+    for (const o of leaseOrders(kind)) {
+      const ym = orderYM(o);
+      if (buckets[ym] !== undefined) buckets[ym].push(o);
     }
+    return buckets;
+  }
 
-    const counts = months.map(m => (monthlyCounts[m] || []).length);
+  // 막대 차트 공통 옵션 빌더 (월별 추이)
+  function monthlyBarOptions(months, drillKey, unitLabel, buckets, drillTitleFn) {
+    return {
+      responsive: true,
+      maintainAspectRatio: false,
+      plugins: {
+        legend: { display: false },
+        tooltip: {
+          callbacks: {
+            title: (items) => months[items[0].dataIndex],
+            label: c => `${c.raw}${unitLabel}`,
+          },
+        },
+      },
+      scales: {
+        y: { ticks: { font: { size: 11 }, stepSize: 1 }, beginAtZero: true },
+        x: { ticks: { font: { size: 10 } } },
+      },
+      onClick: (evt, els) => {
+        if (!els.length) { openDrillModal(_chartDrills[drillKey]); return; }
+        const ym = months[els[0].index];
+        const list = buckets[ym] || [];
+        if (!list.length) return;
+        openDrillModal({ type: 'orders', title: drillTitleFn(ym, list.length), items: makeOrderDrillItems(list) });
+      },
+    };
+  }
+
+  // ============================================================
+  // Chart 7: 최근 1년 제품 교체 추이 (월별 막대)
+  // 데이터: ASMS 접수 '임대제품교체' (완료/출고)
+  // ============================================================
+  function renderChartReplaced() {
+    destroyChart('replaced');
+    const months = last12Months();
+    const buckets = bucketOrdersByMonth(LEASE_KIND.replace, months);
+    const counts = months.map(m => buckets[m].length);
     const totalYear = counts.reduce((s, v) => s + v, 0);
 
-    // KPI 핵심 숫자
     const kpiEl = document.getElementById('kpi-replaced');
     if (kpiEl) kpiEl.innerHTML = `${totalYear}<span class="unit">건 교체</span>`;
 
-    // 자산 드릴 항목 변환 (로컬 헬퍼)
-    const assignMap7 = buildItemAssignMap();
-    const custMap7 = buildCustomerMap();
-    function makeReplacedDrillItems(itemList) {
-      return itemList.map(it => {
-        const a = assignMap7.get(it.id);
-        const c = a ? (custMap7.get(a.customer_id) || {}) : {};
-        return {
-          cat: classifyItem(it, a),
-          subtype: it.subtype || '–',
-          model: [it.brand, it.model].filter(Boolean).join(' ') || '–',
-          company: c.company || '미배정',
-          ageM: ageMonths(it),
-          installDate: it.install_date || '',
-          itemId: it.id,
-        };
-      }).sort((a, b) => (b.ageM || 0) - (a.ageM || 0));
-    }
-
-    // 드릴 데이터 (전체: 1년간 모든 교체 자산)
-    const allReplacedInYear = months.flatMap(m => monthlyCounts[m] || []);
     _chartDrills['replaced'] = {
-      type: 'assets',
-      title: `1년간 교체 자산 ${totalYear}건`,
-      items: makeReplacedDrillItems(allReplacedInYear),
+      type: 'orders',
+      title: `1년간 제품 교체 ${totalYear}건`,
+      items: makeOrderDrillItems(months.flatMap(m => buckets[m])),
     };
 
-    // 캡션
     const last3avg = counts.slice(-3).reduce((s, v) => s + v, 0) / 3;
     const maxIdx = counts.indexOf(Math.max(...counts));
     const maxMonth = months[maxIdx] || '';
     const maxVal = counts[maxIdx] || 0;
-    let caption = '';
-    if (!hasUpdatedAt) {
-      caption = '데이터 미수집 — updated_at 컬럼이 있으나 교체 자산이 없습니다';
+    let caption;
+    if (!(state.orders || []).length) {
+      caption = 'ASMS 접수(orders) 데이터를 불러오지 못했거나 임대 접수가 없습니다';
     } else if (totalYear === 0) {
-      caption = '최근 1년간 교체 처리된 자산(status=replaced)이 없습니다';
+      caption = "최근 1년간 '임대제품교체' 완료 접수가 없습니다";
     } else {
-      caption = `최근 3개월 평균 ${last3avg.toFixed(1)}건/월 · 교체 가장 많은 달: ${maxMonth} (${maxVal}건)`;
+      caption = `최근 3개월 평균 ${last3avg.toFixed(1)}건/월 · 가장 많은 달: ${maxMonth} (${maxVal}건)`;
     }
 
     const ctx = document.getElementById('chart-replaced');
     if (!ctx) return;
-
     state.charts['replaced'] = new Chart(ctx, {
       type: 'bar',
       data: {
-        labels: months.map(m => m.slice(5)), // 'MM' 표시
-        datasets: [{
-          label: '교체 건수',
-          data: counts,
-          backgroundColor: '#ef4444',
-          borderRadius: 4,
-        }],
+        labels: months.map(m => m.slice(5)),
+        datasets: [{ label: '교체 건수', data: counts, backgroundColor: '#ef4444', borderRadius: 4 }],
       },
-      options: {
-        responsive: true,
-        maintainAspectRatio: false,
-        plugins: {
-          legend: { display: false },
-          tooltip: {
-            callbacks: {
-              title: (items) => months[items[0].dataIndex],
-              label: c => `${c.raw}건 교체`,
-            },
-          },
-        },
-        scales: {
-          y: { ticks: { font: { size: 11 }, stepSize: 1 }, beginAtZero: true },
-          x: { ticks: { font: { size: 10 } } },
-        },
-        onClick: (evt, els) => {
-          if (!els.length) {
-            openDrillModal(_chartDrills['replaced']);
-            return;
-          }
-          const idx = els[0].index;
-          const ym = months[idx];
-          const list = monthlyCounts[ym] || [];
-          if (!list.length) return;
-          openDrillModal({
-            type: 'assets',
-            title: `${ym} 교체 자산 ${list.length}건`,
-            items: makeReplacedDrillItems(list),
-          });
-        },
-      },
+      options: monthlyBarOptions(months, 'replaced', '건 교체', buckets, (ym, n) => `${ym} 제품 교체 ${n}건`),
     });
     setCaption('cap-replaced', caption);
   }
 
   // ============================================================
   // Chart 8: 최근 1년 신규 거래처 추이 (월별 막대)
-  // 데이터: rental_customers.created_at (거래처 등록일)
+  // 데이터: ASMS 접수 '임대초기설치' (완료/출고) — 월별 거래처 수(distinct cu_name)
   // ============================================================
   function renderChartNewCust() {
     destroyChart('newcust');
+    const months = last12Months();
+    const buckets = bucketOrdersByMonth(LEASE_KIND.install, months);
+    const distinctCos = list => new Set(list.map(o => String(o.cu_name || '').trim()).filter(Boolean));
+    const counts = months.map(m => distinctCos(buckets[m]).size);
+    const totalDistinct = distinctCos(months.flatMap(m => buckets[m])).size;
 
-    // 최근 12개월 레이블 생성
-    const now = new Date();
-    const months = [];
-    for (let i = 11; i >= 0; i--) {
-      const d = new Date(now.getFullYear(), now.getMonth() - i, 1);
-      months.push(`${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`);
-    }
-
-    // created_at 컬럼 존재 여부 확인
-    const hasCreatedAt = state.customers.length === 0 ||
-      state.customers.some(c => c.created_at != null);
-
-    const monthlyCusts = {};
-    months.forEach(m => { monthlyCusts[m] = []; });
-
-    if (hasCreatedAt) {
-      for (const c of state.customers) {
-        const raw = c.created_at || '';
-        if (!raw) continue;
-        const ym = raw.slice(0, 7);
-        if (monthlyCusts[ym] !== undefined) {
-          monthlyCusts[ym].push(c);
-        }
-      }
-    }
-
-    const counts = months.map(m => (monthlyCusts[m] || []).length);
-    const totalYear = counts.reduce((s, v) => s + v, 0);
-
-    // KPI 핵심 숫자
     const kpiEl = document.getElementById('kpi-newcust');
-    if (kpiEl) kpiEl.innerHTML = `${totalYear}<span class="unit">개사 신규</span>`;
+    if (kpiEl) kpiEl.innerHTML = `${totalDistinct}<span class="unit">개사 신규</span>`;
 
-    // 드릴 데이터 (전체: 1년간 신규 거래처)
-    const allNewInYear = months.flatMap(m => monthlyCusts[m] || []);
     _chartDrills['newcust'] = {
-      type: 'customers',
-      title: `1년간 신규 거래처 ${totalYear}개사`,
-      items: allNewInYear.map(c => ({
-        company: c.company || '–',
-        contact: c.contact_name || '–',
-        monthlyFee: 0,
-        itemCount: 0,
-        maxAge: null,
-        custId: c.id,
-      })),
+      type: 'orders',
+      title: `1년간 신규 설치 거래처 ${totalDistinct}개사`,
+      items: makeOrderDrillItems(months.flatMap(m => buckets[m])),
     };
 
-    // 캡션
     const last3avg = counts.slice(-3).reduce((s, v) => s + v, 0) / 3;
     const maxIdx = counts.indexOf(Math.max(...counts));
     const maxMonth = months[maxIdx] || '';
     const maxVal = counts[maxIdx] || 0;
-    let caption = '';
-    if (!hasCreatedAt) {
-      caption = '데이터 미수집 — created_at 컬럼 추가 필요';
-    } else if (totalYear === 0) {
-      caption = '최근 1년간 신규 등록된 거래처가 없습니다';
+    let caption;
+    if (!(state.orders || []).length) {
+      caption = 'ASMS 접수(orders) 데이터를 불러오지 못했거나 임대 접수가 없습니다';
+    } else if (totalDistinct === 0) {
+      caption = "최근 1년간 '임대초기설치' 완료 접수가 없습니다";
     } else {
-      caption = `최근 3개월 평균 ${last3avg.toFixed(1)}개사/월 · 신규 가장 많은 달: ${maxMonth} (${maxVal}개사)`;
+      caption = `최근 3개월 평균 ${last3avg.toFixed(1)}개사/월 · 가장 많은 달: ${maxMonth} (${maxVal}개사)`;
     }
 
     const ctx = document.getElementById('chart-newcust');
     if (!ctx) return;
-
     state.charts['newcust'] = new Chart(ctx, {
       type: 'bar',
       data: {
         labels: months.map(m => m.slice(5)),
-        datasets: [{
-          label: '신규 거래처',
-          data: counts,
-          backgroundColor: '#10b981',
-          borderRadius: 4,
-        }],
+        datasets: [{ label: '신규 거래처', data: counts, backgroundColor: '#10b981', borderRadius: 4 }],
       },
-      options: {
-        responsive: true,
-        maintainAspectRatio: false,
-        plugins: {
-          legend: { display: false },
-          tooltip: {
-            callbacks: {
-              title: (items) => months[items[0].dataIndex],
-              label: c => `${c.raw}개사 신규`,
-            },
-          },
-        },
-        scales: {
-          y: { ticks: { font: { size: 11 }, stepSize: 1 }, beginAtZero: true },
-          x: { ticks: { font: { size: 10 } } },
-        },
-        onClick: (evt, els) => {
-          if (!els.length) {
-            openDrillModal(_chartDrills['newcust']);
-            return;
-          }
-          const idx = els[0].index;
-          const ym = months[idx];
-          const list = monthlyCusts[ym] || [];
-          if (!list.length) return;
-          openDrillModal({
-            type: 'customers',
-            title: `${ym} 신규 거래처 ${list.length}개사`,
-            items: list.map(c => ({
-              company: c.company || '–',
-              contact: c.contact_name || '–',
-              monthlyFee: 0,
-              itemCount: 0,
-              maxAge: null,
-              custId: c.id,
-            })),
-          });
-        },
-      },
+      options: monthlyBarOptions(months, 'newcust', '개사 신규', buckets, (ym, n) => `${ym} 신규 설치 ${n}건`),
     });
     setCaption('cap-newcust', caption);
+  }
+
+  // ============================================================
+  // Chart 9: 최근 1년 임대제품 회수 추이 (월별 막대)
+  // 데이터: ASMS 접수 '임대제품회수' (완료/출고)
+  // ============================================================
+  function renderChartRecover() {
+    destroyChart('recover');
+    const months = last12Months();
+    const buckets = bucketOrdersByMonth(LEASE_KIND.recover, months);
+    const counts = months.map(m => buckets[m].length);
+    const totalYear = counts.reduce((s, v) => s + v, 0);
+
+    const kpiEl = document.getElementById('kpi-recover');
+    if (kpiEl) kpiEl.innerHTML = `${totalYear}<span class="unit">건 회수</span>`;
+
+    _chartDrills['recover'] = {
+      type: 'orders',
+      title: `1년간 제품 회수 ${totalYear}건`,
+      items: makeOrderDrillItems(months.flatMap(m => buckets[m])),
+    };
+
+    const last3avg = counts.slice(-3).reduce((s, v) => s + v, 0) / 3;
+    const maxIdx = counts.indexOf(Math.max(...counts));
+    const maxMonth = months[maxIdx] || '';
+    const maxVal = counts[maxIdx] || 0;
+    let caption;
+    if (!(state.orders || []).length) {
+      caption = 'ASMS 접수(orders) 데이터를 불러오지 못했거나 임대 접수가 없습니다';
+    } else if (totalYear === 0) {
+      caption = "최근 1년간 '임대제품회수' 완료 접수가 없습니다";
+    } else {
+      caption = `최근 3개월 평균 ${last3avg.toFixed(1)}건/월 · 가장 많은 달: ${maxMonth} (${maxVal}건)`;
+    }
+
+    const ctx = document.getElementById('chart-recover');
+    if (!ctx) return;
+    state.charts['recover'] = new Chart(ctx, {
+      type: 'bar',
+      data: {
+        labels: months.map(m => m.slice(5)),
+        datasets: [{ label: '회수 건수', data: counts, backgroundColor: '#f59e0b', borderRadius: 4 }],
+      },
+      options: monthlyBarOptions(months, 'recover', '건 회수', buckets, (ym, n) => `${ym} 제품 회수 ${n}건`),
+    });
+    setCaption('cap-recover', caption);
   }
 
   // ============================================================
@@ -1797,6 +1765,7 @@
     renderChartRetention();
     renderChartReplaced();
     renderChartNewCust();
+    renderChartRecover();
     renderChartDonutCount();
     renderChartDonutFee();
     renderChartDonutRtype();
@@ -2225,6 +2194,8 @@
 
     if (drill.type === 'customers') {
       bodyEl.innerHTML = buildCustDrillTable(drill.items);
+    } else if (drill.type === 'orders') {
+      bodyEl.innerHTML = buildOrderDrillTable(drill.items);
     } else {
       bodyEl.innerHTML = buildAssetDrillTable(drill.items);
     }
@@ -2261,6 +2232,26 @@
       </table></div>`;
   }
 
+  function buildOrderDrillTable(items) {
+    if (!items.length) return '<div class="rs-loading">항목 없음</div>';
+    const rows = items.map((r, i) => `
+      <tr>
+        <td>${i+1}</td>
+        <td data-label="거래처"><strong>${escHtml(r.company)}</strong></td>
+        <td data-label="접수항목"><span class="cat-badge">${escHtml(r.kind)}</span></td>
+        <td class="num" data-label="처리일">${r.date ? fmtDate(r.date) : '<span class="muted-cell">–</span>'}</td>
+        <td class="num hide-mobile" data-label="접수번호">${escHtml(String(r.seq ?? '–'))}</td>
+      </tr>`).join('');
+    return `<div style="overflow-x:auto;">
+      <table class="rs-data-table">
+        <thead><tr>
+          <th>#</th><th>거래처</th><th>접수 항목</th>
+          <th class="num">처리일</th><th class="num hide-mobile">접수번호</th>
+        </tr></thead>
+        <tbody>${rows}</tbody>
+      </table></div>`;
+  }
+
   function buildAssetDrillTable(items) {
     if (!items.length) return '<div class="rs-loading">항목 없음</div>';
     const rows = items.map((r, i) => `
@@ -2291,6 +2282,9 @@
     if (d.type === 'customers') {
       rows = [['#','회사명','담당자','월임대료','자산수','최대노후도(개월)']];
       d.items.forEach((r, i) => rows.push([i+1, r.company, r.contact, r.monthlyFee, r.itemCount, r.maxAge == null ? '' : r.maxAge]));
+    } else if (d.type === 'orders') {
+      rows = [['#','거래처','접수항목','처리일','접수번호']];
+      d.items.forEach((r, i) => rows.push([i+1, r.company, r.kind, r.date || '', r.seq ?? '']));
     } else {
       rows = [['#','카테고리','품목','모델','거래처','노후도(개월)','도입일']];
       d.items.forEach((r, i) => rows.push([i+1, r.cat, r.subtype, r.model, r.company, r.ageM == null ? '' : r.ageM, r.installDate || '']));
