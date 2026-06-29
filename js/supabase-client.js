@@ -264,6 +264,17 @@ async function fnCreateEngineer(payload) {
   return { data };
 }
 
+async function fnUpdateEngineer(payload) {
+  if (!window.SB_CONFIGURED) return { error: "Supabase 미설정" };
+  const { data, error } = await sb().functions.invoke("admin-engineers", {
+    method: "PATCH",
+    body: payload,
+  });
+  if (error) return { error: error.message };
+  if (data?.error) return { error: data.error };
+  return { data };
+}
+
 async function fnDeleteEngineer(en_id) {
   if (!window.SB_CONFIGURED) return { error: "Supabase 미설정" };
   const { data, error } = await sb().functions.invoke("admin-engineers", {
@@ -289,6 +300,7 @@ window.dbProductDelete  = dbProductDelete;
 window.dbCustomersAll   = dbCustomersAll;
 window.dbEngineersAll   = dbEngineersAll;
 window.fnCreateEngineer = fnCreateEngineer;
+window.fnUpdateEngineer = fnUpdateEngineer;
 window.fnDeleteEngineer = fnDeleteEngineer;
 window.dbCustomerInsert = dbCustomerInsert;
 window.dbCustomerUpdate = dbCustomerUpdate;

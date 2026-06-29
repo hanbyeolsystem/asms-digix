@@ -29,6 +29,9 @@
 </style>
 <script>
 let ENGINEERS = [];
+let IS_ADMIN = false;
+
+const ROLE_LABEL = { admin: "관리자", engineer: "엔지니어", office: "사무/경리" };
 
 function escapeHtml(s) {
   return String(s ?? "").replace(/[&<>"']/g, c => ({"&":"&amp;","<":"&lt;",">":"&gt;","\"":"&quot;","'":"&#39;"}[c]));
@@ -60,7 +63,13 @@ function renderList(rows) {
     tb.innerHTML = '<tr><td colspan="7" style="text-align:center;padding:20px;">등록된 엔지니어가 없습니다.</td></tr>';
     return;
   }
-  tb.innerHTML = rows.map(r => `
+  tb.innerHTML = rows.map(r => {
+    const actions = IS_ADMIN
+      ? `<a href="javascript:goedit('${escapeHtml(r.en_id)}');">변경</a>
+         &nbsp;|&nbsp;
+         <a href="javascript:godel('${escapeHtml(r.en_id)}', '${escapeHtml(r.en_name)}');">삭제</a>`
+      : `<span style="color:#aaa;">-</span>`;
+    return `
     <tr>
       <td>${escapeHtml(r.en_branch)}</td>
       <td>${escapeHtml(r.en_id)}</td>
@@ -68,9 +77,9 @@ function renderList(rows) {
       <td>${escapeHtml(r.en_tel || "")}</td>
       <td>${escapeHtml(r.en_mobile || "")}</td>
       <td>${escapeHtml((r.created_at || "").substring(0, 10))}</td>
-      <td><a href="javascript:godel('${escapeHtml(r.en_id)}', '${escapeHtml(r.en_name)}');">삭제</a></td>
-    </tr>
-  `).join("");
+      <td>${actions}</td>
+    </tr>`;
+  }).join("");
 }
 
 function applyFilter() { renderList(getQueryFilter(ENGINEERS)); }
@@ -111,15 +120,64 @@ async function submitAdd() {
 }
 
 async function godel(en_id, en_name) {
+  if (!IS_ADMIN) { alert("관리자만 삭제할 수 있습니다."); return; }
   if (!confirm(`엔지니어 [${en_name} (${en_id})] 를 삭제하시겠습니까?\n로그인 계정도 함께 제거됩니다.`)) return;
   const { error } = await window.fnDeleteEngineer(en_id);
   if (error) { alert("삭제 실패: " + error); return; }
   await loadList();
 }
 
-document.addEventListener("DOMContentLoaded", () => {
+function goedit(en_id) {
+  if (!IS_ADMIN) { alert("관리자만 변경할 수 있습니다."); return; }
+  const r = ENGINEERS.find(x => x.en_id === en_id);
+  if (!r) { alert("대상을 찾을 수 없습니다."); return; }
+  const f = document.getElementById("editForm");
+  f.reset();
+  document.getElementById("editMsg").textContent = "";
+  document.getElementById("e_id_label").textContent = r.en_id;
+  f.e_id.value = r.en_id;
+  f.e_name.value = r.en_name || "";
+  f.e_branch.value = r.en_branch || "문경";
+  f.e_tel.value = r.en_tel || "";
+  f.e_mobile.value = r.en_mobile || "";
+  f.e_role.value = ROLE_LABEL[r.en_role] ? r.en_role : "engineer";
+  f.e_password.value = "";
+  document.getElementById("editModal").classList.add("show");
+}
+function closeEditModal() { document.getElementById("editModal").classList.remove("show"); }
+
+async function submitEdit() {
+  const f = document.getElementById("editForm");
+  const en_id = f.e_id.value;
+  const en_name = f.e_name.value.trim();
+  const en_branch = f.e_branch.value || "문경";
+  const en_tel = f.e_tel.value.trim();
+  const en_mobile = f.e_mobile.value.trim();
+  const en_role = f.e_role.value || "engineer";
+  const password = f.e_password.value;
+
+  const msg = document.getElementById("editMsg");
+  msg.className = "modal-msg";
+  if (!en_name) { msg.textContent = "성명은 필수"; msg.classList.add("err"); return; }
+  if (password && password.length < 6) { msg.textContent = "비밀번호는 6자 이상"; msg.classList.add("err"); return; }
+
+  const payload = { en_id, en_name, en_branch, en_tel, en_mobile, en_role };
+  if (password) payload.password = password;
+
+  document.getElementById("editBtn").disabled = true;
+  msg.textContent = "처리 중...";
+  const { error } = await window.fnUpdateEngineer(payload);
+  document.getElementById("editBtn").disabled = false;
+  if (error) { msg.textContent = "실패: " + error; msg.classList.add("err"); return; }
+  msg.textContent = "변경 완료"; msg.classList.add("ok");
+  await loadList();
+  setTimeout(closeEditModal, 600);
+}
+
+document.addEventListener("DOMContentLoaded", async () => {
   document.getElementById("f_value").addEventListener("input", applyFilter);
   document.getElementById("f_name").addEventListener("change", applyFilter);
+  try { IS_ADMIN = await window.currentIsAdmin(); } catch (e) { IS_ADMIN = false; }
   loadList();
 });
 </script>
@@ -213,6 +271,46 @@ document.addEventListener("DOMContentLoaded", () => {
     <div class="modal-foot">
       <button type="button" onclick="closeAddModal()">취소</button>
       <button type="button" id="addBtn" onclick="submitAdd()">등록</button>
+    </div>
+  </div>
+</div>
+
+<!-- 엔지니어 변경 모달 (관리자만) -->
+<div id="editModal" class="modal-backdrop" onclick="if(event.target===this)closeEditModal()">
+  <div class="modal-box">
+    <div class="modal-header">
+      <span>엔지니어 변경</span>
+      <button type="button" class="close-btn" onclick="closeEditModal()">×</button>
+    </div>
+    <div class="modal-body">
+      <form id="editForm" onsubmit="event.preventDefault();submitEdit();">
+        <input type="hidden" id="e_id" name="e_id">
+        <table>
+          <tr><td class="lbl">아이디</td><td><b id="e_id_label" style="font-size:13px;"></b></td></tr>
+          <tr><td class="lbl">성명 *</td><td><input type="text" id="e_name" name="e_name" required placeholder="홍길동"></td></tr>
+          <tr><td class="lbl">근무지역</td><td>
+            <select id="e_branch" name="e_branch">
+              <option value="문경">문경</option>
+              <option value="대구">대구</option>
+            </select>
+          </td></tr>
+          <tr><td class="lbl">전화번호</td><td><input type="text" id="e_tel" name="e_tel" placeholder="053-587-4114"></td></tr>
+          <tr><td class="lbl">휴대폰</td><td><input type="text" id="e_mobile" name="e_mobile" placeholder="010-0000-0000"></td></tr>
+          <tr><td class="lbl">권한</td><td>
+            <select id="e_role" name="e_role">
+              <option value="admin">관리자</option>
+              <option value="engineer">엔지니어</option>
+              <option value="office">사무/경리</option>
+            </select>
+          </td></tr>
+          <tr><td class="lbl">비밀번호</td><td><input type="text" id="e_password" name="e_password" placeholder="(변경할 때만 입력, 6자 이상)" autocomplete="off"></td></tr>
+        </table>
+      </form>
+    </div>
+    <div class="modal-msg" id="editMsg"></div>
+    <div class="modal-foot">
+      <button type="button" onclick="closeEditModal()">취소</button>
+      <button type="button" id="editBtn" onclick="submitEdit()">저장</button>
     </div>
   </div>
 </div>
