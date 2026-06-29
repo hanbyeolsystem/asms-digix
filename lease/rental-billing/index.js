@@ -23,7 +23,9 @@
     overrides: new Map(),    // `${customer_id}|${item_id}|${kind}|${field}` -> override row
     discounts: new Map(),    // customer_id -> amount (카운터 오버 추가요금 할인)
     rateHistory: [],         // rental_item_rate_history 전체 (로드 범위 내)
-    prevBillingsTotal: 0,    // 지난달 발행 총액 (추가요금 있는 건만)
+    prevBillingsTotal: 0,    // 지난달 추가요금 발행액 (할인 후, = prevUsageNet)
+    prevUsageGross: 0,       // 지난달 추가요금 총액 (할인 전)
+    prevUsageNet: 0,         // 지난달 추가요금 발행액 (할인 후)
     prevBillingsCount: 0,    // 지난달 발행 업체 수
     selectedCustomerId: null,
     filterText: '',
@@ -171,16 +173,25 @@
       });
 
       state.billings = new Map();
-      state.prevBillingsTotal = 0;
+      state.prevUsageGross = 0;
+      state.prevUsageNet = 0;
       state.prevBillingsCount = 0;
       (rBill.data || []).forEach((b) => {
         if (b.ym === ym) {
           state.billings.set(b.customer_id, b);
-        } else if (b.ym === prevYm && (b.usage_total || 0) > 0) {
-          state.prevBillingsTotal += b.usage_total || 0;
-          state.prevBillingsCount += 1;
+        } else if (b.ym === prevYm) {
+          const usage = b.usage_total || 0;
+          // 발행 추가요금(할인 후) = 총청구액 − 고정료 (total 에 할인이 이미 반영됨)
+          const net = Math.max(0, (b.total || 0) - (b.fixed_total || 0));
+          const disc = Math.max(0, usage - net);
+          if (usage > 0 || disc > 0) {
+            state.prevUsageGross += usage;
+            state.prevUsageNet += net;
+            state.prevBillingsCount += 1;
+          }
         }
       });
+      state.prevBillingsTotal = state.prevUsageNet; // 호환: 발행액(할인 후)
 
       // override 시스템 비활성화 — rental_items 원본값만 사용 (카운터 모듈과 동일)
       // rental_billing_overrides 테이블/DB는 그대로 두되 코드 경로에서 적용 안 함
@@ -739,7 +750,7 @@
     // 통계: 청구 사유(오버카운터 발생 OR 할인 적용)가 있는 업체 기준 집계
     // = renderList 의 hasUsage 와 동일 조건 (할인만 있어도 포함)
     // 발행총액은 고정료를 제외한 추가요금부 기준으로 합산 (카운터 모듈의 「최종청구액」 합과 일치)
-    let issued = 0, billedSum = 0;
+    let issued = 0, billedSum = 0, thisGross = 0;
     for (const c of state.customers) {
       const b = state.billings.get(c.id);
       const discount = state.discounts.get(c.id) || 0;
@@ -755,10 +766,14 @@
       const hasBillReason = usageTotal > 0 || discount > 0;
       if (!hasBillReason) continue;
       issued += 1;
+      thisGross += usageTotal;            // 추가요금 총액 (할인 전)
       // 발행총액: 순 추가요금 (음수이면 0으로 처리)
       billedSum += Math.max(0, usageNet);
     }
-    const prevSum = state.prevBillingsTotal || 0;
+    const thisDisc = Math.max(0, thisGross - billedSum);   // 이번달 할인금액 (= 총액 − 발행액)
+    const prevGross = state.prevUsageGross || 0;
+    const prevNet = state.prevUsageNet || 0;
+    const prevDisc = Math.max(0, prevGross - prevNet);     // 지난달 할인금액
     const prevCount = state.prevBillingsCount || 0;
     // 청구월 기준 표시: state.ym = 데이터월, billingYm = 청구월
     const billingYm = nextMonth(state.ym);
@@ -788,13 +803,21 @@
         <div class="stat-sub muted">${billingYm} 청구 (오버/할인 포함)</div>
       </div>
       <div class="stat-card">
-        <div class="stat-label">지난달 발행총액</div>
-        <div class="stat-value">₩${fmtKRW(prevSum)}</div>
+        <div class="stat-label">지난달 추가요금</div>
+        <div style="display:flex;flex-direction:column;gap:3px;margin:6px 0;font-size:13px;">
+          <div style="display:flex;justify-content:space-between;"><span class="muted">총금액</span><b>₩${fmtKRW(prevGross)}</b></div>
+          <div style="display:flex;justify-content:space-between;color:#dc2626;"><span>할인금액</span><b>−₩${fmtKRW(prevDisc)}</b></div>
+          <div style="display:flex;justify-content:space-between;font-size:15px;font-weight:700;border-top:1px solid #eee;padding-top:3px;"><span>발행금액</span><span>₩${fmtKRW(prevNet)}</span></div>
+        </div>
         <div class="stat-sub muted">${prevBillingYm} 청구 · ${prevCount}곳</div>
       </div>
       <div class="stat-card">
-        <div class="stat-label">이번달 발행총액</div>
-        <div class="stat-value primary">₩${fmtKRW(billedSum)}</div>
+        <div class="stat-label">이번달 추가요금</div>
+        <div style="display:flex;flex-direction:column;gap:3px;margin:6px 0;font-size:13px;">
+          <div style="display:flex;justify-content:space-between;"><span class="muted">총금액</span><b>₩${fmtKRW(thisGross)}</b></div>
+          <div style="display:flex;justify-content:space-between;color:#dc2626;"><span>할인금액</span><b>−₩${fmtKRW(thisDisc)}</b></div>
+          <div style="display:flex;justify-content:space-between;font-size:15px;font-weight:700;color:#1e3a8a;border-top:1px solid #eee;padding-top:3px;"><span>발행금액</span><span>₩${fmtKRW(billedSum)}</span></div>
+        </div>
         <div class="stat-sub muted">${billingYm} 청구 · ${issued}곳</div>
       </div>
       <div class="stat-card">
