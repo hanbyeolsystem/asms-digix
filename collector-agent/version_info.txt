@@ -1,0 +1,35 @@
+# PyInstaller --version-file 용 윈도우 EXE 메타데이터
+# 회사명 / 제품명 / 저작권을 정식으로 박아 V3 등 백신 휴리스틱이
+# "정체불명 PyInstaller 패커" 로 분류하지 않도록 함.
+VSVersionInfo(
+  ffi=FixedFileInfo(
+    filevers=(1, 0, 0, 0),
+    prodvers=(1, 0, 0, 0),
+    mask=0x3f,
+    flags=0x0,
+    OS=0x40004,
+    fileType=0x1,
+    subtype=0x0,
+    date=(0, 0)
+  ),
+  kids=[
+    StringFileInfo(
+      [
+        StringTable(
+          u'040904B0',
+          [
+            StringStruct(u'CompanyName', u'Digix Korea Co., Ltd.'),
+            StringStruct(u'FileDescription', u'Hanbyeol Printer Counter Collector — SNMP-based printer page/toner monitor for rental fleet'),
+            StringStruct(u'FileVersion', u'1.0.0.0'),
+            StringStruct(u'InternalName', u'digix-collector'),
+            StringStruct(u'LegalCopyright', u'Copyright (c) 2026 Digix Korea Co., Ltd. All rights reserved. Support: 053-588-7119'),
+            StringStruct(u'LegalTrademarks', u'Digix Korea (R)'),
+            StringStruct(u'OriginalFilename', u'digix-collector.exe'),
+            StringStruct(u'ProductName', u'Hanbyeol Counter Collector'),
+            StringStruct(u'ProductVersion', u'1.0.0.0'),
+            StringStruct(u'Comments', u'Internal utility distributed to Digix Korea rental customers only. Source: github.com/hanbyeolsystem/asms-digix'),
+          ])
+      ]),
+    VarFileInfo([VarStruct(u'Translation', [1033, 1200])])
+  ]
+)
