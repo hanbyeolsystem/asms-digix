@@ -608,6 +608,8 @@ function loadMyCompany() {
 // ✍ 전자 서명 (E-SIGNATURE)
 // =============================================
 let customerSig = '';
+let billingText = '';   // 거래처 내역의 발행구분(다중) 표시용
+let payText = '';       // 거래처 내역의 결제방법(다중) 표시용
 let _sigTarget = null;
 let _sigCtx = null;
 let _sigDrawing = false;
@@ -1076,7 +1078,8 @@ function renderRentalPage1() {
           <div class="rental-field-row"><span class="rfl">휴대폰 번호</span><span class="rfv">${esc(val('r-mobile'))}</span></div>
           <div class="rental-field-row"><span class="rfl">설치 주소</span><span class="rfv">${esc(cu.install_addr || cu.addr)}</span></div>
           <div class="rental-field-row"><span class="rfl">전화 / 팩스</span><span class="rfv">${esc(cu.tel)}${cu.fax?' / '+esc(cu.fax):''}</span></div>
-          <div class="rental-field-row"><span class="rfl">발행 구분</span><span class="rfv">□ ${esc(val('r-billing')||'전자세금계산서')}</span></div>
+          <div class="rental-field-row"><span class="rfl">발행 구분</span><span class="rfv">${esc(billingText || val('r-billing') || '전자세금계산서')}</span></div>
+          <div class="rental-field-row"><span class="rfl">결제 방법</span><span class="rfv">${esc(payText || '-')}</span></div>
           <div class="rental-field-row"><span class="rfl">이메일주소</span><span class="rfv">${esc(cu.email)}</span></div>
         </div>
       </div>
@@ -1632,6 +1635,8 @@ function applyFullPayload(p) {
     if (ri[key] != null && $(fid)) $(fid).value = ri[key];
   });
   if (ri.customerSig) customerSig = ri.customerSig;
+  if (ri.rBillingText != null) billingText = ri.rBillingText;
+  if (ri.rPayText != null) payText = ri.rPayText;
 }
 
 // URL hash 의 action=print 이면 렌더 완료 후 인쇄 다이얼로그 자동 표시

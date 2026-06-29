@@ -1160,6 +1160,12 @@ function openPrintContractWindow(customer) {
       rPeriod:  customer.period_years  || 3,
       rDeposit: customer.deposit       || 0,
       rBilling: customer.billing_type  || '전자세금계산서',
+      // 거래처 내역의 발행구분(다중)·결제방법(다중) → 계약서 상단 표시용
+      rBillingText: (Array.isArray(customer.billing_types) && customer.billing_types.length
+                      ? customer.billing_types : [customer.billing_type])
+                      .filter(Boolean).join(', '),
+      rPayText: (Array.isArray(customer.payment_methods) ? customer.payment_methods : [])
+                  .filter(Boolean).join(', '),
       rMobile:  customer.mobile        || ''
     }
   };
