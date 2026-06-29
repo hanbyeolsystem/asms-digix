@@ -82,7 +82,7 @@
 
 <template id="tpl-add-user">
   <h3>+ 엔지니어 추가</h3>
-  <p class="muted-small" style="margin:0 0 14px 0;">새 사용자의 아이디·비밀번호를 정하고, 마지막에 관리자 secret 키로 인증합니다.</p>
+  <p class="muted-small" style="margin:0 0 14px 0;">아이디·비밀번호·역할만 정하면 바로 생성됩니다.</p>
   <form id="add-user-form" autocomplete="off">
     <div class="form-row two">
       <label><span>아이디 *</span><input name="display_id" required minlength="3" placeholder="영문/숫자, 3자 이상"></label>
@@ -97,20 +97,6 @@
         </select>
       </label>
     </div>
-    <fieldset style="margin-top:8px;">
-      <legend>관리자 인증 (Supabase Secret Key)</legend>
-      <p class="muted-small" style="margin:0 0 8px 0;">
-        Supabase Auth의 admin API 호출은 service_role 권한이 필요합니다.<br>
-        키는 이 모달에서만 사용되고 어디에도 저장되지 않습니다 (sessionStorage 옵션 시 브라우저 닫으면 사라짐).
-      </p>
-      <label class="form-row">
-        <span>Secret Key (sb_secret_… 또는 eyJ…)</span>
-        <input name="secret_key" type="password" required placeholder="supabase 대시보드 → Settings → API Keys" style="font-family: ui-monospace, Menlo, Consolas, monospace;">
-      </label>
-      <label style="display:flex;align-items:center;gap:6px;font-size:12.5px;margin-top:6px;">
-        <input type="checkbox" name="remember" id="ck-remember"> 이번 세션에 키 기억하기
-      </label>
-    </fieldset>
     <div id="add-user-msg" class="muted-small" style="color:var(--danger); margin-top:8px;"></div>
     <div class="modal-actions">
       <button class="btn ghost" type="button" data-close>취소</button>

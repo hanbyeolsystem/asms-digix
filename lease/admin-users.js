@@ -3,7 +3,7 @@
 // ===========================================================
 'use strict';
 
-const SECRET_SESSION_KEY = 'digix-lease-admin-secret';
+const ADMIN_USER_FN = 'lease-admin-user';
 
 document.addEventListener('totalas:ready', async (e) => {
   const me = e.detail;
@@ -59,13 +59,6 @@ function openAddModal() {
   document.getElementById('modal-backdrop').classList.remove('hidden');
   box.querySelectorAll('[data-close]').forEach(b => b.addEventListener('click', closeModal));
 
-  // 세션에 저장된 키 복원
-  const savedKey = sessionStorage.getItem(SECRET_SESSION_KEY);
-  if (savedKey) {
-    box.querySelector('[name="secret_key"]').value = savedKey;
-    box.querySelector('#ck-remember').checked = true;
-  }
-
   document.getElementById('add-user-form').addEventListener('submit', async (e) => {
     e.preventDefault();
     const f = e.target;
@@ -73,8 +66,6 @@ function openAddModal() {
     const password   = f.password.value;
     const full_name  = f.full_name.value.trim();
     const role       = f.role.value;
-    const secret     = f.secret_key.value.trim();
-    const remember   = f.remember.checked;
     const msg = document.getElementById('add-user-msg');
     const submitBtn = document.getElementById('add-user-submit');
     msg.textContent = '';
@@ -83,37 +74,14 @@ function openAddModal() {
 
     try {
       if (!/^[a-z0-9_]+$/i.test(display_id)) throw new Error('아이디는 영문/숫자/언더스코어만 사용 가능합니다.');
-      const email = `${display_id}${window.TOTALAS.EMAIL_DOMAIN}`;
 
-      // 1. Supabase Auth admin createUser
-      const r = await fetch(`${window.TOTALAS.URL}/auth/v1/admin/users`, {
+      // Edge Function 으로 생성 — service_role 키는 서버에만 있음 (로그인 관리자 세션으로 인증)
+      const { data, error } = await window.totalasAuth.functions.invoke(ADMIN_USER_FN, {
         method: 'POST',
-        headers: {
-          'apikey': secret,
-          'Authorization': `Bearer ${secret}`,
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({
-          email, password, email_confirm: true,
-          user_metadata: { display_id, role, full_name },
-        }),
+        body: { display_id, password, full_name, role },
       });
-      if (!r.ok) {
-        const txt = await r.text();
-        throw new Error(`auth admin createUser 실패 ${r.status}: ${txt.slice(0, 200)}`);
-      }
-      const created = await r.json();
-      const uid = created.id;
-
-      // 2. rental_user_profiles INSERT
-      const { error: pErr } = await window.totalasAuth.from('rental_user_profiles').insert({
-        user_id: uid, display_id, full_name, role, active: true,
-      });
-      if (pErr) throw pErr;
-
-      // 키 기억
-      if (remember) sessionStorage.setItem(SECRET_SESSION_KEY, secret);
-      else sessionStorage.removeItem(SECRET_SESSION_KEY);
+      if (error) throw new Error(await readFnError(error));
+      if (data?.error) throw new Error(data.error);
 
       closeModal();
       alert(`✅ ${display_id} (${role}) 생성 완료`);
@@ -127,25 +95,26 @@ function openAddModal() {
   });
 }
 
+// Edge Function 오류 메시지 추출 (FunctionsHttpError 는 본문에 상세가 들어있음)
+async function readFnError(error) {
+  try {
+    const body = await error.context?.json?.();
+    if (body?.error) return body.error;
+  } catch (_) {}
+  return error.message || '요청 실패';
+}
+
 async function deleteUser(uid, displayId) {
-  let secret = sessionStorage.getItem(SECRET_SESSION_KEY);
-  if (!secret) {
-    secret = prompt(`'${displayId}' 사용자를 삭제합니다.\n\nSupabase Secret Key (sb_secret_… 또는 eyJ…)를 입력하세요:`);
-    if (!secret) return;
-  }
   if (!confirm(`'${displayId}' 계정을 영구 삭제할까요? 이 작업은 되돌릴 수 없습니다.`)) return;
 
   try {
-    // auth admin deleteUser → 프로필도 ON DELETE CASCADE 로 자동 제거
-    const r = await fetch(`${window.TOTALAS.URL}/auth/v1/admin/users/${uid}`, {
+    // Edge Function 으로 삭제 → 프로필도 ON DELETE CASCADE 로 자동 제거
+    const { data, error } = await window.totalasAuth.functions.invoke(ADMIN_USER_FN, {
       method: 'DELETE',
-      headers: { 'apikey': secret, 'Authorization': `Bearer ${secret}` },
+      body: { user_id: uid },
     });
-    if (!r.ok) {
-      const txt = await r.text();
-      throw new Error(`삭제 실패 ${r.status}: ${txt.slice(0, 200)}`);
-    }
-    sessionStorage.setItem(SECRET_SESSION_KEY, secret);
+    if (error) throw new Error(await readFnError(error));
+    if (data?.error) throw new Error(data.error);
     alert(`삭제됨: ${displayId}`);
     await renderUsers();
   } catch (err) {
