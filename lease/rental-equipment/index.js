@@ -107,6 +107,7 @@
       }
       if (!rdRes.error) {
         state.tonerSeriesByDevice = new Map();
+        const countSeries = new Map(); // device_id → readings (내림차순 전체, 마지막 출력 계산용)
         for (const r of rdRes.data || []) {
           if (!state.readingByDevice.has(r.device_id)) {
             state.readingByDevice.set(r.device_id, r);
@@ -117,6 +118,16 @@
             if (!arr) { arr = []; state.tonerSeriesByDevice.set(r.device_id, arr); }
             arr.push(r);
           }
+          let cs = countSeries.get(r.device_id);
+          if (!cs) { cs = []; countSeries.set(r.device_id, cs); }
+          cs.push(r);
+        }
+        // 기기별 마지막 출력(카운터 마지막 증가) 시각
+        state.lastPrintByDevice = new Map();
+        for (const [devId, arr] of countSeries) {
+          arr.reverse(); // 내림차순 → 오름차순
+          const t = _lastPrintAt(arr);
+          if (t) state.lastPrintByDevice.set(devId, t);
         }
       }
     } catch (e) {
@@ -422,6 +433,8 @@
     const ts = r.read_at || d.last_seen_at;
     const ago = _fmtAgoKor(ts);
     const stale = ts && (Date.now() - new Date(ts).getTime()) > 30 * 60 * 1000;
+    const lastPrintTs = state.lastPrintByDevice?.get?.(d.id) || null;
+    const lastPrintFull = lastPrintTs ? _fmtFullTime(lastPrintTs) : '';
     let statusBadgesHtml = _statusBadges(d, r);
     // 소모품 배송 필요 배지 (여분 없음 + 잔량≤10% + 알람 ON)
     const supSt = state.supplyStatusByDevice && state.supplyStatusByDevice.get(d.id);
@@ -497,6 +510,10 @@
           <span class="lci-label">합계</span>
           <span class="lci-val lci-total-val">${r.total_pages == null ? '–' : fmtInt(r.total_pages)}</span>
         </div>
+        <div class="live-cnt-item">
+          <span class="lci-label">마지막출력</span>
+          <span class="lci-val" style="font-size:11px;font-weight:600;">${lastPrintFull ? escapeHtml(lastPrintFull.slice(5, 16)) : '–'}</span>
+        </div>
       </td>`;
 
     return `
@@ -522,7 +539,9 @@
         <td class="num desktop-only-td">${r.bw == null ? '–' : fmtInt(r.bw)}</td>
         <td class="num desktop-only-td">${r.color == null ? '–' : fmtInt(r.color)}</td>
         <td class="num desktop-only-td">${r.total_pages == null ? '–' : fmtInt(r.total_pages)}</td>
-        <td class="hide-mobile ${stale ? 'ts-stale' : ''}">${ago}</td>
+        <td class="hide-mobile ${stale ? 'ts-stale' : ''}">${ago}
+          <div style="font-size:11px;color:#64748b;white-space:nowrap;margin-top:2px;" title="마지막 출력(카운터 증가) 시각">${lastPrintFull ? '🖨 ' + escapeHtml(lastPrintFull) : '<span style="color:#cbd5e1;">출력기록 없음</span>'}</div>
+        </td>
         <td class="hide-mobile" style="max-width:100px;overflow:hidden;white-space:nowrap;text-overflow:ellipsis;" title="${escapeHtml(d.ip || '')}">${ipDisplay}</td>
         <td class="desktop-only-td"${custAttr} data-label="거래처"
             title="${collectorId ? '더블클릭으로 거래처 변경' : ''}"
