@@ -1002,6 +1002,251 @@
       font-size: 14px;
     }
   }
+
+  /* ===== 장비 상세 버튼 (행 우측) ===== */
+  .live-table .btn-detail {
+    border: none;
+    background: transparent;
+    color: #2563eb;
+    cursor: pointer;
+    font-size: 14px;
+    padding: 2px 6px;
+    border-radius: 4px;
+    transition: all .12s;
+  }
+  .live-table .btn-detail:hover { background: #eff6ff; }
+
+  /* ===== 장비 상세 오버레이 ===== */
+  .detail-modal-backdrop {
+    position: fixed; inset: 0;
+    background: rgba(15,23,42,.55);
+    display: none;
+    align-items: center; justify-content: center;
+    z-index: 1600;
+    padding: 16px;
+  }
+  .detail-modal-backdrop.show { display: flex; }
+  .detail-modal {
+    background: #f8fafc;
+    border-radius: 14px;
+    max-width: 780px; width: 100%;
+    max-height: 92vh;
+    display: flex; flex-direction: column;
+    box-shadow: 0 24px 60px rgba(0,0,0,.3);
+    overflow: hidden;
+  }
+  .detail-modal-head {
+    padding: 14px 18px;
+    border-bottom: 1px solid var(--border);
+    display: flex; justify-content: space-between; align-items: flex-start; gap: 10px;
+    background: linear-gradient(180deg, #eff6ff, #fff);
+  }
+  .detail-modal-head .dm-title {
+    font-weight: 800; font-size: 16px; color: #0f172a;
+    display: flex; align-items: center; gap: 8px; flex-wrap: wrap;
+  }
+  .detail-modal-head .dm-sub {
+    font-size: 12px; color: var(--muted); margin-top: 3px;
+  }
+  .detail-modal-body {
+    padding: 14px 18px; overflow-y: auto; flex: 1;
+    -webkit-overflow-scrolling: touch;
+  }
+
+  .dd-section {
+    background: #fff;
+    border: 1px solid var(--border);
+    border-radius: 12px;
+    padding: 14px 16px;
+    margin-bottom: 12px;
+  }
+  .dd-section .dd-h {
+    font-weight: 700; font-size: 13px; color: #1e3a8a;
+    margin: 0 0 10px 0;
+    display: flex; align-items: center; gap: 6px;
+  }
+  .dd-section .dd-h .dd-h-sub {
+    margin-left: auto; font-size: 11.5px; font-weight: 500; color: var(--muted);
+  }
+
+  /* 기본정보 key-value 그리드 */
+  .dd-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+    gap: 8px 14px;
+  }
+  .dd-kv .dd-k {
+    font-size: 11px; color: var(--muted); text-transform: uppercase; letter-spacing: .3px;
+  }
+  .dd-kv .dd-v {
+    font-size: 13.5px; color: #0f172a; font-weight: 600; margin-top: 1px;
+    word-break: break-all;
+  }
+
+  /* 현재 카운터 3분할 */
+  .dd-cnt {
+    display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px;
+    margin-bottom: 10px;
+  }
+  .dd-cnt .dd-cnt-card {
+    background: #f8fafc; border: 1px solid var(--border);
+    border-radius: 10px; padding: 8px 10px; text-align: center;
+  }
+  .dd-cnt .dd-cnt-label { font-size: 11px; color: var(--muted); }
+  .dd-cnt .dd-cnt-val {
+    font-size: 20px; font-weight: 800; color: #0f172a;
+    font-variant-numeric: tabular-nums; margin-top: 2px;
+  }
+  .dd-cnt .dd-cnt-card.total .dd-cnt-val { color: #1d4ed8; }
+
+  /* 차트 박스 — 왼쪽 그래프 + 오른쪽 범례 (샘플 레이아웃) */
+  .dd-chartrow { display: flex; gap: 16px; align-items: center; flex-wrap: wrap; }
+  .dd-chart { flex: 1 1 360px; min-width: 0; overflow-x: auto; }
+  .dd-chart svg { display: block; width: 100%; height: auto; }
+  .dd-chart-title { font-size: 11.5px; color: var(--muted); margin-bottom: 4px; }
+  .dd-legend-v {
+    flex: 0 0 auto; display: flex; flex-direction: column; gap: 9px;
+    font-size: 12.5px; color: #334155;
+  }
+  .dd-legend-v .dd-legend-h { font-size: 11px; color: var(--muted); font-weight: 700; margin-bottom: 1px; }
+  .dd-leg { display: inline-flex; align-items: center; gap: 6px; }
+  .dd-leg .dd-swatch { width: 11px; height: 11px; border-radius: 2px; flex-shrink: 0; }
+  .dd-empty { color: var(--muted); font-size: 12.5px; padding: 14px 4px; text-align: center; }
+
+  /* 추이 테이블 */
+  table.dd-table { width: 100%; border-collapse: collapse; font-size: 12px; margin-top: 10px; }
+  table.dd-table th, table.dd-table td {
+    padding: 6px 8px; border-bottom: 1px solid var(--border);
+    text-align: right; font-variant-numeric: tabular-nums;
+  }
+  table.dd-table th:first-child, table.dd-table td:first-child { text-align: left; }
+  table.dd-table th {
+    background: #f8fafc; color: var(--muted); font-size: 10.5px;
+    text-transform: uppercase; letter-spacing: .3px; font-weight: 600;
+  }
+  table.dd-table td.dd-use { font-weight: 700; color: #1d4ed8; }
+
+  /* 장치 로그 테이블 — 좌측 정렬 */
+  table.dd-table.dd-log th,
+  table.dd-table.dd-log td { text-align: left; }
+  table.dd-table.dd-log td:last-child,
+  table.dd-table.dd-log th:last-child { text-align: right; white-space: nowrap; font-variant-numeric: tabular-nums; }
+  table.dd-table.dd-log .dd-log-type {
+    display: inline-block; padding: 1px 7px; border-radius: 4px;
+    background: #eff6ff; color: #1d4ed8; font-size: 10.5px; font-weight: 700;
+  }
+
+  /* 이번달 / 월별 카운터 표 (임대카운터 연동) */
+  .dd-month-h { font-weight: 700; font-size: 12.5px; color: #0f172a; margin: 14px 0 6px; }
+  .dd-sub-note { font-size: 11px; color: var(--muted); margin-top: 5px; }
+  .dd-over { color: #b91c1c; font-weight: 700; }
+  table.dd-table.dd-tm-table { max-width: 440px; }
+  table.dd-table.dd-tm-table tbody tr.dd-tm-used td { background: #f8fafc; }
+  table.dd-table.dd-month-table th,
+  table.dd-table.dd-month-table td { padding: 5px 7px; white-space: nowrap; }
+  table.dd-table.dd-month-table td:first-child,
+  table.dd-table.dd-month-table th:first-child {
+    position: sticky; left: 0; background: #f8fafc; z-index: 1; font-weight: 600;
+  }
+
+  /* 메모/관리 이력 */
+  .dd-note-form { display: flex; flex-direction: column; gap: 8px; margin-bottom: 12px; }
+  .dd-note-form textarea {
+    width: 100%; box-sizing: border-box;
+    min-height: 60px; resize: vertical;
+    padding: 10px 12px; border: 1px solid var(--border); border-radius: 8px;
+    font-size: 13px; font-family: inherit; color: var(--text); outline: none;
+  }
+  .dd-note-form textarea:focus { border-color: var(--primary, #2563eb); }
+  .dd-note-form .dd-note-btn {
+    align-self: flex-end;
+    padding: 8px 16px; border: none; border-radius: 8px;
+    background: #2563eb; color: #fff; font-weight: 700; font-size: 13px;
+    cursor: pointer; font-family: inherit;
+  }
+  .dd-note-form .dd-note-btn:disabled { background: #94a3b8; cursor: default; }
+  .dd-note-list { display: flex; flex-direction: column; gap: 8px; }
+  .dd-note-item {
+    border: 1px solid var(--border); border-radius: 8px;
+    padding: 9px 11px; background: #fff;
+  }
+  .dd-note-item .dd-note-body { font-size: 13px; color: #0f172a; white-space: pre-wrap; word-break: break-word; }
+  .dd-note-item .dd-note-meta {
+    font-size: 11px; color: var(--muted); margin-top: 5px;
+    display: flex; gap: 8px; align-items: center;
+  }
+  .dd-note-item .dd-note-del {
+    margin-left: auto; border: none; background: transparent;
+    color: #cbd5e1; cursor: pointer; font-size: 13px; padding: 0 4px;
+  }
+  .dd-note-item .dd-note-del:hover { color: #b91c1c; }
+
+  /* ===== 소모품 배송 필요 배너 ===== */
+  .supply-banner {
+    margin-bottom: 12px;
+    padding: 10px 14px;
+    background: #fef2f2;
+    border: 1px solid #fca5a5;
+    border-radius: 10px;
+    display: flex; flex-direction: column; gap: 8px;
+    color: #b91c1c;
+  }
+  .supply-banner .sb-head { display: flex; align-items: center; gap: 10px; font-size: 13px; }
+  .supply-banner .sb-icon { font-size: 18px; }
+  .supply-banner .sb-text { flex: 1; }
+  .supply-banner .sb-toggle {
+    padding: 5px 12px; background: #dc2626; color: #fff; border: none;
+    border-radius: 6px; font-size: 12px; font-weight: 600; cursor: pointer; font-family: inherit;
+  }
+  .supply-banner .sb-toggle:hover { background: #b91c1c; }
+  .supply-banner .sb-list {
+    display: flex; flex-direction: column; gap: 5px;
+    border-top: 1px solid #fecaca; padding-top: 8px;
+  }
+  .supply-banner .sb-item { font-size: 12.5px; color: #7f1d1d; }
+  .supply-banner .sb-item .sb-cols { font-weight: 700; color: #b91c1c; }
+
+  /* ===== 소모품 관리 섹션 (상세) ===== */
+  .dd-alarm { display: inline-flex; align-items: center; gap: 5px; cursor: pointer; font-weight: 500; }
+  .dd-alarm input { width: 15px; height: 15px; accent-color: #2563eb; cursor: pointer; }
+  .ds-cards { display: flex; flex-direction: column; gap: 8px; }
+  .ds-card {
+    border: 1px solid var(--border); border-radius: 10px; padding: 10px 12px; background: #fff;
+  }
+  .ds-card.deliver { border-color: #fca5a5; background: #fef2f2; }
+  .ds-card .ds-top {
+    display: flex; align-items: center; gap: 12px; flex-wrap: wrap;
+  }
+  .ds-card .ds-color { display: inline-flex; align-items: center; gap: 6px; font-weight: 700; font-size: 13px; min-width: 88px; }
+  .ds-card .ds-level { font-size: 13px; font-variant-numeric: tabular-nums; font-weight: 600; }
+  .ds-card .ds-level.low { color: #b91c1c; }
+  .ds-card .ds-spare { font-size: 12.5px; color: #334155; }
+  .ds-card .ds-spare .ds-rem { font-size: 14px; color: #1d4ed8; cursor: pointer; border-bottom: 1px dotted #93c5fd; }
+  .ds-card .ds-spare .ds-rem:hover { background: #eff6ff; }
+  .ds-card .ds-spare .ds-consumed { color: var(--muted); font-size: 11px; margin-left: 4px; }
+  .ds-card .ds-spare button {
+    margin-left: 4px; padding: 2px 8px; border: 1px solid #cbd5e1; background: #fff;
+    border-radius: 5px; font-size: 11.5px; cursor: pointer; font-family: inherit;
+  }
+  .ds-card .ds-spare button:hover { background: #f1f5f9; }
+  .ds-card .ds-spare .ds-spare-save { border-color: #2563eb; color: #2563eb; font-weight: 700; }
+  .ds-card .ds-spare .ds-spare-input {
+    width: 56px; padding: 3px 6px; border: 1px solid #2563eb; border-radius: 5px;
+    font-size: 13px; font-family: inherit; text-align: right;
+  }
+  .ds-card .ds-status { margin-left: auto; font-size: 12px; }
+  .ds-card .ds-history { margin-top: 8px; border-top: 1px dashed var(--border); padding-top: 7px; }
+  .ds-card .ds-hist-item { font-size: 11.5px; color: #475569; font-variant-numeric: tabular-nums; padding: 1px 0; }
+  .ds-card .ds-hist-item .ds-hist-delta { color: #047857; font-weight: 600; margin-left: 6px; }
+
+  @media (max-width: 768px) {
+    .detail-modal-backdrop { align-items: flex-end; padding: 0; }
+    .detail-modal { border-radius: 20px 20px 0 0; max-width: 100%; max-height: 88vh; }
+    .detail-modal-body { padding: 12px 14px; }
+    .dd-cnt .dd-cnt-val { font-size: 17px; }
+    .live-table .btn-detail { padding: 8px 12px !important; font-size: 16px !important; }
+    .ds-card .ds-status { margin-left: 0; width: 100%; }
+  }
 </style>
 </head>
 <body>
@@ -1081,6 +1326,16 @@
     <button class="ncb-action" id="ncb-open-pair" type="button">매핑하기 →</button>
   </div>
 
+  <!-- ===== 소모품 배송 필요 배너 (자동 표시) ===== -->
+  <div class="supply-banner" id="supply-banner" style="display:none;">
+    <div class="sb-head">
+      <span class="sb-icon">🧴</span>
+      <span class="sb-text"><strong id="sb-count">0</strong>대 장비의 여분 소모품이 없습니다 — 배송이 필요합니다.</span>
+      <button class="sb-toggle" id="sb-toggle" type="button">자세히 ▾</button>
+    </div>
+    <div class="sb-list" id="sb-list" style="display:none;"></div>
+  </div>
+
   <div class="toast" id="toast"></div>
 
   <!-- ===== 모바일 인라인 편집 모달 (PC명 / 모델명 / 거래처) ===== -->
@@ -1140,6 +1395,22 @@
       <div class="pair-modal-foot">
         <button class="btn ghost small" id="btn-cancel-hide" type="button">취소</button>
         <button class="btn small" id="btn-confirm-hide" type="button" style="background:#dc2626;color:#fff;border-color:#dc2626;">삭제</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- ===== 장비 상세 오버레이 ===== -->
+  <div class="detail-modal-backdrop" id="device-detail-modal">
+    <div class="detail-modal">
+      <div class="detail-modal-head">
+        <div>
+          <div class="dm-title" id="dd-title">장비 상세</div>
+          <div class="dm-sub" id="dd-sub"></div>
+        </div>
+        <button class="btn ghost small" id="btn-close-detail" type="button">✕</button>
+      </div>
+      <div class="detail-modal-body" id="dd-body">
+        <!-- JS가 섹션들을 주입 -->
       </div>
     </div>
   </div>

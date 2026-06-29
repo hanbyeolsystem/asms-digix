@@ -9,11 +9,26 @@
 
   const COLLECTOR_OFFLINE_MIN = 15; // 15분간 heartbeat 없으면 offline
 
+  // ── 소모품(토너/잉크) 관리 상수 ──
+  const SUPPLY_COLORS = [
+    { key: 'K', tk: 'toner_k', label: '블랙',   color: '#111827' },
+    { key: 'C', tk: 'toner_c', label: '시안',   color: '#06b6d4' },
+    { key: 'M', tk: 'toner_m', label: '마젠타', color: '#ec4899' },
+    { key: 'Y', tk: 'toner_y', label: '옐로우', color: '#eab308' },
+  ];
+  const SUPPLY_LOW  = 10; // 잔량 ≤10% = 부족
+  const SUPPLY_JUMP = 30; // 직전 대비 +30%p 이상 상승 = 교체로 간주
+
   const state = {
     customers: [],
     collectors: [],            // rental_collectors
     collectorDevices: [],      // rental_collector_devices
     readingByDevice: new Map(),// device_id → 최신 rental_counter_readings
+    tonerSeriesByDevice: new Map(), // device_id → [reading,…] (토너값 있는 것만, 교체감지용)
+    suppliesByDevice: new Map(),    // device_id → { K:{spare_count,set_at}, … }
+    supplyConfig: new Map(),        // device_id → alarm_enabled(boolean)
+    supplyStatusByDevice: new Map(),// device_id → _supplyStatus 결과 (캐시)
+    suppliesAvailable: true,        // 51_device_supplies.sql 적용 여부
     loaded: false,
     collectorSearch: '',       // 실시간 수집기 검색어 (거래처/모델/자산번호)
   };
@@ -91,14 +106,48 @@
         if (!fallback.error) state.collectorDevices = fallback.data || [];
       }
       if (!rdRes.error) {
+        state.tonerSeriesByDevice = new Map();
         for (const r of rdRes.data || []) {
           if (!state.readingByDevice.has(r.device_id)) {
             state.readingByDevice.set(r.device_id, r);
+          }
+          // 교체 감지용 토너 이력 누적 (토너값이 하나라도 있는 reading 만)
+          if (r.toner_k != null || r.toner_c != null || r.toner_m != null || r.toner_y != null) {
+            let arr = state.tonerSeriesByDevice.get(r.device_id);
+            if (!arr) { arr = []; state.tonerSeriesByDevice.set(r.device_id, arr); }
+            arr.push(r);
           }
         }
       }
     } catch (e) {
       console.warn('[rental-equipment] live data 조회 실패:', e);
+    }
+
+    // 소모품 여분 재고 + 알람 설정 (51_device_supplies.sql 미적용 시 graceful)
+    state.suppliesByDevice = new Map();
+    state.supplyConfig = new Map();
+    state.suppliesAvailable = true;
+    try {
+      const [spRes, cfRes] = await Promise.all([
+        supa.from('rental_device_supplies').select('device_id, color, spare_count, set_at').range(0, 9999),
+        supa.from('rental_device_supply_config').select('device_id, alarm_enabled').range(0, 9999),
+      ]);
+      if (spRes.error) {
+        state.suppliesAvailable = false;
+        console.warn('[rental-equipment] rental_device_supplies 조회 실패 (51 미적용?):', spRes.error.message);
+      } else {
+        for (const s of spRes.data || []) {
+          let m = state.suppliesByDevice.get(s.device_id);
+          if (!m) { m = {}; state.suppliesByDevice.set(s.device_id, m); }
+          m[s.color] = { spare_count: s.spare_count, set_at: s.set_at };
+        }
+      }
+      if (!cfRes.error) {
+        for (const c of cfRes.data || []) state.supplyConfig.set(c.device_id, c.alarm_enabled);
+      }
+    } catch (e) {
+      state.suppliesAvailable = false;
+      console.warn('[rental-equipment] 소모품 설정 조회 실패:', e);
     }
 
     state.customers = cuRes.data || [];
@@ -146,6 +195,98 @@
     } else {
       banner.style.display = 'none';
     }
+  }
+
+  // ============================================================
+  // 소모품(토너/잉크) 교체 감지 · 여분 재고 · 부족 알람
+  // ============================================================
+  // 토너 잔량이 직전 대비 +SUPPLY_JUMP 이상 상승 = 교체. 색상별 이벤트 배열(asc) 반환.
+  function _detectReplacements(readings) {
+    if (!readings || !readings.length) return [];
+    const sorted = readings.slice().sort((a, b) => String(a.read_at || '').localeCompare(String(b.read_at || '')));
+    const events = [];
+    const prev = { K: null, C: null, M: null, Y: null };
+    for (const r of sorted) {
+      for (const c of SUPPLY_COLORS) {
+        const v = r[c.tk];
+        if (v == null) continue;
+        const nv = Number(v);
+        if (prev[c.key] != null && (nv - prev[c.key]) >= SUPPLY_JUMP) {
+          events.push({ color: c.key, t: r.read_at, from: prev[c.key], to: nv });
+        }
+        prev[c.key] = nv;
+      }
+    }
+    return events;
+  }
+
+  // 장비 1대의 색상별 소모품 상태 (잔량/여분/교체이력/배송필요)
+  function _supplyStatus(deviceId, latestReading, events) {
+    const evs = events || _detectReplacements(state.tonerSeriesByDevice.get(deviceId) || []);
+    const supplies = state.suppliesByDevice.get(deviceId) || {};
+    const alarmEnabled = state.supplyConfig.has(deviceId) ? !!state.supplyConfig.get(deviceId) : true;
+    const colors = [];
+    let needDelivery = false;
+    for (const c of SUPPLY_COLORS) {
+      const lv = latestReading ? latestReading[c.tk] : null;
+      if (lv == null) continue; // 장착되지 않은 색상 제외
+      const level = Number(lv);
+      const sup = supplies[c.key];
+      const baseline = sup ? (Number(sup.spare_count) || 0) : 0;
+      const setAt = sup ? sup.set_at : null;
+      const colorEvents = evs.filter(e => e.color === c.key)
+        .sort((a, b) => String(b.t).localeCompare(String(a.t)));
+      const consumed = setAt
+        ? colorEvents.filter(e => new Date(e.t) > new Date(setAt)).length
+        : colorEvents.length;
+      const remaining = Math.max(0, baseline - consumed);
+      const low = level <= SUPPLY_LOW;
+      // 51 미적용(여분 추적 불가) 시에는 배송필요 알림을 띄우지 않음 (오탐 방지)
+      const deliver = state.suppliesAvailable && low && remaining === 0 && alarmEnabled;
+      if (deliver) needDelivery = true;
+      colors.push({ ...c, level, baseline, setAt, consumed, remaining, low, deliver, events: colorEvents });
+    }
+    return { colors, needDelivery, alarmEnabled };
+  }
+
+  // 전 장비 소모품 상태 캐시 재계산 (메인 배너/행 배지용)
+  function recomputeSupplyStatus() {
+    state.supplyStatusByDevice = new Map();
+    for (const d of state.collectorDevices) {
+      const latest = state.readingByDevice.get(d.id) || null;
+      if (!latest) continue;
+      const evs = _detectReplacements(state.tonerSeriesByDevice.get(d.id) || []);
+      state.supplyStatusByDevice.set(d.id, _supplyStatus(d.id, latest, evs));
+    }
+  }
+
+  // 상단 '소모품 배송 필요' 배너
+  function renderSupplyBanner() {
+    const banner = $('#supply-banner');
+    if (!banner) return;
+    if (!state.suppliesAvailable) { banner.style.display = 'none'; return; }
+    const collectorById = new Map(state.collectors.map(c => [c.id, c]));
+    const custById      = new Map(state.customers.map(c => [c.id, c]));
+    const list = [];
+    for (const d of state.collectorDevices) {
+      const st = state.supplyStatusByDevice.get(d.id);
+      if (!st || !st.needDelivery) continue;
+      const c = collectorById.get(d.collector_id);
+      const cust = c && c.customer_id ? custById.get(c.customer_id) : null;
+      const cols = st.colors.filter(x => x.deliver).map(x => `${x.label} ${x.level}%`).join(', ');
+      list.push({
+        cust: cust ? (_custDisplayName(cust) || cust.company) : '미매핑',
+        model: d.model || '(모델 미상)',
+        asset: d.asset_number || '',
+        cols,
+      });
+    }
+    if (!list.length) { banner.style.display = 'none'; return; }
+    $('#sb-count').textContent = list.length;
+    $('#sb-list').innerHTML = list.map(x =>
+      `<div class="sb-item">🏢 <strong>${escapeHtml(x.cust)}</strong> · ${escapeHtml(x.model)}${x.asset ? ` <span style="color:#9a3412;">(${escapeHtml(x.asset)})</span>` : ''} — <span class="sb-cols">${escapeHtml(x.cols)}</span></div>`
+    ).join('');
+    banner.style.display = 'flex';
   }
 
   // ---------- 실시간 수집기 데이터 ----------
@@ -281,7 +422,13 @@
     const ts = r.read_at || d.last_seen_at;
     const ago = _fmtAgoKor(ts);
     const stale = ts && (Date.now() - new Date(ts).getTime()) > 30 * 60 * 1000;
-    const statusBadgesHtml = _statusBadges(d, r);
+    let statusBadgesHtml = _statusBadges(d, r);
+    // 소모품 배송 필요 배지 (여분 없음 + 잔량≤10% + 알람 ON)
+    const supSt = state.supplyStatusByDevice && state.supplyStatusByDevice.get(d.id);
+    if (supSt && supSt.needDelivery) {
+      const cols = supSt.colors.filter(x => x.deliver).map(x => x.label).join('/');
+      statusBadgesHtml += `<span class="st-tag danger" title="여분 소모품 없음 (${escapeHtml(cols)}) — 배송 필요"><span class="st-dot"></span>🧴 소모품</span>`;
+    }
 
     // 거래처명 (카드 줄1에 표시용) — 거래처상호(trade_name) 우선, 없으면 사업자상호(company)
     const custName = cust ? escapeHtml(cust.trade_name || cust.company || '') : '';
@@ -308,6 +455,7 @@
             <span${assetAttr} class="mob-asset" title="탭하여 자산번호 입력">${assetCell}</span>
           </span>
           <span class="mob-status">${statusBadgesHtml}</span>
+          <button class="btn-detail mob-detail" type="button" data-detail="${escapeHtml(d.id)}" title="상세 보기">🔍</button>
           <button class="btn-hide mob-hide" type="button" data-hide="${escapeHtml(d.id)}" title="삭제">✕</button>
         </div>
         <div${modelAttr} class="mob-model" title="탭하여 모델명 변경">${modelCell}${src === 'USB' ? '<span style="margin-left:6px;font-size:10px;color:#6b7280;font-family:monospace;background:#f3f4f6;padding:1px 5px;border-radius:3px;vertical-align:middle;">USB</span>' : ''}</div>
@@ -380,7 +528,7 @@
             title="${collectorId ? '더블클릭으로 거래처 변경' : ''}"
             style="min-width:90px;max-width:130px;overflow:hidden;white-space:nowrap;text-overflow:ellipsis;"
             >${custCellContent}</td>
-        <td class="desktop-only-td"><button class="btn-hide" type="button" data-hide="${escapeHtml(d.id)}" title="이 장비를 실시간 목록에서 삭제 (디직스코리아 제품 아님 등)">✕</button></td>
+        <td class="desktop-only-td" style="white-space:nowrap;"><button class="btn-detail" type="button" data-detail="${escapeHtml(d.id)}" title="장비 상세 보기">🔍</button><button class="btn-hide" type="button" data-hide="${escapeHtml(d.id)}" title="이 장비를 실시간 목록에서 삭제 (디직스코리아 제품 아님 등)">✕</button></td>
       </tr>`;
   }
 
@@ -1349,6 +1497,633 @@
     showToast(`${dataRows.length}대 카운터 엑셀 생성됨${tail}`);
   }
 
+  // ============================================================
+  // 장비 상세 오버레이 (기본정보 + 현재상태 + 카운터/토너 추이 + 메모)
+  // ============================================================
+  let _detailDeviceId = null;
+  let _detailCtx = null; // { d, readings, latest, notes, notesAvailable } — 소모품 섹션 부분 갱신용
+
+  async function openDeviceDetail(deviceId) {
+    const d = state.collectorDevices.find(x => x.id === deviceId);
+    if (!d) { showToast('장비 정보를 찾을 수 없습니다'); return; }
+    _detailDeviceId = deviceId;
+    const c    = state.collectors.find(x => x.id === d.collector_id) || null;
+    const cust = c && c.customer_id ? state.customers.find(x => x.id === c.customer_id) : null;
+    const custName = cust ? (_custDisplayName(cust) || cust.company) : '미매핑';
+
+    $('#dd-title').innerHTML = `🖨 ${escapeHtml(d.model || '(모델 미상)')}` +
+      (d.asset_number ? ` <span style="font-size:13px;color:#0369a1;font-weight:700;">🏷 ${escapeHtml(d.asset_number)}</span>` : '');
+    $('#dd-sub').textContent = `${custName}${c && c.pc_name ? ' · 💻 ' + c.pc_name : ''}`;
+    $('#dd-body').innerHTML = `<div class="dd-empty">불러오는 중…</div>`;
+    $('#device-detail-modal').classList.add('show');
+
+    // 전체 이력(readings) + 메모(notes) 온디맨드 병렬 로딩
+    const supa = window.totalasAuth;
+    let readings = [], notes = [], notesAvailable = true;
+    try {
+      const [rdRes, ntRes] = await Promise.all([
+        supa.from('rental_counter_readings')
+            .select('bw, color, total_pages, toner_k, toner_c, toner_m, toner_y, alert_text, read_at')
+            .eq('device_id', deviceId)
+            .order('read_at', { ascending: true })
+            .range(0, 99999),
+        supa.from('rental_device_notes')
+            .select('id, body, created_by, created_at')
+            .eq('device_id', deviceId)
+            .order('created_at', { ascending: false })
+            .range(0, 9999),
+      ]);
+      if (!rdRes.error) readings = rdRes.data || [];
+      if (ntRes.error) notesAvailable = false; // 50_device_notes.sql 미적용
+      else notes = ntRes.data || [];
+    } catch (e) {
+      console.warn('[rental-equipment] 상세 데이터 로드 실패:', e);
+    }
+
+    // 자산(rental_items) 연결 → 월별 카운터(rental_counters) + 계약 기본카운터(rental_assignments)
+    // 연결 우선순위: device.item_id → asset_number → serial_snmp
+    let item = null, assignment = null, monthlyCounters = [];
+    try {
+      if (d.item_id) {
+        const r = await supa.from('rental_items')
+          .select('id, counter_mode, total_free_count, asset_number, serial').eq('id', d.item_id).maybeSingle();
+        if (!r.error) item = r.data;
+      } else {
+        const ors = [];
+        const an = (d.asset_number || '').trim().replace(/,/g, '');
+        const sn = (d.serial_snmp || '').trim().replace(/,/g, '');
+        if (an.length >= 2) ors.push(`asset_number.eq.${an}`);
+        if (sn)            ors.push(`serial.eq.${sn}`);
+        if (ors.length) {
+          const r = await supa.from('rental_items')
+            .select('id, counter_mode, total_free_count, asset_number, serial').or(ors.join(',')).limit(1);
+          if (!r.error && r.data && r.data.length) item = r.data[0];
+        }
+      }
+      if (item) {
+        const [acRes, asRes] = await Promise.all([
+          supa.from('rental_counters').select('ym, bw, color')
+              .eq('item_id', item.id).order('ym', { ascending: true }).range(0, 9999),
+          supa.from('rental_assignments')
+              .select('bw_free, co_free, monthly_fee, customer_id, start_date, end_date').eq('item_id', item.id),
+        ]);
+        if (!acRes.error) monthlyCounters = acRes.data || [];
+        if (!asRes.error && asRes.data && asRes.data.length) {
+          const today = new Date().toISOString().slice(0, 10);
+          const active = asRes.data.filter(a => !a.end_date || a.end_date >= today);
+          assignment = (cust && active.find(a => a.customer_id === cust.id)) || active[0] || asRes.data[0];
+        }
+      }
+    } catch (e) {
+      console.warn('[rental-equipment] 자산/카운터 연동 로드 실패:', e);
+    }
+
+    if (_detailDeviceId !== deviceId) return; // 그 사이 닫힘/전환되면 폐기
+    renderDeviceDetail(d, c, cust, readings, notes, notesAvailable, item, assignment, monthlyCounters);
+  }
+
+  function closeDeviceDetail() {
+    $('#device-detail-modal').classList.remove('show');
+    _detailDeviceId = null;
+  }
+
+  function renderDeviceDetail(d, c, cust, readings, notes, notesAvailable, item, assignment, monthlyCounters) {
+    const latest = readings.length ? readings[readings.length - 1]
+                 : (state.readingByDevice.get(d.id) || {});
+    const src = _classifySource(d);
+    const custName = cust ? (_custDisplayName(cust) || cust.company) : '미매핑';
+    const kv = (k, v) => `<div class="dd-kv"><div class="dd-k">${k}</div><div class="dd-v">${v}</div></div>`;
+
+    // 1. 기본정보
+    const infoHtml = `
+      <div class="dd-section">
+        <div class="dd-h">📋 기본 정보</div>
+        <div class="dd-grid">
+          ${kv('거래처', escapeHtml(custName))}
+          ${kv('설치 PC', escapeHtml((c && c.pc_name) || '–'))}
+          ${kv('모델', escapeHtml(d.model || '–'))}
+          ${kv('제조사', escapeHtml(d.manufacturer || '–'))}
+          ${kv('자산번호', d.asset_number ? escapeHtml(d.asset_number) : '<span style="color:#94a3b8;">미입력</span>')}
+          ${kv('일련번호', escapeHtml(d.serial_snmp || '–'))}
+          ${kv('연결', src === 'USB' ? 'USB' : 'SNMP')}
+          ${kv('IP', src === 'USB' ? 'USB' : escapeHtml(d.ip || '–'))}
+          ${kv('유형', d.is_color ? '컬러기' : '흑백기')}
+          ${kv('최초 발견', _fmtAgoKor(d.first_seen_at))}
+        </div>
+      </div>`;
+
+    // 2. 현재 상태
+    const statusBadgesHtml = _statusBadges(d, latest);
+    const ts = latest.read_at || d.last_seen_at;
+    const curHtml = `
+      <div class="dd-section">
+        <div class="dd-h">📊 현재 상태 <span class="dd-h-sub">${ts ? escapeHtml(_fmtAgoKor(ts)) + ' 기준' : '데이터 없음'}</span></div>
+        <div class="dd-cnt">
+          <div class="dd-cnt-card"><div class="dd-cnt-label">흑백 누적</div><div class="dd-cnt-val">${latest.bw == null ? '–' : fmtInt(latest.bw)}</div></div>
+          <div class="dd-cnt-card"><div class="dd-cnt-label">컬러 누적</div><div class="dd-cnt-val">${latest.color == null ? '–' : fmtInt(latest.color)}</div></div>
+          <div class="dd-cnt-card total"><div class="dd-cnt-label">합계 누적</div><div class="dd-cnt-val">${latest.total_pages == null ? '–' : fmtInt(latest.total_pages)}</div></div>
+        </div>
+        ${_renderThisMonth(_thisMonthUsage(readings, monthlyCounters), _thisMonthAllowance(item, assignment), !!item)}
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:6px 16px;max-width:380px;margin-top:12px;">
+          ${_fmtTonerRow('K', latest.toner_k, '#1f2937')}
+          ${_fmtTonerRow('C', latest.toner_c, '#06b6d4')}
+          ${_fmtTonerRow('M', latest.toner_m, '#ec4899')}
+          ${_fmtTonerRow('Y', latest.toner_y, '#eab308')}
+        </div>
+        ${statusBadgesHtml ? `<div style="margin-top:10px;display:flex;gap:4px;flex-wrap:wrap;">${statusBadgesHtml}</div>` : ''}
+      </div>`;
+
+    // 3. 장치 로그 (이벤트)
+    const logHtml = `
+      <div class="dd-section">
+        <div class="dd-h">🧾 장치 로그 <span class="dd-h-sub">용지걸림·오류 등 이벤트</span></div>
+        ${_renderDeviceLog(readings)}
+      </div>`;
+
+    // 4. 카운터확인 (실시간 누적 추이 + 임대거래처 연동 월별 카운터 1년)
+    const counterHtml = `
+      <div class="dd-section">
+        <div class="dd-h">📈 카운터확인 <span class="dd-h-sub">누적 카운터</span></div>
+        ${_renderCounterTrend(readings)}
+        <div class="dd-month-h">📅 월별 카운터 (최근 12개월) <span style="font-weight:500;color:var(--muted);">· 임대카운터 연동 · 1일~말일 기준</span></div>
+        ${_renderMonthly12(monthlyCounters, item)}
+      </div>`;
+
+    // 5. 소모성 (토너 레벨)
+    const tonerHtml = `
+      <div class="dd-section">
+        <div class="dd-h">🎨 소모성 <span class="dd-h-sub">토너 레벨</span></div>
+        ${_renderTonerTrend(readings)}
+      </div>`;
+
+    // 6. 토너/잉크 교체 및 관리 (+ 관리 메모)
+    _detailCtx = { d, readings, latest, notes, notesAvailable };
+    const supplyHtml = _renderSupplySection(d, readings, latest, notes, notesAvailable);
+
+    $('#dd-body').innerHTML = infoHtml + curHtml + logHtml + counterHtml + tonerHtml + supplyHtml;
+
+    if (notesAvailable) {
+      $('#dd-note-add').addEventListener('click', () => addDeviceNote(d.id, $('#dd-note-input').value));
+    }
+  }
+
+  // 소모품 교체·여분 관리 섹션 (교체이력은 readings 에서 산출 / 여분·알람은 51 테이블)
+  function _renderSupplySection(d, readings, latest, notes, notesAvailable) {
+    const events = _detectReplacements(readings);
+    const status = _supplyStatus(d.id, latest, events);
+    const alarmEnabled = status.alarmEnabled;
+
+    const alarmToggle = `
+      <span class="dd-h-sub">
+        <label class="dd-alarm"><input type="checkbox" id="dd-alarm" data-device-id="${escapeHtml(d.id)}" ${alarmEnabled ? 'checked' : ''}${state.suppliesAvailable ? '' : ' disabled'}> 부족 알람</label>
+      </span>`;
+
+    // 색상별 카드
+    let colorsHtml;
+    if (!status.colors.length) {
+      colorsHtml = `<div class="dd-empty">토너 잔량 데이터가 없는 장비입니다.</div>`;
+    } else {
+      colorsHtml = status.colors.map(col => {
+        const stTxt = !col.low
+          ? '<span style="color:#047857;font-weight:600;">정상</span>'
+          : !state.suppliesAvailable
+            ? '<span style="color:#92400e;font-weight:700;">잔량 부족</span>'
+            : col.remaining > 0
+              ? '<span style="color:#92400e;font-weight:700;">교체 임박 (여분 사용)</span>'
+              : '<span class="dd-over">❗ 여분 없음 · 배송 필요</span>';
+        const spareBox = state.suppliesAvailable
+          ? `고객사무실 여분 <strong class="ds-rem ds-spare-edit" data-device-id="${escapeHtml(d.id)}" data-color="${col.key}" data-cur="${col.remaining}" title="클릭하여 재고 수정">${col.remaining}</strong>개
+             <button class="ds-spare-edit" type="button" data-device-id="${escapeHtml(d.id)}" data-color="${col.key}" data-cur="${col.remaining}">재고 입력</button>
+             ${col.consumed ? `<span class="ds-consumed">(입력 후 ${col.consumed}회 교체 차감)</span>` : ''}`
+          : `<span class="dd-sub-note" style="margin:0;">여분/알람: 51_device_supplies.sql 적용 필요</span>`;
+        const hist = col.events.length
+          ? `<div class="ds-history">${col.events.slice(0, 12).map(e =>
+                `<div class="ds-hist-item">🔄 ${escapeHtml(_fmtFullTime(e.t))} <span class="ds-hist-delta">${e.from}% → ${e.to}%</span></div>`).join('')}</div>`
+          : `<div class="ds-history"><span class="dd-sub-note" style="margin:0;">교체 기록 없음</span></div>`;
+        return `
+          <div class="ds-card${col.deliver ? ' deliver' : ''}">
+            <div class="ds-top">
+              <span class="ds-color"><span class="dd-swatch" style="background:${col.color};"></span>${col.label} (${col.key})</span>
+              <span class="ds-level ${col.low ? 'low' : ''}">잔량 ${col.level}%</span>
+              <span class="ds-spare">${spareBox}</span>
+              <span class="ds-status">${stTxt}</span>
+            </div>
+            ${hist}
+          </div>`;
+      }).join('');
+    }
+
+    const memoBlock = `
+      <div class="dd-month-h">📝 관리 메모</div>
+      ${notesAvailable ? `
+        <div class="dd-note-form">
+          <textarea id="dd-note-input" placeholder="점검·AS·기타 관리 기록을 입력하고 추가하세요"></textarea>
+          <button class="dd-note-btn" id="dd-note-add" type="button">추가</button>
+        </div>
+        <div class="dd-note-list" id="dd-note-list">${_renderNotes(notes)}</div>
+      ` : `<div class="dd-empty">메모 기능을 쓰려면 <code>tools/sql/50_device_notes.sql</code> 을 Supabase 에 적용하세요.</div>`}`;
+
+    return `
+      <div class="dd-section">
+        <div class="dd-h">🧴 토너/잉크 교체 및 관리 ${alarmToggle}</div>
+        <div class="ds-cards">${colorsHtml}</div>
+        ${memoBlock}
+      </div>`;
+  }
+
+  function _fmtNoteTime(iso) {
+    if (!iso) return '';
+    const dt = new Date(iso);
+    if (Number.isNaN(dt.getTime())) return '';
+    const p = n => String(n).padStart(2, '0');
+    return `${dt.getFullYear()}-${p(dt.getMonth()+1)}-${p(dt.getDate())} ${p(dt.getHours())}:${p(dt.getMinutes())}`;
+  }
+
+  function _renderNotes(notes) {
+    if (!notes.length) return `<div class="dd-empty">아직 메모가 없습니다.</div>`;
+    return notes.map(n => `
+      <div class="dd-note-item">
+        <div class="dd-note-body">${escapeHtml(n.body)}</div>
+        <div class="dd-note-meta">
+          <span>🕒 ${escapeHtml(_fmtNoteTime(n.created_at))}</span>
+          ${n.created_by ? `<span>· ${escapeHtml(n.created_by)}</span>` : ''}
+          <button class="dd-note-del" type="button" data-note-id="${escapeHtml(n.id)}" title="삭제">🗑</button>
+        </div>
+      </div>`).join('');
+  }
+
+  async function addDeviceNote(deviceId, body) {
+    const text = (body || '').trim();
+    if (!text) { showToast('메모 내용을 입력하세요'); return; }
+    const addBtn = $('#dd-note-add');
+    if (addBtn) { addBtn.disabled = true; addBtn.textContent = '저장 중…'; }
+    const author = (window.currentUser &&
+      (window.currentUser.full_name || window.currentUser.display_id || window.currentUser.email)) || null;
+    try {
+      const supa = window.totalasAuth;
+      const { data, error } = await supa.from('rental_device_notes')
+        .insert({ device_id: deviceId, body: text, created_by: author })
+        .select('id, body, created_by, created_at');
+      if (error) throw error;
+      const input = $('#dd-note-input');
+      if (input) input.value = '';
+      const listEl = $('#dd-note-list');
+      if (listEl) {
+        if (listEl.querySelector('.dd-empty')) listEl.innerHTML = '';
+        listEl.insertAdjacentHTML('afterbegin', _renderNotes(data || []));
+      }
+      if (_detailCtx && data && data[0]) _detailCtx.notes.unshift(data[0]); // 부분 갱신 캐시 동기화
+      showToast('메모 추가됨');
+    } catch (e) {
+      showToast('저장 실패: ' + (e.message || e));
+    } finally {
+      if (addBtn) { addBtn.disabled = false; addBtn.textContent = '추가'; }
+    }
+  }
+
+  async function deleteDeviceNote(noteId, itemEl) {
+    try {
+      const supa = window.totalasAuth;
+      const { error } = await supa.from('rental_device_notes').delete().eq('id', noteId);
+      if (error) throw error;
+      if (itemEl) itemEl.remove();
+      const listEl = $('#dd-note-list');
+      if (listEl && !listEl.children.length) listEl.innerHTML = `<div class="dd-empty">아직 메모가 없습니다.</div>`;
+      if (_detailCtx) _detailCtx.notes = _detailCtx.notes.filter(n => String(n.id) !== String(noteId));
+      showToast('메모 삭제됨');
+    } catch (e) {
+      showToast('삭제 실패: ' + (e.message || e));
+    }
+  }
+
+  // ── 소모품 여분/알람 저장 + 부분 갱신 ──
+  function _refreshSupplyUI(deviceId) {
+    recomputeSupplyStatus();
+    renderSupplyBanner();
+    renderLiveSection();
+    if (_detailDeviceId === deviceId && _detailCtx) {
+      const html = _renderSupplySection(_detailCtx.d, _detailCtx.readings, _detailCtx.latest, _detailCtx.notes, _detailCtx.notesAvailable);
+      const sections = $('#dd-body').querySelectorAll('.dd-section');
+      if (sections.length) {
+        const wrap = document.createElement('div');
+        wrap.innerHTML = html;
+        sections[sections.length - 1].replaceWith(wrap.firstElementChild);
+        if (_detailCtx.notesAvailable) {
+          const addBtn = $('#dd-note-add');
+          if (addBtn) addBtn.addEventListener('click', () => addDeviceNote(deviceId, $('#dd-note-input').value));
+        }
+      }
+    }
+  }
+
+  async function saveSpare(deviceId, color, value) {
+    const n = Math.max(0, Math.floor(Number(value)));
+    if (!Number.isFinite(n)) { showToast('숫자를 입력하세요'); return; }
+    const nowIso = new Date().toISOString();
+    try {
+      const supa = window.totalasAuth;
+      const { error } = await supa.from('rental_device_supplies')
+        .upsert({ device_id: deviceId, color, spare_count: n, set_at: nowIso, updated_at: nowIso }, { onConflict: 'device_id,color' });
+      if (error) throw error;
+      let m = state.suppliesByDevice.get(deviceId);
+      if (!m) { m = {}; state.suppliesByDevice.set(deviceId, m); }
+      m[color] = { spare_count: n, set_at: nowIso };
+      _refreshSupplyUI(deviceId);
+      showToast(`여분 ${n}개로 설정됨 (지금 시점 기준)`);
+    } catch (e) {
+      showToast('저장 실패: ' + (e.message || e));
+    }
+  }
+
+  async function toggleAlarm(deviceId, enabled) {
+    const nowIso = new Date().toISOString();
+    try {
+      const supa = window.totalasAuth;
+      const { error } = await supa.from('rental_device_supply_config')
+        .upsert({ device_id: deviceId, alarm_enabled: enabled, updated_at: nowIso }, { onConflict: 'device_id' });
+      if (error) throw error;
+      state.supplyConfig.set(deviceId, enabled);
+      _refreshSupplyUI(deviceId);
+      showToast(enabled ? '부족 알람 켜짐' : '부족 알람 꺼짐');
+    } catch (e) {
+      showToast('저장 실패: ' + (e.message || e));
+    }
+  }
+
+  // 여분 인라인 편집기 (수정 버튼 클릭 시)
+  function _startSpareEdit(btn) {
+    const span = btn.closest('.ds-spare');
+    if (!span) return;
+    const deviceId = btn.dataset.deviceId, color = btn.dataset.color, cur = btn.dataset.cur || '0';
+    span.innerHTML = `여분 <input type="number" min="0" class="ds-spare-input" value="${escapeHtml(cur)}"> 개
+      <button class="ds-spare-save" type="button">저장</button>
+      <button class="ds-spare-cancel" type="button">취소</button>`;
+    const inp = span.querySelector('.ds-spare-input');
+    inp.focus(); inp.select();
+    span.querySelector('.ds-spare-save').addEventListener('click', () => saveSpare(deviceId, color, inp.value));
+    span.querySelector('.ds-spare-cancel').addEventListener('click', () => _refreshSupplyUI(deviceId));
+    inp.addEventListener('keydown', ev => {
+      if (ev.key === 'Enter')  { ev.preventDefault(); saveSpare(deviceId, color, inp.value); }
+      if (ev.key === 'Escape') { ev.preventDefault(); _refreshSupplyUI(deviceId); }
+    });
+  }
+
+  // ── 추이 차트 (의존성 없는 인라인 SVG) ──
+  // 하루 1포인트로 다운샘플 (5분 폴링 → 일별 마지막 reading). readings 는 asc 정렬.
+  function _dailyBuckets(readings) {
+    const map = new Map();
+    for (const r of readings) {
+      if (!r.read_at) continue;
+      map.set(String(r.read_at).slice(0, 10), r); // 같은 날 뒤쪽(최신)이 덮어씀
+    }
+    return Array.from(map.values())
+      .map(r => ({ t: new Date(r.read_at).getTime(), r }))
+      .filter(d => !Number.isNaN(d.t))
+      .sort((a, b) => a.t - b.t);
+  }
+
+  function _niceMax(v) {
+    if (v <= 0) return 1;
+    const pow = Math.pow(10, Math.floor(Math.log10(v)));
+    const n = v / pow;
+    const m = n <= 1 ? 1 : n <= 2 ? 2 : n <= 2.5 ? 2.5 : n <= 5 ? 5 : 10;
+    return m * pow;
+  }
+
+  // 시간축 다계열 라인 차트 (마커 + 우측 범례) — 샘플 레이아웃
+  // series: [{label, color, points:[{t,v}]}]
+  // opts: { yMax, yTicks:[...], fmtY, legendTitle, axisLabel }
+  function _timeLineChart(series, opts) {
+    const live = series.filter(s => s.points.length);
+    const allPts = live.flatMap(s => s.points);
+    if (allPts.length < 2) return null;
+    const W = 580, H = 210, padL = 46, padR = 10, padT = 12, padB = 46;
+    const plotW = W - padL - padR, plotH = H - padT - padB;
+    const times = allPts.map(p => p.t);
+    const tMin = Math.min(...times), tMax = Math.max(...times);
+    const yMax = opts.yMax != null ? opts.yMax : _niceMax(Math.max(...allPts.map(p => p.v)));
+    const yTicks = opts.yTicks || [0, 0.25, 0.5, 0.75, 1].map(f => Math.round(yMax * f));
+    const xOf = t => padL + (tMax > tMin ? (t - tMin) / (tMax - tMin) : 0.5) * plotW;
+    const yOf = v => padT + (1 - Math.max(0, Math.min(yMax, v)) / (yMax || 1)) * plotH;
+
+    let grid = '';
+    yTicks.forEach(v => {
+      const y = yOf(v);
+      grid += `<line x1="${padL}" y1="${y.toFixed(1)}" x2="${W-padR}" y2="${y.toFixed(1)}" stroke="#eef2f7"></line>`;
+      grid += `<text x="${padL-6}" y="${(y+3).toFixed(1)}" text-anchor="end" font-size="8.5" fill="#94a3b8">${opts.fmtY ? opts.fmtY(v) : fmtInt(v)}</text>`;
+    });
+
+    // x 날짜 라벨 (~8개, -35° 회전)
+    const uniqT = [...new Set(times)].sort((a, b) => a - b);
+    const N = Math.min(8, uniqT.length);
+    const p2 = n => String(n).padStart(2, '0');
+    let xlabels = '';
+    for (let i = 0; i < N; i++) {
+      const idx = N > 1 ? Math.round(i * (uniqT.length - 1) / (N - 1)) : 0;
+      const t = uniqT[idx], x = xOf(t), dt = new Date(t);
+      const lab = `${dt.getFullYear()}/${p2(dt.getMonth()+1)}/${p2(dt.getDate())}`;
+      const ly = H - padB + 13;
+      xlabels += `<text x="${x.toFixed(1)}" y="${ly}" text-anchor="end" font-size="8.5" fill="#94a3b8" transform="rotate(-35 ${x.toFixed(1)} ${ly})">${lab}</text>`;
+    }
+
+    const axis =
+      `<line x1="${padL}" y1="${padT}" x2="${padL}" y2="${padT+plotH}" stroke="#e2e8f0"></line>` +
+      `<line x1="${padL}" y1="${padT+plotH}" x2="${W-padR}" y2="${padT+plotH}" stroke="#e2e8f0"></line>`;
+
+    let body = '';
+    live.forEach(s => {
+      const pts = s.points.slice().sort((a, b) => a.t - b.t);
+      if (pts.length >= 2) {
+        body += `<path d="${pts.map((p, i) => `${i ? 'L' : 'M'}${xOf(p.t).toFixed(1)},${yOf(p.v).toFixed(1)}`).join(' ')}" fill="none" stroke="${s.color}" stroke-width="1.6" stroke-linejoin="round"></path>`;
+      }
+      body += pts.map(p => `<circle cx="${xOf(p.t).toFixed(1)}" cy="${yOf(p.v).toFixed(1)}" r="2.3" fill="${s.color}"></circle>`).join('');
+    });
+
+    const titleHtml = opts.axisLabel ? `<div class="dd-chart-title">${escapeHtml(opts.axisLabel)}</div>` : '';
+    const svg = `<svg viewBox="0 0 ${W} ${H}" preserveAspectRatio="xMidYMid meet" role="img" aria-label="${escapeHtml(opts.legendTitle || '추이')}">${grid}${axis}${xlabels}${body}</svg>`;
+    const legend = `<div class="dd-legend-v">` +
+      (opts.legendTitle ? `<span class="dd-legend-h">${escapeHtml(opts.legendTitle)}</span>` : '') +
+      live.map(s => `<span class="dd-leg"><span class="dd-swatch" style="background:${s.color};"></span>${escapeHtml(s.label)}</span>`).join('') +
+      `</div>`;
+    return `<div class="dd-chartrow"><div class="dd-chart">${titleHtml}${svg}</div>${legend}</div>`;
+  }
+
+  // 카운터확인 — 실시간 누적 카운터 라인 (흑백/풀컬러/결합 합계)
+  function _renderCounterTrend(readings) {
+    const days = _dailyBuckets(readings);
+    const mk = pick => days.filter(d => d.r[pick] != null).map(d => ({ t: d.t, v: Number(d.r[pick]) }));
+    const series = [
+      { label: '흑백 합계',   color: '#2563eb', points: mk('bw') },
+      { label: '풀컬러 합계', color: '#a855f7', points: mk('color') },
+      { label: '결합 합계',   color: '#0891b2', points: mk('total_pages') },
+    ];
+    const chart = _timeLineChart(series, { legendTitle: '범례', axisLabel: '카운터', fmtY: fmtInt });
+    return chart || `<div class="dd-empty">실시간 카운터 추이를 보려면 2일 이상의 기록이 필요합니다.</div>`;
+  }
+
+  // ── 임대카운터 연동: 월별/이번달 카운터 ──
+  function _ymString(date) {
+    const p = n => String(n).padStart(2, '0');
+    return `${date.getFullYear()}-${p(date.getMonth() + 1)}`;
+  }
+
+  // 이번달(1일~말일) 실사용 = 현재 누적 − 이달 시작 시점 누적
+  // baseline 우선순위: rental_counters 전월 누적 → 월초 직전 live reading → (없으면) 이달 첫 reading(부분)
+  function _thisMonthUsage(readings, monthlyCounters) {
+    if (!readings.length) return null;
+    const now = new Date();
+    const monthStart = new Date(now.getFullYear(), now.getMonth(), 1).getTime();
+    const latest = readings[readings.length - 1];
+    const latTotal = latest.total_pages != null ? Number(latest.total_pages)
+                   : (latest.bw != null || latest.color != null) ? (Number(latest.bw) || 0) + (Number(latest.color) || 0) : null;
+    const sub = (a, b) => (a != null && b != null) ? Math.max(0, Number(a) - Number(b)) : null;
+
+    let baseBw = null, baseColor = null, baseTotal = null, partial = false;
+    const prevYm = _ymString(new Date(now.getFullYear(), now.getMonth() - 1, 1));
+    const prevC = (monthlyCounters || []).find(c => c.ym === prevYm);
+    if (prevC) {
+      baseBw = prevC.bw; baseColor = prevC.color;
+      baseTotal = (Number(prevC.bw) || 0) + (Number(prevC.color) || 0);
+    } else {
+      let b = null;
+      for (let i = readings.length - 1; i >= 0; i--) {
+        if (new Date(readings[i].read_at).getTime() < monthStart) { b = readings[i]; break; }
+      }
+      if (!b) { b = readings.find(r => new Date(r.read_at).getTime() >= monthStart); partial = true; }
+      if (b) {
+        baseBw = b.bw; baseColor = b.color;
+        baseTotal = b.total_pages != null ? Number(b.total_pages) : (Number(b.bw) || 0) + (Number(b.color) || 0);
+      }
+    }
+    return { partial, bw: sub(latest.bw, baseBw), color: sub(latest.color, baseColor), total: sub(latTotal, baseTotal) };
+  }
+
+  // 이달 사용가능(계약 기본카운터): split→bw_free/co_free, total→total_free_count
+  function _thisMonthAllowance(item, assignment) {
+    if (!item) return null;
+    if ((item.counter_mode || 'split') === 'total') {
+      return { mode: 'total', total: Number(item.total_free_count) || 0 };
+    }
+    return { mode: 'split', bw: Number(assignment && assignment.bw_free) || 0, color: Number(assignment && assignment.co_free) || 0 };
+  }
+
+  // 현재상태 하단: 이번달 실사용 + 사용가능 + 잔여 표
+  function _renderThisMonth(usage, allow, itemLinked) {
+    if (!usage && !allow) return '';
+    const cell = v => (v == null ? '–' : fmtInt(v));
+    const rem = (avail, used) => {
+      if (avail == null || used == null) return '–';
+      const r = avail - used;
+      return r < 0 ? `<span class="dd-over">${fmtInt(-r)} 초과</span>` : fmtInt(r);
+    };
+    const u = usage || {};
+    const usedTot = u.total;
+
+    let allowBw = null, allowCo = null, allowTot = null;
+    if (allow) {
+      if (allow.mode === 'total') { allowTot = allow.total; }
+      else { allowBw = allow.bw; allowCo = allow.color; allowTot = (allow.bw || 0) + (allow.color || 0); }
+    }
+
+    const note = !itemLinked
+      ? `<div class="dd-sub-note">⚠ 자산(임대거래처)과 연결되지 않아 사용가능 카운터를 표시할 수 없습니다. 자산번호/일련번호를 맞춰주세요.</div>`
+      : (u.partial ? `<div class="dd-sub-note">※ 이달 시작 이전 검침값이 없어 부분 기간 기준입니다.</div>` : '');
+
+    const allowRow = allow
+      ? `<tr><td>사용가능</td><td>${allow.mode === 'total' ? '–' : cell(allowBw)}</td><td>${allow.mode === 'total' ? '–' : cell(allowCo)}</td><td>${cell(allowTot)}</td></tr>
+         <tr><td>잔여</td><td>${allow.mode === 'total' ? '–' : rem(allowBw, u.bw)}</td><td>${allow.mode === 'total' ? '–' : rem(allowCo, u.color)}</td><td>${rem(allowTot, usedTot)}</td></tr>`
+      : '';
+
+    return `
+      <div class="dd-month-h">📆 이번달 (${_ymString(new Date())} · 1일~말일)</div>
+      <table class="dd-table dd-tm-table">
+        <thead><tr><th>구분</th><th>흑백</th><th>컬러</th><th>합계</th></tr></thead>
+        <tbody>
+          <tr class="dd-tm-used"><td>실사용</td><td>${cell(u.bw)}</td><td>${cell(u.color)}</td><td class="dd-use">${cell(usedTot)}</td></tr>
+          ${allowRow}
+        </tbody>
+      </table>
+      ${note}`;
+  }
+
+  // 월별 카운터(최근 12개월) — rental_counters 연동. 월 사용량 = 당월누적 − 전월누적(음수=0)
+  function _renderMonthly12(monthlyCounters, item) {
+    if (!item) {
+      return `<div class="dd-empty">자산(임대거래처)과 연결되지 않았습니다. 자산번호 또는 일련번호를 맞추면 월별 카운터가 표시됩니다.</div>`;
+    }
+    const sorted = (monthlyCounters || []).slice().sort((a, b) => (a.ym || '').localeCompare(b.ym || ''));
+    if (sorted.length < 2) {
+      return `<div class="dd-empty">월 사용량 계산에는 2개월 이상의 누적 카운터가 필요합니다. (현재 ${sorted.length}개월)</div>`;
+    }
+    const rows = [];
+    for (let i = 1; i < sorted.length; i++) {
+      const cur = sorted[i], prev = sorted[i - 1];
+      rows.push({
+        ym: cur.ym,
+        bw: Math.max(0, (Number(cur.bw) || 0) - (Number(prev.bw) || 0)),
+        co: Math.max(0, (Number(cur.color) || 0) - (Number(prev.color) || 0)),
+      });
+    }
+    const last12 = rows.slice(-12);
+    const head = `<th>구분</th>` + last12.map(r => `<th>${(r.ym || '').slice(2).replace('-', '/')}</th>`).join('');
+    const bwRow = `<td>흑백</td>` + last12.map(r => `<td>${fmtInt(r.bw)}</td>`).join('');
+    const coRow = `<td>컬러</td>` + last12.map(r => `<td>${fmtInt(r.co)}</td>`).join('');
+    const totRow = `<td>합계</td>` + last12.map(r => `<td class="dd-use">${fmtInt(r.bw + r.co)}</td>`).join('');
+    return `<div class="dd-chart" style="overflow-x:auto;">
+      <table class="dd-table dd-month-table">
+        <thead><tr>${head}</tr></thead>
+        <tbody><tr>${bwRow}</tr><tr>${coRow}</tr><tr>${totRow}</tr></tbody>
+      </table></div>`;
+  }
+
+  // 소모성 — 토너 레벨 라인 (블랙/시안/마젠타/옐로우)
+  function _renderTonerTrend(readings) {
+    const days = _dailyBuckets(readings);
+    const mk = pick => days.filter(d => d.r[pick] != null).map(d => ({ t: d.t, v: Number(d.r[pick]) }));
+    const series = [
+      { label: '블랙',   color: '#111827', points: mk('toner_k') },
+      { label: '시안',   color: '#38bdf8', points: mk('toner_c') },
+      { label: '마젠타', color: '#ec4899', points: mk('toner_m') },
+      { label: '옐로우', color: '#eab308', points: mk('toner_y') },
+    ];
+    const chart = _timeLineChart(series, {
+      legendTitle: '범례', axisLabel: '토너 레벨',
+      yMax: 100, yTicks: [0, 25, 50, 75, 100], fmtY: v => v + '%',
+    });
+    return chart || `<div class="dd-empty">토너 추이를 보려면 2일 이상의 기록이 필요합니다.</div>`;
+  }
+
+  // 장치 로그 — readings.alert_text 에서 이벤트 추출 (용지걸림·오류 등)
+  function _renderDeviceLog(readings) {
+    const events = [];
+    for (let i = readings.length - 1; i >= 0 && events.length < 50; i--) {
+      const r = readings[i];
+      const raw = String(r.alert_text || '').trim();
+      if (!raw) continue;
+      if (/usb local printer|enable snmp/i.test(raw)) continue; // 안내성 메시지 제외
+      const parts = raw.split(/[,;/|]+/).map(s => s.trim()).filter(Boolean);
+      for (const p of parts) {
+        events.push({ cat: p, ts: r.read_at });
+        if (events.length >= 50) break;
+      }
+    }
+    if (!events.length) return `<div class="dd-empty">기록된 장치 이벤트가 없습니다.</div>`;
+    let tbl = `<table class="dd-table dd-log"><thead><tr><th>종류</th><th>범주</th><th>타임스탬프 (GMT+9:00)</th></tr></thead><tbody>`;
+    for (const e of events) {
+      tbl += `<tr><td><span class="dd-log-type">이벤트</span></td><td>${escapeHtml(e.cat)}</td><td>${escapeHtml(_fmtFullTime(e.ts))}</td></tr>`;
+    }
+    tbl += `</tbody></table>`;
+    return tbl;
+  }
+
+  function _fmtFullTime(iso) {
+    if (!iso) return '';
+    const dt = new Date(iso);
+    if (Number.isNaN(dt.getTime())) return '';
+    const p = n => String(n).padStart(2, '0');
+    return `${dt.getFullYear()}/${p(dt.getMonth()+1)}/${p(dt.getDate())} ${p(dt.getHours())}:${p(dt.getMinutes())}:${p(dt.getSeconds())}`;
+  }
+
   // ---------- 이벤트 바인딩 ----------
   function bindFilters() {
     $('#btn-refresh').addEventListener('click', () => init(true));
@@ -1374,6 +2149,18 @@
         state.collectorSearch = '';
         document.getElementById('live-search-count') && (document.getElementById('live-search-count').style.display = 'none');
         renderLiveSection();
+      });
+    }
+
+    // 소모품 배송 배너 — 자세히 토글
+    const sbToggle = document.getElementById('sb-toggle');
+    if (sbToggle) {
+      sbToggle.addEventListener('click', () => {
+        const list = document.getElementById('sb-list');
+        if (!list) return;
+        const open = list.style.display !== 'none';
+        list.style.display = open ? 'none' : 'flex';
+        sbToggle.textContent = open ? '자세히 ▾' : '접기 ▴';
       });
     }
 
@@ -1444,6 +2231,29 @@
       openGroupCustomerEdit(btn);
     });
 
+    // 장비 상세 버튼 (🔍) — 데스크탑/모바일 공통
+    liveTable.addEventListener('click', (e) => {
+      const btn = e.target.closest('.btn-detail');
+      if (!btn) return;
+      e.stopPropagation();
+      if (btn.dataset.detail) openDeviceDetail(btn.dataset.detail);
+    });
+
+    // 상세 오버레이 — 닫기 / 배경 클릭 / 메모 삭제 / 여분 수정 / 알람 토글 (위임)
+    const detailModal = $('#device-detail-modal');
+    $('#btn-close-detail').addEventListener('click', closeDeviceDetail);
+    detailModal.addEventListener('click', (e) => {
+      if (e.target === detailModal) { closeDeviceDetail(); return; }
+      const del = e.target.closest('.dd-note-del');
+      if (del) { deleteDeviceNote(del.dataset.noteId, del.closest('.dd-note-item')); return; }
+      const spareBtn = e.target.closest('.ds-spare-edit');
+      if (spareBtn) { _startSpareEdit(spareBtn); return; }
+    });
+    detailModal.addEventListener('change', (e) => {
+      const alarm = e.target.closest('#dd-alarm');
+      if (alarm) toggleAlarm(alarm.dataset.deviceId, alarm.checked);
+    });
+
     // 모바일 탭 → 모달 편집
     liveTable.addEventListener('click', (e) => {
       if (!isMobile()) return;
@@ -1502,7 +2312,9 @@
   async function init(force) {
     try {
       await loadAll();
+      recomputeSupplyStatus();
       renderCollectorPanel();
+      renderSupplyBanner();
       renderLiveSection();
       loadCollectorVersion();
     } catch (e) {
