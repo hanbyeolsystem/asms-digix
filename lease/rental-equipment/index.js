@@ -1587,6 +1587,18 @@
     _detailDeviceId = null;
   }
 
+  // 마지막으로 실제 출력한 시각 = 페이지수가 직전 reading 대비 증가한 가장 최근 reading 의 read_at
+  // (readings 는 read_at 오름차순)
+  function _lastPrintAt(readings) {
+    if (!Array.isArray(readings) || readings.length < 2) return null;
+    const pg = r => (r.total_pages != null ? Number(r.total_pages)
+                    : (Number(r.bw || 0) + Number(r.color || 0)));
+    for (let i = readings.length - 1; i > 0; i--) {
+      if (pg(readings[i]) > pg(readings[i - 1])) return readings[i].read_at;
+    }
+    return null;
+  }
+
   function renderDeviceDetail(d, c, cust, readings, notes, notesAvailable, item, assignment, monthlyCounters) {
     const latest = readings.length ? readings[readings.length - 1]
                  : (state.readingByDevice.get(d.id) || {});
@@ -1609,6 +1621,12 @@
           ${kv('IP', src === 'USB' ? 'USB' : escapeHtml(d.ip || '–'))}
           ${kv('유형', d.is_color ? '컬러기' : '흑백기')}
           ${kv('최초 발견', _fmtAgoKor(d.first_seen_at))}
+          ${kv('마지막 출력', (() => {
+            const t = _lastPrintAt(readings);
+            return t
+              ? `${escapeHtml(_fmtFullTime(t))} <span style="color:#94a3b8;font-size:11px;">(${escapeHtml(_fmtAgoKor(t))})</span>`
+              : '<span style="color:#94a3b8;">기록 없음</span>';
+          })())}
         </div>
       </div>`;
 
