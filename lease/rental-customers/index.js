@@ -805,14 +805,14 @@ async function loadCollectorVersion() {
     if (!res.ok) return;
     const v = await res.json();
     if (!v || !v.updated_at) return;
-    const fname = v.filename || 'hanbyeol-collector.zip';
+    const fname = v.filename || 'digix-collector.zip';
     const isZip = /\.zip$/i.test(fname);
     const label = isZip ? '고객 카운터프로그램 (ZIP)' : '고객 카운터프로그램';
     btn.innerHTML = `⬇ ${label} <span style="opacity:.7;font-size:11px;font-weight:500;">(${v.updated_at})</span>`;
     btn.title = (
-      `업데이트: ${v.updated_at} · 크기: ${v.size_mb}MB · 페어링 코드: hanbyeol\n` +
-      (isZip ? '설치: ZIP 압축 풀기 → 안의 hanbyeol-collector 폴더의 EXE 더블클릭\n' : '') +
-      '안랩 V3 가 차단하면 LocalAppData\\HanbyeolCollector 폴더를 V3 예외에 추가'
+      `업데이트: ${v.updated_at} · 크기: ${v.size_mb}MB · 페어링 코드: digix\n` +
+      (isZip ? '설치: ZIP 압축 풀기 → 안의 digix-collector 폴더의 EXE 더블클릭\n' : '') +
+      '안랩 V3 가 차단하면 digix-collector 폴더를 V3 예외에 추가'
     );
     btn.setAttribute('download', fname);
     // 버전 쿼리스트링으로 브라우저 캐시 우회 (새 빌드 받도록)
