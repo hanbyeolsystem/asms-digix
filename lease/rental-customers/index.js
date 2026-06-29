@@ -1129,6 +1129,12 @@ function openPrintContractWindow(customer) {
     (a.name       || '').localeCompare(b.name       || '', 'ko')
   );
 
+  // 계약서 문서 날짜 = 출력일이 아닌 임대 시작일 기준 (자산 중 가장 이른 시작일)
+  const leaseStart = assignments
+    .map(a => (a.start_date || (a.rental_items || {}).install_date || '').slice(0, 10))
+    .filter(Boolean)
+    .sort()[0] || '';
+
   const token = 't_' + Date.now().toString(36) + Math.random().toString(36).slice(2, 6);
   const payload = {
     customer_id:  customer.id,
@@ -1150,6 +1156,7 @@ function openPrintContractWindow(customer) {
     },
     rentalItems,
     rentalInfo: {
+      docDate:  leaseStart || undefined,             // 임대 시작일 (없으면 자식 페이지가 오늘로 fallback)
       rPeriod:  customer.period_years  || 3,
       rDeposit: customer.deposit       || 0,
       rBilling: customer.billing_type  || '전자세금계산서',
