@@ -566,6 +566,12 @@ const esc = s => (s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g
 function fmt(n) { return Math.round(n).toLocaleString('ko-KR'); }
 function today() { return new Date().toISOString().slice(0,10); }
 function dateStr(d) { return d ? d.replace(/-/g,'.') : ''; }
+// 날짜를 "YYYY 년  M 월  D 일" 형태로 (년/월/일 라벨 칸에 맞춰 분리)
+function dateKor(d) {
+  if (!d) return '&nbsp;&nbsp;&nbsp;&nbsp; 년 &nbsp; 월 &nbsp; 일';
+  const [y, m, day] = d.split('-');
+  return `${y} 년 &nbsp; ${Number(m)} 월 &nbsp; ${Number(day)} 일`;
+}
 
 // =============================================
 // MY COMPANY
@@ -1146,7 +1152,7 @@ function renderRentalPage1() {
         <div style="font-size:8.5pt;margin-bottom:8px;line-height:1.7">
           ${esc(me.name||'디직스코리아')}의 이용약관, 자동이체 신청동의 및 부가사항을 읽고 확인했으며, 위와 같이 프린터 임대서비스 이용을 신청합니다.
         </div>
-        <div style="font-size:9pt;font-weight:600;margin-bottom:10px">${dateStr(getDocDate())} &nbsp; 년 &nbsp; 월 &nbsp; 일</div>
+        <div style="font-size:9pt;font-weight:600;margin-bottom:10px">${dateKor(getDocDate())}</div>
         <div class="rental-sig-row">
           <span class="rental-sig-label">담당자</span>
           ${getSig('customer')
