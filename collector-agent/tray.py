@@ -150,10 +150,10 @@ def _set_autostart(enabled: bool):
             winreg.KEY_SET_VALUE,
         )
         if enabled:
-            winreg.SetValueEx(key, 'HanbyeolCollector', 0, winreg.REG_SZ, f'"{sys.executable}"')
+            winreg.SetValueEx(key, 'DigixCollector', 0, winreg.REG_SZ, f'"{sys.executable}"')
         else:
             try:
-                winreg.DeleteValue(key, 'HanbyeolCollector')
+                winreg.DeleteValue(key, 'DigixCollector')
             except FileNotFoundError:
                 pass
         winreg.CloseKey(key)

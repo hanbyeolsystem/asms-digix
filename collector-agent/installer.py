@@ -3,7 +3,7 @@
 고객 입장 — ZIP 압축 푼 후 안의 EXE 더블클릭 1회로:
   1) 업체명 다이얼로그
   2) 기존(이전) 설치본 정리 — 다른 위치 EXE/폴더 삭제 + HKCU Run 항목 정리
-  3) LocalAppData\\HanbyeolCollector\\ 로 폴더 전체(EXE + _internal) 복사
+  3) LocalAppData\\DigixCollector\\ 로 폴더 전체(EXE + _internal) 복사
   4) HKCU Run 자동시작 등록
   5) 설치된 위치의 EXE 재실행 → 자동 페어링 → 트레이 상주
 
@@ -24,9 +24,9 @@ import time
 import config
 import logger
 
-INSTALL_DIR = os.path.join(os.environ.get('LOCALAPPDATA', os.path.expanduser('~')), 'HanbyeolCollector')
+INSTALL_DIR = os.path.join(os.environ.get('LOCALAPPDATA', os.path.expanduser('~')), 'DigixCollector')
 INSTALL_EXE = os.path.join(INSTALL_DIR, 'digix-collector.exe')
-RUN_VALUE = 'HanbyeolCollector'
+RUN_VALUE = 'DigixCollector'
 
 # onedir 빌드의 필수 동반 폴더/파일 — 잔재 청소 시 EXE 와 함께 정리해야 함.
 _ONEDIR_LEFTOVERS = (
@@ -61,9 +61,9 @@ def _set_autostart(exe_path: str):
 
 
 def _clean_stale_run_entries():
-    """HKCU Run 에서 HanbyeolCollector 와 비슷한 이름의 옛 항목 제거.
-    값 이름이 'HanbyeolCollector' 와 정확히 같으면 _set_autostart 가 덮어쓰므로 OK.
-    다른 변형 이름('Hanbyeol Collector', 'digixcollector' 등) 만 정리 대상."""
+    """HKCU Run 에서 DigixCollector 와 비슷한 이름의 옛 항목 제거.
+    값 이름이 'DigixCollector' 와 정확히 같으면 _set_autostart 가 덮어쓰므로 OK.
+    다른 변형 이름('Digix Collector', 'digixcollector' 등) 만 정리 대상."""
     import winreg
     try:
         key = winreg.OpenKey(

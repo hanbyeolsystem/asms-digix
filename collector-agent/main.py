@@ -1,4 +1,4 @@
-"""Entry point for the Hanbyeol printer counter collector."""
+"""Entry point for the Digix printer counter collector."""
 import os
 import sys
 import threading

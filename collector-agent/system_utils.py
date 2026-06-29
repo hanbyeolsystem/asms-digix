@@ -7,7 +7,7 @@ from ctypes import wintypes
 
 import logger
 
-_MUTEX_NAME = 'Global\\HanbyeolCollector_SingleInstance_v1'
+_MUTEX_NAME = 'Global\\DigixCollector_SingleInstance_v1'
 _ERROR_ALREADY_EXISTS = 183
 
 # 모듈-레벨 유지 — handle 이 GC 되면 mutex 도 해제되어 의미 상실
