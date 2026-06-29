@@ -2325,7 +2325,7 @@
     const btn = document.getElementById('btn-collector-download');
     if (!btn) return;
     try {
-      const res = await fetch('../downloads/collector-version.json?ts=' + Date.now(), { cache: 'no-store' });
+      const res = await fetch('../../downloads/collector-version.json?ts=' + Date.now(), { cache: 'no-store' });
       if (!res.ok) return;
       const v = await res.json();
       if (!v || !v.updated_at) return;
@@ -2339,7 +2339,7 @@
         '안랩 V3 가 차단하면 digix-collector 폴더를 V3 예외에 추가'
       );
       btn.setAttribute('download', fname);
-      btn.href = `../downloads/${fname}?v=${encodeURIComponent(v.version || v.updated_at)}`;
+      btn.href = `../../downloads/${fname}?v=${encodeURIComponent(v.version || v.updated_at)}`;
     } catch (e) {
       console.warn('[collector-version] 로드 실패 (캐시 미반영 가능):', e);
     }

@@ -801,7 +801,7 @@ async function loadCollectorVersion() {
   const btn = document.getElementById('btn-collector-download');
   if (!btn) return;
   try {
-    const res = await fetch('../downloads/collector-version.json?ts=' + Date.now(), { cache: 'no-store' });
+    const res = await fetch('../../downloads/collector-version.json?ts=' + Date.now(), { cache: 'no-store' });
     if (!res.ok) return;
     const v = await res.json();
     if (!v || !v.updated_at) return;
@@ -816,7 +816,7 @@ async function loadCollectorVersion() {
     );
     btn.setAttribute('download', fname);
     // 버전 쿼리스트링으로 브라우저 캐시 우회 (새 빌드 받도록)
-    btn.href = `../downloads/${fname}?v=${encodeURIComponent(v.version || v.updated_at)}`;
+    btn.href = `../../downloads/${fname}?v=${encodeURIComponent(v.version || v.updated_at)}`;
   } catch (e) {
     console.warn('[collector-version] 로드 실패 (캐시 미반영 가능):', e);
   }
