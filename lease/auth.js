@@ -11,6 +11,31 @@
       document.body.setAttribute('data-embed', '1'));
   }
 
+  // 페이지 단위 role 가드: <html data-page-role="admin"> 선언 페이지는
+  // 권한 확인 전까지 본문을 가려(플래시 방지) 비관리자 접근을 차단한다.
+  const PAGE_ROLE = document.documentElement.dataset.pageRole || '';
+  if (PAGE_ROLE) {
+    const st = document.createElement('style');
+    st.id = '__role_guard_style';
+    st.textContent = 'body{visibility:hidden!important}';
+    (document.head || document.documentElement).appendChild(st);
+  }
+  function revealPage() {
+    const s = document.getElementById('__role_guard_style');
+    if (s) s.remove();
+  }
+  function denyPageAccess() {
+    revealPage();
+    document.documentElement.dataset.authed = '0';
+    const msg = '<div style="min-height:60vh;display:flex;flex-direction:column;align-items:center;'
+      + 'justify-content:center;gap:10px;font-family:system-ui,sans-serif;color:#374151;text-align:center;padding:24px">'
+      + '<div style="font-size:40px">🔒</div>'
+      + '<div style="font-size:18px;font-weight:700">관리자 전용 페이지입니다</div>'
+      + '<div style="font-size:14px;color:#6b7280">이 페이지는 관리자 계정만 열람할 수 있습니다.</div></div>';
+    if (document.body) document.body.innerHTML = msg;
+    else document.addEventListener('DOMContentLoaded', () => { document.body.innerHTML = msg; });
+  }
+
   if (!window.supabase || !window.TOTALAS) {
     console.error('[auth] supabase-js 또는 config.js 가 먼저 로드돼야 합니다');
     return;
@@ -54,6 +79,12 @@
       return;
     }
 
+    // 페이지 단위 role 가드 — admin 전용 페이지에 비관리자 접근 시 차단
+    if (PAGE_ROLE && PAGE_ROLE !== profile.role) {
+      denyPageAccess();
+      return;
+    }
+
     window.currentUser = {
       id: session.user.id,
       email: session.user.email,
@@ -62,6 +93,7 @@
     document.documentElement.dataset.role = profile.role;
     document.documentElement.dataset.authed = '1';
 
+    revealPage();
     attachSidebarUI(profile);
     applyRoleVisibility(profile.role);
 
