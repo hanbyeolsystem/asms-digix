@@ -1,0 +1,8 @@
+﻿{
+    "version":  "20260629-2124",
+    "updated_at":  "2026-06-29 21:24",
+    "filename":  "digix-collector.zip",
+    "format":  "zip",
+    "size_mb":  20.8,
+    "install_note":  "ZIP 압축을 풀고 digix-collector 폴더 안의 digix-collector.exe 더블클릭"
+}
