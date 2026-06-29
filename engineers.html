@@ -193,19 +193,17 @@ document.addEventListener("DOMContentLoaded", () => {
           <tr><td class="lbl">표시 ID</td><td><input type="text" id="a_id" name="a_id" placeholder="(미입력 시 아이디 그대로)"></td></tr>
           <tr><td class="lbl">근무지역</td><td>
             <select id="a_branch" name="a_branch">
+              <option value="문경">문경</option>
               <option value="대구">대구</option>
-              <option value="서울">서울</option>
-              <option value="부산">부산</option>
-              <option value="대전">대전</option>
-              <option value="광주">광주</option>
             </select>
           </td></tr>
           <tr><td class="lbl">전화번호</td><td><input type="text" id="a_tel" name="a_tel" placeholder="053-587-4114"></td></tr>
           <tr><td class="lbl">휴대폰</td><td><input type="text" id="a_mobile" name="a_mobile" placeholder="010-0000-0000"></td></tr>
           <tr><td class="lbl">권한</td><td>
             <select id="a_role" name="a_role">
-              <option value="engineer">엔지니어</option>
               <option value="admin">관리자</option>
+              <option value="engineer">엔지니어</option>
+              <option value="office">사무/경리</option>
             </select>
           </td></tr>
         </table>
