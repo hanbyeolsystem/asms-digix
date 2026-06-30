@@ -85,6 +85,7 @@ function renderList(rows) {
 function applyFilter() { renderList(getQueryFilter(ENGINEERS)); }
 
 function openAddModal() {
+  if (!IS_ADMIN) { alert("관리자만 계정을 만들 수 있습니다."); return; }
   document.getElementById("addMsg").textContent = "";
   document.getElementById("addForm").reset();
   document.getElementById("addModal").classList.add("show");
@@ -178,6 +179,9 @@ document.addEventListener("DOMContentLoaded", async () => {
   document.getElementById("f_value").addEventListener("input", applyFilter);
   document.getElementById("f_name").addEventListener("change", applyFilter);
   try { IS_ADMIN = await window.currentIsAdmin(); } catch (e) { IS_ADMIN = false; }
+  // 계정 생성은 관리자만 — 신규입력 버튼은 관리자에게만 노출
+  const addBtn = document.getElementById("btnAddEng");
+  if (addBtn) addBtn.style.display = IS_ADMIN ? "" : "none";
   loadList();
 });
 </script>
@@ -201,7 +205,7 @@ document.addEventListener("DOMContentLoaded", async () => {
               </select>
               <input type="text" name="f_value" id="f_value">
               <input type="submit" value="검색" name="submit">
-              <input type="button" value="신규입력" onclick="openAddModal()">
+              <input type="button" id="btnAddEng" value="신규입력" onclick="openAddModal()" style="display:none;">
             </td>
             <td><a href="engineers.html">[처음으로]</a></td>
           </tr>
