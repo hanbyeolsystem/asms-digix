@@ -359,7 +359,7 @@ async function save() {
   const reNowEl = document.querySelector("input[name='re_now']:checked");
   const reNow = reNowEl ? reNowEl.value : "";
   const reNowOrig = (CURRENT.re_now || CURRENT.status || "").trim();
-  const STAMP_STATUSES = ["진행","센터","견적","택배","완료","출고"];
+  const STAMP_STATUSES = ["진행","카드","견적","택배","완료","출고"];
   const statusBecameStampWorthy = STAMP_STATUSES.includes(reNow) && reNow !== reNowOrig;
   if (add || statusBecameStampWorthy) {
     const n = new Date();
@@ -524,7 +524,7 @@ document.addEventListener("DOMContentLoaded", async () => {
           <td colspan="3">
             <label><input type="radio" name="re_now" value="접수">접수</label>
             <label><input type="radio" name="re_now" value="진행">진행</label>
-            <label><input type="radio" name="re_now" value="센터">센터</label>
+            <label><input type="radio" name="re_now" value="카드">카드</label>
             <label><input type="radio" name="re_now" value="견적">견적</label>
             <label><input type="radio" name="re_now" value="택배">택배</label>
             <label><input type="radio" name="re_now" value="완료">완료</label>
