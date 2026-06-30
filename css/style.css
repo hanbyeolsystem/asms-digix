@@ -198,8 +198,8 @@ img { border: 0; vertical-align: middle; }
 /* 상태 배경 색 (cell 단위 강조) */
 .st-접수 { background: #ffbcce !important; }
 .st-진행 { background: #ffcbff !important; }
-.st-카드 { background: #ffd9b3 !important; }
-.st-견적 { background: #ffd0d0 !important; }
+.st-센터 { background: #ffd9b3 !important; }
+.st-카드 { background: #ffd0d0 !important; }
 .st-택배 { background: #ceffff !important; }
 .st-완료 { background: #ffffce !important; }
 .st-출고 { background: #ceffce !important; }

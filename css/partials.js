@@ -38,8 +38,8 @@
           <a href="orders.html">전체</a> |
           <a href="orders.html?status=접수">접수</a> |
           <a href="orders.html?status=진행">진행</a> |
+          <a href="orders.html?status=센터">센터</a> |
           <a href="orders.html?status=카드">카드</a> |
-          <a href="orders.html?status=견적">견적</a> |
           <a href="orders.html?status=택배">택배</a> |
           <a href="orders.html?status=완료">완료</a> |
           <a href="orders.html?status=출고">출고</a>
