@@ -418,7 +418,7 @@ async function go() {
   const date_str = `${t.getFullYear()}/${mm}/${dd}`;
 
   let todayCount = 1;
-  let nextSeq = Date.now();
+  let nextSeq = 1; // seq_no 는 integer 컬럼 — 없으면 1, 있으면 max+1 (Date.now() 쓰면 int4 범위 초과)
   if (window.SB_CONFIGURED && window.sb) {
     try {
       const { data } = await window.sb.from("orders")
@@ -432,6 +432,7 @@ async function go() {
   } else {
     const stored = JSON.parse(localStorage.getItem("user_orders") || "[]");
     todayCount = stored.filter(o => (o.order_no || "").startsWith(today_prefix)).length + 1;
+    nextSeq = stored.reduce((m, o) => Math.max(m, o.seq_no || 0), 0) + 1;
   }
 
   // 매칭 안내가 켜져있는데 사용자가 클릭으로 회원 선택 안 했으면 한 번 더 확인
