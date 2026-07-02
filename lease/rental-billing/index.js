@@ -1700,13 +1700,9 @@
       <div class="invoice-preview">
         <div class="inv-wrap">
 
-          <!-- 상단 로고/도장 -->
+          <!-- 상단 로고 -->
           <div class="inv-header">
             <img class="inv-logo" src="assets/logo.jpg" alt="디직스코리아 로고">
-            <div class="inv-stamps">
-              <img src="assets/stamp1.jpeg" alt="도장1">
-              <img src="assets/stamp2.png" alt="도장2">
-            </div>
           </div>
 
           <!-- 제목 행 -->
