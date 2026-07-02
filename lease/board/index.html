@@ -1,0 +1,127 @@
+<!doctype html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>자료실 — 디직스코리아</title>
+<script>
+  // asms.html 셸 밖에서 단독 열람 시 셸로 복귀
+  if (window === window.top && !new URLSearchParams(location.search).has('standalone')) {
+    location.replace('../asms.html#board/index.html');
+  }
+</script>
+<link rel="stylesheet" href="../styles.css">
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<script src="../config.js?v=20260611"></script>
+<script src="../auth.js"></script>
+<style>
+  .bd-toolbar { display:flex; gap:8px; align-items:center; flex-wrap:wrap; margin:14px 0; }
+  .bd-search { flex:1 1 220px; min-width:0; padding:9px 12px; border:1px solid var(--border,#d1d5db);
+    border-radius:8px; font-size:14px; background:#fff; outline:none; }
+  .bd-table { width:100%; border-collapse:collapse; background:#fff; border:1px solid #e5e7eb; border-radius:10px; overflow:hidden; }
+  .bd-table th, .bd-table td { padding:11px 12px; text-align:left; font-size:14px; border-bottom:1px solid #f0f1f3; }
+  .bd-table th { background:#f8fafc; font-size:12.5px; color:#475569; font-weight:700; }
+  .bd-table tr:last-child td { border-bottom:none; }
+  .bd-row { cursor:pointer; }
+  .bd-row:hover { background:#f8fbff; }
+  .bd-cat { display:inline-block; padding:2px 8px; border-radius:999px; background:#eef2ff; color:#4338ca; font-size:12px; font-weight:600; }
+  .bd-file-chip { font-size:12px; color:#64748b; }
+  .bd-empty { text-align:center; color:#94a3b8; padding:40px 10px; }
+  .bd-muted { color:#94a3b8; font-size:12.5px; }
+  .bd-col-title { font-weight:600; color:#111827; overflow-wrap:anywhere; }
+
+  /* 모달 */
+  .bd-modal { position:fixed; inset:0; z-index:1000; display:none; align-items:center; justify-content:center; padding:16px; }
+  .bd-modal[open] { display:flex; }
+  .bd-backdrop { position:absolute; inset:0; background:rgba(15,23,42,.45); }
+  .bd-card { position:relative; background:#fff; width:560px; max-width:100%; max-height:88vh; overflow:auto;
+    border-radius:14px; padding:20px 20px 16px; box-shadow:0 20px 50px rgba(0,0,0,.25); }
+  .bd-card h3 { margin:0 0 14px; font-size:17px; }
+  .bd-field { display:block; margin-bottom:12px; }
+  .bd-field > span { display:block; font-size:12.5px; color:#475569; margin-bottom:5px; font-weight:600; }
+  .bd-field input[type=text], .bd-field textarea, .bd-field input[type=file] {
+    width:100%; box-sizing:border-box; padding:9px 11px; border:1px solid #d1d5db; border-radius:8px; font-size:14px; outline:none; }
+  .bd-field textarea { min-height:120px; resize:vertical; line-height:1.6; }
+  .bd-actions { display:flex; justify-content:flex-end; gap:8px; margin-top:6px; }
+  .bd-status { font-size:12.5px; min-height:16px; margin-top:8px; color:#dc2626; }
+  .bd-view-meta { color:#64748b; font-size:12.5px; margin-bottom:10px; }
+  .bd-view-content { white-space:pre-wrap; line-height:1.7; font-size:14px; color:#1f2937; margin:12px 0; overflow-wrap:anywhere; }
+  .bd-file-list { list-style:none; padding:0; margin:8px 0 0; display:flex; flex-direction:column; gap:6px; }
+  .bd-file-list a { display:inline-flex; align-items:center; gap:6px; font-size:13px; color:#2563eb; text-decoration:none;
+    padding:7px 10px; border:1px solid #dbeafe; border-radius:8px; background:#f0f7ff; }
+  .bd-file-list a:hover { background:#e0efff; }
+
+  @media (max-width:640px) {
+    .bd-table th.bd-hide-sm, .bd-table td.bd-hide-sm { display:none; }
+    .bd-card { padding:16px 14px 14px; }
+  }
+</style>
+</head>
+<body>
+<main class="container">
+  <div class="page-head">
+    <div>
+      <h1>🗂 자료실</h1>
+      <p class="muted" style="margin:2px 0 0 0;">기본 자료를 게시판 형태로 보관합니다.</p>
+    </div>
+  </div>
+
+  <div class="bd-toolbar">
+    <input type="text" id="bd-search" class="bd-search" placeholder="🔍 제목 · 분류 · 작성자 검색" autocomplete="off">
+    <button type="button" id="bd-new" class="btn primary">＋ 글쓰기</button>
+  </div>
+
+  <table class="bd-table">
+    <thead>
+      <tr>
+        <th style="width:44%;">제목</th>
+        <th class="bd-hide-sm" style="width:14%;">분류</th>
+        <th class="bd-hide-sm" style="width:14%;">작성자</th>
+        <th style="width:16%;">등록일</th>
+        <th style="width:12%;">첨부</th>
+      </tr>
+    </thead>
+    <tbody id="bd-tbody">
+      <tr><td colspan="5" class="bd-empty">불러오는 중…</td></tr>
+    </tbody>
+  </table>
+
+  <!-- 글쓰기 모달 -->
+  <div id="bd-write-modal" class="bd-modal">
+    <div class="bd-backdrop" data-close="1"></div>
+    <div class="bd-card">
+      <h3>글쓰기</h3>
+      <label class="bd-field"><span>제목 *</span><input type="text" id="bd-title" maxlength="200" placeholder="자료 제목"></label>
+      <label class="bd-field"><span>분류 (선택)</span><input type="text" id="bd-category" maxlength="40" placeholder="예: 매뉴얼 / 양식 / 설정"></label>
+      <label class="bd-field"><span>내용</span><textarea id="bd-content" placeholder="설명을 입력하세요"></textarea></label>
+      <label class="bd-field"><span>첨부파일 (여러 개 선택 가능)</span><input type="file" id="bd-files" multiple></label>
+      <div id="bd-write-status" class="bd-status"></div>
+      <div class="bd-actions">
+        <button type="button" class="btn ghost" data-close="1">취소</button>
+        <button type="button" id="bd-submit" class="btn primary">등록</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- 보기 모달 -->
+  <div id="bd-view-modal" class="bd-modal">
+    <div class="bd-backdrop" data-close="1"></div>
+    <div class="bd-card">
+      <h3 id="bd-view-title"></h3>
+      <div id="bd-view-meta" class="bd-view-meta"></div>
+      <div id="bd-view-content" class="bd-view-content"></div>
+      <div id="bd-view-files-wrap" style="display:none;">
+        <span style="font-size:12.5px;color:#475569;font-weight:600;">첨부파일</span>
+        <ul id="bd-view-files" class="bd-file-list"></ul>
+      </div>
+      <div class="bd-actions" style="margin-top:16px;">
+        <button type="button" id="bd-delete" class="btn ghost" style="color:#dc2626;">삭제</button>
+        <button type="button" class="btn ghost" data-close="1">닫기</button>
+      </div>
+    </div>
+  </div>
+</main>
+
+<script src="index.js"></script>
+</body>
+</html>
