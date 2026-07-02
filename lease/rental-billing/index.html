@@ -923,7 +923,10 @@
       page-break-before: avoid !important;
     }
     .inv-cf-title { font-size: 12.5px; font-weight: 700; margin-bottom: 4px; padding-bottom: 3px; }
-    .inv-cf-line  { font-size: 12.5px; gap: 16px; padding: 3px 0; }
+    /* 인쇄/팩스 시 모바일 세로 배열 되돌리기 — 화면과 동일한 가로 3줄 유지 */
+    .inv-cf-line  { flex-direction: row !important; font-size: 12.5px; gap: 16px; padding: 3px 0; }
+    .inv-cf-item { width: auto !important; white-space: nowrap !important; }
+    .inv-cf-item-grow { width: auto !important; flex: 1 !important; white-space: normal !important; }
     .inv-cf-label { font-size: 12px; }
     .inv-cf-value { font-size: 12.5px; }
     /* 헤더/제목 간격 축소로 세로 공간 추가 확보 */

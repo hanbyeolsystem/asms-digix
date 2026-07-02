@@ -2343,7 +2343,8 @@
             margin: 10,
             filename: pdfFilename,
             image: { type: 'jpeg', quality: 0.95 },
-            html2canvas: { scale: 2, useCORS: true, logging: false },
+            // windowWidth 고정 — 모바일에서 생성해도 데스크톱 레이아웃(거래처 정보 가로 3줄 등)으로 캡처
+            html2canvas: { scale: 2, useCORS: true, logging: false, windowWidth: 1200 },
             jsPDF: { unit: 'mm', format: 'a4', orientation: 'landscape' }
           };
           await html2pdf().set(opts).from(invEl).save();
