@@ -10,7 +10,9 @@
 <script src="../auth.js"></script>
 <style>
   .vs-summary { display:grid; grid-template-columns:repeat(3,1fr); gap:12px; margin-bottom:16px; }
-  .vs-stat { border-radius:12px; padding:15px 16px; border:1px solid var(--line,#e5e7eb); background:#fff; }
+  .vs-stat { border-radius:12px; padding:15px 16px; border:1px solid var(--line,#e5e7eb); background:#fff; cursor:pointer; transition:transform .1s, box-shadow .12s; user-select:none; }
+  .vs-stat:hover { transform:translateY(-1px); }
+  .vs-stat.on { box-shadow:0 0 0 2px #2563eb inset; }
   .vs-stat .n { font-size:26px; font-weight:800; line-height:1; }
   .vs-stat .t { font-size:12.5px; color:var(--muted,#8a94a6); margin-top:6px; }
   .vs-stat.over { background:#fef2f2; border-color:#fecaca; } .vs-stat.over .n { color:#dc2626; }
@@ -88,10 +90,11 @@
       </div>
 
       <div class="vs-summary">
-        <div class="vs-stat over"><div class="n" id="s-over">0</div><div class="t">방문일 지남 (놓침)</div></div>
-        <div class="vs-stat soon"><div class="n" id="s-soon">0</div><div class="t">임박 (알림일 이내)</div></div>
-        <div class="vs-stat up"><div class="n" id="s-up">0</div><div class="t">예정</div></div>
+        <div class="vs-stat over" data-f="over" title="클릭하면 '지남'만 표시"><div class="n" id="s-over">0</div><div class="t">방문일 지남 (놓침)</div></div>
+        <div class="vs-stat soon" data-f="soon" title="클릭하면 '임박'만 표시"><div class="n" id="s-soon">0</div><div class="t">임박 (알림일 이내)</div></div>
+        <div class="vs-stat up" data-f="up" title="클릭하면 '예정'만 표시"><div class="n" id="s-up">0</div><div class="t">예정</div></div>
       </div>
+      <div id="vs-filter-note" style="display:none; margin:-8px 0 14px; font-size:12.5px; color:var(--muted,#8a94a6);"></div>
 
       <!-- 직접 등록 폼 -->
       <section class="card vs-form">
@@ -284,23 +287,47 @@ async function saveEdit(){
 }
 $('e-save').addEventListener('click', saveEdit);
 
+let FILTER = null;
+function rowStatus(r){ const d=ddiff(r.next_visit_date), al=r.alert_days??3;
+  if (d<0) return 'over'; if (d<=al) return 'soon'; return 'up'; }
+
+function setFilter(f){
+  FILTER = f;
+  document.querySelectorAll('.vs-stat[data-f]').forEach(x => x.classList.toggle('on', x.dataset.f===FILTER));
+  renderRows();
+}
+document.querySelectorAll('.vs-stat[data-f]').forEach(c =>
+  c.addEventListener('click', () => setFilter(FILTER===c.dataset.f ? null : c.dataset.f)));
+
 async function load(){
-  const tb = $('vs-body');
   try {
     const { data, error } = await sb().from('rental_visit_schedules')
       .select('*').eq('active', true).order('next_visit_date');
     if (error) throw error;
     ROWS = data || [];
-    let over=0, soon=0, up=0;
-    ROWS.forEach(r => { const d=ddiff(r.next_visit_date); const al=r.alert_days??3;
-      if (d<0) over++; else if (d<=al) soon++; else up++; });
-    $('s-over').textContent=over; $('s-soon').textContent=soon; $('s-up').textContent=up;
+    renderRows();
+  } catch(e){
+    $('vs-body').innerHTML=`<tr><td colspan="9" class="vs-mini" style="text-align:center;padding:18px;color:#b91c1c;">불러오기 실패: ${esc(e.message||e)}</td></tr>`;
+  }
+}
 
-    if (!ROWS.length){
-      tb.innerHTML='<tr><td colspan="9" class="vs-mini" style="text-align:center;padding:18px;">등록된 방문일정이 없습니다.</td></tr>';
-      return;
-    }
-    tb.innerHTML = ROWS.map(r => {
+function renderRows(){
+  const tb = $('vs-body');
+  let over=0, soon=0, up=0;
+  ROWS.forEach(r => { const s=rowStatus(r); if(s==='over')over++; else if(s==='soon')soon++; else up++; });
+  $('s-over').textContent=over; $('s-soon').textContent=soon; $('s-up').textContent=up;
+
+  const FLABEL = { over:'방문일 지남', soon:'임박(알림일 이내)', up:'예정' };
+  const note = $('vs-filter-note');
+  if (FILTER) { note.style.display=''; note.innerHTML = `🔎 <b>${FLABEL[FILTER]}</b> 만 보는 중 · <a href="#" id="vs-clear" style="color:#2563eb;font-weight:600;">전체 보기</a>`; }
+  else note.style.display='none';
+
+  const rows = FILTER ? ROWS.filter(r => rowStatus(r)===FILTER) : ROWS;
+  if (!rows.length){
+    tb.innerHTML=`<tr><td colspan="9" class="vs-mini" style="text-align:center;padding:18px;">${FILTER? FLABEL[FILTER]+' 항목이 없습니다.' : '등록된 방문일정이 없습니다.'}</td></tr>`;
+    bindClear(); return;
+  }
+  tb.innerHTML = rows.map(r => {
       const d = ddiff(r.next_visit_date), al = r.alert_days??3;
       let cls='norm', txt=`D-${d}`, rowcls='';
       if (d<0){ cls='over'; txt=`${-d}일 지남`; rowcls='row-over'; }
@@ -327,10 +354,9 @@ async function load(){
     tb.querySelectorAll('[data-edit]').forEach(b=>b.addEventListener('click',()=>{ const r=ROWS.find(x=>x.id===b.dataset.edit); if(r) openEdit(r); }));
     tb.querySelectorAll('[data-done]').forEach(b=>b.addEventListener('click',()=>markVisited(b.dataset.done,b.dataset.cust)));
     tb.querySelectorAll('[data-del]').forEach(b=>b.addEventListener('click',()=>delItem(b.dataset.del,b.dataset.cust,b.dataset.src)));
-  } catch(e){
-    tb.innerHTML=`<tr><td colspan="9" class="vs-mini" style="text-align:center;padding:18px;color:#b91c1c;">불러오기 실패: ${esc(e.message||e)}</td></tr>`;
-  }
+  bindClear();
 }
+function bindClear(){ const c=$('vs-clear'); if(c) c.addEventListener('click', e=>{ e.preventDefault(); setFilter(null); }); }
 
 $('btn-add').addEventListener('click', addItem);
 $('btn-refresh').addEventListener('click', () => { loadCustomers(); load(); });
