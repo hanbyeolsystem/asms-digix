@@ -5,6 +5,8 @@
 
 const ADMIN_USER_FN = 'lease-admin-user';
 
+let UROWS = [];
+
 document.addEventListener('totalas:ready', async (e) => {
   const me = e.detail;
   if (me.role !== 'admin') {
@@ -30,6 +32,7 @@ async function renderUsers() {
     tbody.innerHTML = '<tr><td colspan="6" class="muted-small" style="text-align:center;padding:20px;">사용자가 없습니다.</td></tr>';
     return;
   }
+  UROWS = data;
   tbody.innerHTML = data.map(u => `
     <tr data-uid="${u.user_id}">
       <td><strong>${escapeHtml(u.display_id)}</strong></td>
@@ -38,6 +41,7 @@ async function renderUsers() {
       <td>${u.active ? '<span class="status-on">활성</span>' : '<span class="status-off">비활성</span>'}</td>
       <td class="muted-small">${(u.created_at || '').slice(0,10)}</td>
       <td class="row-actions">
+        <button class="btn ghost small btn-edituser" data-uid="${u.user_id}">수정</button>
         ${u.user_id === window.currentUser.id
           ? '<span class="muted-small">(나)</span>'
           : `<button class="btn ghost small btn-del" data-uid="${u.user_id}" data-display="${escapeAttr(u.display_id)}">삭제</button>`}
@@ -48,6 +52,54 @@ async function renderUsers() {
   tbody.querySelectorAll('.btn-del').forEach(btn => {
     btn.addEventListener('click', () => deleteUser(btn.dataset.uid, btn.dataset.display));
   });
+  tbody.querySelectorAll('.btn-edituser').forEach(btn => {
+    btn.addEventListener('click', () => { const u = UROWS.find(x => x.user_id === btn.dataset.uid); if (u) openEditUser(u); });
+  });
+}
+
+function openEditUser(u) {
+  const box = document.getElementById('modal-box');
+  box.innerHTML = `
+    <h3>사용자 수정</h3>
+    <p class="muted-small" style="margin:0 0 14px 0;">아이디 <b>${escapeHtml(u.display_id)}</b> · 저장하면 <b>접수관리툴</b>에도 함께 반영됩니다.</p>
+    <div class="form-row"><label><span>이름</span><input id="eu-name" value="${escapeAttr(u.full_name || '')}" placeholder="성명"></label></div>
+    <div class="form-row"><label><span>역할 *</span>
+      <select id="eu-role"><option value="engineer">사용자</option><option value="admin">관리자</option></select>
+    </label></div>
+    <label style="display:flex;align-items:center;gap:6px;font-size:13px;margin-top:8px;"><input type="checkbox" id="eu-active"> 활성 계정</label>
+    <div id="eu-msg" class="muted-small" style="color:var(--danger);margin-top:8px;"></div>
+    <div class="modal-actions">
+      <button class="btn ghost" type="button" data-close>취소</button>
+      <button class="btn primary" id="eu-submit">저장</button>
+    </div>`;
+  document.getElementById('modal-backdrop').classList.remove('hidden');
+  document.getElementById('eu-role').value = u.role || 'engineer';
+  document.getElementById('eu-active').checked = u.active !== false;
+  box.querySelectorAll('[data-close]').forEach(b => b.addEventListener('click', closeModal));
+  document.getElementById('eu-submit').addEventListener('click', () => saveEditUser(u));
+}
+
+async function saveEditUser(u) {
+  const full_name = document.getElementById('eu-name').value.trim();
+  const role = document.getElementById('eu-role').value;
+  const active = document.getElementById('eu-active').checked;
+  const msg = document.getElementById('eu-msg');
+  const btn = document.getElementById('eu-submit');
+  btn.disabled = true; msg.textContent = '';
+  try {
+    const supa = window.totalasAuth;
+    // 1) 임대관리 프로필
+    const { error } = await supa.from('rental_user_profiles')
+      .update({ full_name, role, active }).eq('user_id', u.user_id);
+    if (error) throw error;
+    // 2) 접수관리툴(engineers) 동기화 — 이름/역할
+    try { await supa.from('engineers').update({ en_name: full_name, en_role: role }).eq('user_id', u.user_id); } catch (e) {}
+    closeModal();
+    await renderUsers();
+  } catch (err) {
+    msg.textContent = err.message || String(err);
+    btn.disabled = false;
+  }
 }
 
 function openAddModal() {

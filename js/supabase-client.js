@@ -311,6 +311,11 @@ async function currentUserName() {
   if (!window.SB_CONFIGURED) return localStorage.getItem("current_user") || "데모";
   const { data: { user } } = await window.sb.auth.getUser();
   if (!user) return null;
+  // 접수/처리자에 성명이 나오도록 engineers.en_name 을 우선 사용
+  try {
+    const { data: eng } = await window.sb.from("engineers").select("en_name").eq("user_id", user.id).maybeSingle();
+    if (eng && eng.en_name) return eng.en_name;
+  } catch (e) {}
   return user.user_metadata?.name || user.email?.split("@")[0] || user.email || "사용자";
 }
 window.currentUserName = currentUserName;
