@@ -2126,6 +2126,26 @@
       <textarea name="notes" rows="2" placeholder="예: 2층 사무실 비치, 스캔 전용 등 (선택)"></textarea>
     </div>
 
+    <!-- 정기방문: 체크 시 정기방문관리에 자동 등록 -->
+    <div class="rc-form-row" id="asset-visit-row">
+      <label style="display:flex;align-items:center;gap:7px;cursor:pointer;">
+        <input type="checkbox" id="asset-regular-visit" style="width:auto;"
+          onchange="var w=document.getElementById('asset-visit-cycle-wrap');if(w)w.style.display=this.checked?'flex':'none';">
+        🗓 정기방문 대상 <span style="font-size:11px;color:var(--muted);">(체크하면 정기방문관리에 자동 등록)</span>
+      </label>
+      <div id="asset-visit-cycle-wrap" style="display:none;align-items:center;gap:8px;margin-top:7px;">
+        <select id="asset-visit-cycle" style="width:auto;">
+          <option value="1">1개월마다</option><option value="2">2개월마다</option>
+          <option value="3" selected>3개월마다</option><option value="4">4개월마다</option>
+          <option value="5">5개월마다</option><option value="6">6개월마다</option>
+          <option value="7">7개월마다</option><option value="8">8개월마다</option>
+          <option value="9">9개월마다</option><option value="10">10개월마다</option>
+          <option value="11">11개월마다</option><option value="12">12개월마다 (1년)</option>
+        </select>
+        <span style="font-size:11px;color:var(--muted);">방문 주기</span>
+      </div>
+    </div>
+
     <!-- 수량: 추가 모드 = N대 일괄 추가 / 수정 모드 = 현재 1대 수정 + (N-1)대 추가 -->
     <div class="rc-form-row" id="asset-qty-row">
       <label>수량 <span style="font-size:11px;color:var(--muted);" id="asset-qty-hint">(동일 모델 N대 일괄 추가)</span></label>

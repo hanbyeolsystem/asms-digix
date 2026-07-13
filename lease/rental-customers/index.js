@@ -1241,7 +1241,7 @@ async function loadAll() {
         rental_assignments(
           id, item_id, start_date, end_date, monthly_fee,
           bw_free, co_free, bw_rate, co_rate, notes,
-          rental_items(id, category, subtype, brand, model, asset_number, serial, install_date, status, storage_gb, notes, counter_mode, total_free_count, total_unit_price, rental_type)
+          rental_items(id, category, subtype, brand, model, asset_number, serial, install_date, status, storage_gb, notes, counter_mode, total_free_count, total_unit_price, rental_type, regular_visit, visit_cycle_months)
         )
       `)
       .eq('active', wantActive)
@@ -3376,6 +3376,14 @@ function openAssetForm(customer, existing, opts) {
     if (totalUnitInput) {
       totalUnitInput.value = it.total_unit_price != null ? it.total_unit_price : '';
     }
+    const visitCb = body.querySelector('#asset-regular-visit');
+    if (visitCb) {
+      visitCb.checked = !!it.regular_visit;
+      const vw = body.querySelector('#asset-visit-cycle-wrap');
+      if (vw) vw.style.display = it.regular_visit ? 'flex' : 'none';
+      const vc = body.querySelector('#asset-visit-cycle');
+      if (vc && it.visit_cycle_months) vc.value = String(it.visit_cycle_months);
+    }
     // 수정 모드: 수량 입력란 표시, 기본값 1, 힌트 문구 교체
     const qtyRow = body.querySelector('#asset-qty-row');
     if (qtyRow) {
@@ -3450,6 +3458,11 @@ function openAssetForm(customer, existing, opts) {
         ? Number(totalUnitPriceRaw.value)
         : 0;
 
+      const regularVisit = f.querySelector ? (f.querySelector('#asset-regular-visit')?.checked || false) : false;
+      const visitCycle = regularVisit
+        ? Number((f.querySelector && f.querySelector('#asset-visit-cycle')?.value) || 3)
+        : null;
+
       const itemPayload = {
         category,
         subtype,
@@ -3465,6 +3478,8 @@ function openAssetForm(customer, existing, opts) {
         total_free_count: totalFreeCount,
         total_unit_price: totalUnitPrice,
         rental_type: f.rental_type ? (f.rental_type.value || 'paid') : 'paid',
+        regular_visit: regularVisit,
+        visit_cycle_months: visitCycle,
       };
 
       // 무음 학습: 저장 흐름을 막지 않도록 fire-and-forget

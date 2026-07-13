@@ -39,6 +39,7 @@
           <a href="rental-customers/index.html"><span class="nav-icon">👥</span><span>임대거래처</span></a>
           <a href="rental-counters/index.html"><span class="nav-icon">🖨</span><span>임대카운터</span></a>
           <a href="rental-billing/index.html"><span class="nav-icon">💰</span><span>임대추가요금청구</span></a>
+          <a href="visit-schedule/index.html"><span class="nav-icon">🗓</span><span>정기방문관리</span><span id="vs-badge" style="display:none;margin-left:auto;background:#dc2626;color:#fff;font-size:10px;font-weight:700;min-width:16px;height:16px;line-height:16px;text-align:center;border-radius:8px;padding:0 4px;"></span></a>
         </div>
       </div>
       <a href="board/index.html"><span class="nav-icon">🗂</span><span>자료실</span></a>
@@ -165,6 +166,26 @@ function bindGroupToggle() {
 bindSidebarLinks();
 bindGroupToggle();
 restoreFromHash();
+
+/** 정기방문 D-임박(알림일 이내 + 지남) 건수를 사이드바 배지로 표시 */
+async function updateVisitBadge() {
+  try {
+    const sb = window.totalasAuth; if (!sb) return;
+    const { data } = await sb.from('rental_visit_schedules')
+      .select('next_visit_date,alert_days,active').eq('active', true);
+    if (!data) return;
+    const t = new Date(); t.setHours(0,0,0,0);
+    let n = 0;
+    data.forEach(r => {
+      const d = Math.round((new Date(r.next_visit_date + 'T00:00:00') - t) / 86400000);
+      if (d <= (r.alert_days ?? 3)) n++;
+    });
+    const b = document.getElementById('vs-badge');
+    if (b) { if (n > 0) { b.textContent = n; b.style.display = 'inline-block'; } else b.style.display = 'none'; }
+  } catch (e) {}
+}
+document.addEventListener('totalas:ready', updateVisitBadge, { once: false });
+if (window.currentUser) updateVisitBadge();
 </script>
 
 </body>
