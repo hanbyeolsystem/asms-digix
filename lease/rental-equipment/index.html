@@ -193,6 +193,13 @@
     display: inline-flex; align-items: center; gap: 4px;
     font-variant-numeric: tabular-nums;
   }
+  .collector-panel .cp-stat[data-sf] {
+    cursor: pointer; padding: 2px 8px; border-radius: 999px;
+    border: 1px solid transparent; transition: background .1s, border-color .1s;
+    user-select: none;
+  }
+  .collector-panel .cp-stat[data-sf]:hover { background: rgba(0,0,0,.05); }
+  .collector-panel .cp-stat[data-sf].on { background: #eff6ff; border-color: #2563eb; }
   .collector-panel .cp-stat .dot {
     width: 8px; height: 8px; border-radius: 50%;
   }
@@ -1268,9 +1275,9 @@
     <div class="cp-head">
       <span class="cp-title">🔌 디직스코리아 수집기 (실시간 카운터)</span>
       <div class="cp-stats">
-        <span class="cp-stat"><span class="dot online"></span>온라인 <strong id="cp-online">–</strong></span>
-        <span class="cp-stat"><span class="dot offline"></span>오프라인 <strong id="cp-offline">–</strong></span>
-        <span class="cp-stat"><span class="dot pending"></span>매핑대기 <strong id="cp-pending">–</strong></span>
+        <span class="cp-stat" data-sf="online" title="클릭하면 온라인만 표시"><span class="dot online"></span>온라인 <strong id="cp-online">–</strong></span>
+        <span class="cp-stat" data-sf="offline" title="클릭하면 오프라인만 표시"><span class="dot offline"></span>오프라인 <strong id="cp-offline">–</strong></span>
+        <span class="cp-stat" data-sf="pending" title="클릭하면 매핑대기만 표시"><span class="dot pending"></span>매핑대기 <strong id="cp-pending">–</strong></span>
       </div>
     </div>
     <div class="cp-body">

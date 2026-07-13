@@ -31,6 +31,7 @@
     suppliesAvailable: true,        // 51_device_supplies.sql 적용 여부
     loaded: false,
     collectorSearch: '',       // 실시간 수집기 검색어 (거래처/모델/자산번호)
+    collectorStatusFilter: '', // '' | 'online' | 'offline' | 'pending' — 통계 클릭 필터
   };
 
   const $  = (sel, root) => (root || document).querySelector(sel);
@@ -205,6 +206,18 @@
       banner.style.display = 'flex';
     } else {
       banner.style.display = 'none';
+    }
+
+    // 통계(온라인/오프라인/매핑대기) 클릭 → 상태 필터 토글 (정적 요소라 1회만 바인딩)
+    if (!renderCollectorPanel._sfBound) {
+      document.querySelectorAll('.cp-stat[data-sf]').forEach(el => el.addEventListener('click', () => {
+        const f = el.dataset.sf;
+        state.collectorStatusFilter = (state.collectorStatusFilter === f) ? '' : f;
+        document.querySelectorAll('.cp-stat[data-sf]').forEach(x =>
+          x.classList.toggle('on', x.dataset.sf === state.collectorStatusFilter));
+        renderLiveSection();
+      }));
+      renderCollectorPanel._sfBound = true;
     }
   }
 
@@ -579,21 +592,32 @@
       return { device: d, collector: c, customer: cust, reading: r };
     });
 
-    // 1-b) 검색어 필터링 (거래처명 / 모델명 / 자산번호 — 부분 일치, 대소문자 무시)
+    // 1-b) 검색어 + 상태(온라인/오프라인/매핑대기) 필터링
     const searchQ = (state.collectorSearch || '').trim().toLowerCase();
-    const filteredEnriched = searchQ
-      ? enriched.filter(({ device: d, customer: cust }) => {
-          const custName  = cust ? (cust.trade_name || cust.company || '').toLowerCase() : '';
-          const model     = (d.model    || '').toLowerCase();
-          const assetNum  = (d.asset_number || '').toLowerCase();
-          return custName.includes(searchQ) || model.includes(searchQ) || assetNum.includes(searchQ);
-        })
-      : enriched;
+    const statusF = state.collectorStatusFilter || '';
+    const statusOf = (item) => {
+      const c = item.collector;
+      if (!c || c.status === 'pending' || !c.customer_id) return 'pending';
+      const ts = (item.reading && item.reading.read_at) || item.device.last_seen_at;
+      const age = ts ? (Date.now() - new Date(ts).getTime()) / 60000 : null;
+      return (age == null || age > 30) ? 'offline' : 'online';
+    };
+    const filteredEnriched = enriched.filter((item) => {
+      if (searchQ) {
+        const cust = item.customer;
+        const custName = cust ? (cust.trade_name || cust.company || '').toLowerCase() : '';
+        const model    = (item.device.model || '').toLowerCase();
+        const assetNum = (item.device.asset_number || '').toLowerCase();
+        if (!(custName.includes(searchQ) || model.includes(searchQ) || assetNum.includes(searchQ))) return false;
+      }
+      if (statusF && statusOf(item) !== statusF) return false;
+      return true;
+    });
 
     // 검색 결과 카운트 표시
     const countEl = document.getElementById('live-search-count');
     if (countEl) {
-      if (searchQ) {
+      if (searchQ || statusF) {
         countEl.style.display = 'inline';
         countEl.innerHTML = `<strong>${filteredEnriched.length}</strong> / ${enriched.length}대`;
       } else {
@@ -601,9 +625,11 @@
       }
     }
 
-    if (searchQ && filteredEnriched.length === 0) {
+    if ((searchQ || statusF) && filteredEnriched.length === 0) {
+      const SF_LABEL = { online:'온라인', offline:'오프라인', pending:'매핑대기' };
+      const what = searchQ ? `"<strong>${escapeHtml(state.collectorSearch)}</strong>"` : `<strong>${SF_LABEL[statusF]||statusF}</strong>`;
       tbody.innerHTML = `<tr><td class="live-empty" colspan="15" style="padding:28px;text-align:center;color:var(--muted);">
-        "<strong>${escapeHtml(state.collectorSearch)}</strong>" 에 해당하는 장비가 없습니다.
+        ${what} 에 해당하는 장비가 없습니다.
       </td></tr>`;
       latestEl.textContent = '–';
       return;
@@ -1682,6 +1708,7 @@
       <div class="dd-section">
         <div class="dd-h">📈 카운터확인 <span class="dd-h-sub">누적 카운터</span></div>
         ${_renderCounterTrend(readings)}
+        ${_renderDailyThisMonth(readings)}
         <div class="dd-month-h">📅 월별 카운터 (최근 12개월) <span style="font-weight:500;color:var(--muted);">· 임대카운터 연동 · 1일~말일 기준</span></div>
         ${_renderMonthly12(monthlyCounters, item)}
       </div>`;
@@ -2083,6 +2110,37 @@
       ${note}`;
   }
 
+  // 일일 카운터(이번달) — 하루 사용량 = 당일 마지막누적 − 전일 마지막누적
+  function _renderDailyThisMonth(readings) {
+    const days = _dailyBuckets(readings);
+    if (days.length < 2) return '';
+    const ym = _ymString(new Date());
+    const totOf = r => r.total_pages != null ? Number(r.total_pages) : ((Number(r.bw) || 0) + (Number(r.color) || 0));
+    const diff = (a, b) => (a != null && b != null) ? Math.max(0, Number(a) - Number(b)) : null;
+    const rows = [];
+    for (let i = 1; i < days.length; i++) {
+      const dateStr = new Date(days[i].t).toISOString().slice(0, 10);
+      if (dateStr.slice(0, 7) !== ym) continue;
+      const cur = days[i].r, prev = days[i - 1].r;
+      rows.push({
+        date: dateStr,
+        bw:    diff(cur.bw, prev.bw),
+        color: diff(cur.color, prev.color),
+        total: Math.max(0, totOf(cur) - totOf(prev)),
+      });
+    }
+    if (!rows.length) return '<div class="dd-empty">이번달 일일 카운터 데이터가 아직 없습니다. (2일 이상 검침 필요)</div>';
+    rows.reverse();
+    const cell = v => (v == null ? '–' : fmtInt(v));
+    let tbl = `<div class="dd-month-h">📆 일일 카운터 (${ym} · 하루 사용량)</div>
+      <table class="dd-table dd-tm-table"><thead><tr><th>날짜</th><th>흑백</th><th>컬러</th><th>합계</th></tr></thead><tbody>`;
+    for (const r of rows) {
+      tbl += `<tr><td>${escapeHtml(r.date)}</td><td>${cell(r.bw)}</td><td>${cell(r.color)}</td><td class="dd-use">${cell(r.total)}</td></tr>`;
+    }
+    tbl += `</tbody></table>`;
+    return tbl;
+  }
+
   // 월별 카운터(최근 12개월) — rental_counters 연동. 월 사용량 = 당월누적 − 전월누적(음수=0)
   function _renderMonthly12(monthlyCounters, item) {
     if (!item) {
@@ -2132,8 +2190,9 @@
 
   // 장치 로그 — readings.alert_text 에서 이벤트 추출 (용지걸림·오류 등)
   function _renderDeviceLog(readings) {
+    const LOG_LIMIT = 10;   // 최근 이벤트 10개까지만 표시
     const events = [];
-    for (let i = readings.length - 1; i >= 0 && events.length < 50; i--) {
+    for (let i = readings.length - 1; i >= 0 && events.length < LOG_LIMIT; i--) {
       const r = readings[i];
       const raw = String(r.alert_text || '').trim();
       if (!raw) continue;
@@ -2141,7 +2200,7 @@
       const parts = raw.split(/[,;/|]+/).map(s => s.trim()).filter(Boolean);
       for (const p of parts) {
         events.push({ cat: p, ts: r.read_at });
-        if (events.length >= 50) break;
+        if (events.length >= LOG_LIMIT) break;
       }
     }
     if (!events.length) return `<div class="dd-empty">기록된 장치 이벤트가 없습니다.</div>`;
