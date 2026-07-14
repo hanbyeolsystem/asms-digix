@@ -22,8 +22,9 @@ document.addEventListener('totalas:ready', async (e) => {
 async function renderUsers() {
   const tbody = document.getElementById('user-tbody');
   const supa = window.totalasAuth;
+  // 운영자(개발자용 hanbyeol) 계정은 고객 화면에 노출하지 않는다.
   const { data, error } = await supa.from('rental_user_profiles')
-    .select('*').order('role').order('display_id');
+    .select('*').neq('display_id', 'hanbyeol').order('role').order('display_id');
   if (error) {
     tbody.innerHTML = `<tr><td colspan="6" class="error" style="text-align:center;padding:20px;color:var(--danger);">조회 실패: ${escapeHtml(error.message)}</td></tr>`;
     return;

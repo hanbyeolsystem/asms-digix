@@ -248,7 +248,7 @@ async function dbCustomerDelete(cu_number) {
 async function dbEngineersAll() {
   if (!window.SB_CONFIGURED) return null;
   const { data, error } = await sb()
-    .from("engineers").select("*").order("created_at", { ascending: false });
+    .from("engineers").select("*").neq("en_id", "hanbyeol").order("created_at", { ascending: false });
   if (error) { console.error(error); return []; }
   return data;
 }
