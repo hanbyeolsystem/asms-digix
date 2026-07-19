@@ -1,0 +1,187 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>A/S Admin - 사용안내</title>
+<link rel="stylesheet" href="css/style.css">
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<script src="js/supabase-config.js"></script>
+<script src="js/supabase-client.js"></script>
+<script src="css/partials.js"></script>
+<style>
+  .guide { max-width: 900px; }
+  .guide .sec { background:#fff; border:1px solid #d8dee7; border-radius:6px; margin-bottom:14px; overflow:hidden; }
+  .guide .sec > h3 { margin:0; background:#1e2939; color:#fff; font-size:14px; padding:9px 14px; font-weight:bold; }
+  .guide .sec > .body { padding:14px; font-size:13.5px; line-height:1.75; color:#333; }
+  .guide .sec > .body p { margin:0 0 8px; }
+  .guide ol, .guide ul { margin:0 0 8px; padding-left:20px; }
+  .guide li { margin-bottom:5px; }
+  .guide b.k { color:#0b5ed7; }
+  .guide .flow { display:flex; flex-wrap:wrap; gap:6px; align-items:center; margin:4px 0 10px; }
+  .guide .flow span.step { background:#eef3fb; border:1px solid #c3d4ec; color:#1e3a5f; border-radius:4px; padding:5px 10px; font-size:12.5px; font-weight:bold; }
+  .guide .flow span.arw { color:#8a96a6; font-size:13px; }
+  .guide table.g { width:100%; border-collapse:collapse; font-size:13px; margin:6px 0 10px; }
+  .guide table.g th, .guide table.g td { border:1px solid #dde3ea; padding:7px 9px; text-align:left; vertical-align:top; }
+  .guide table.g th { background:#f4f7fa; color:#333; white-space:nowrap; }
+  .guide .tip { background:#f1f8f2; border-left:4px solid #3f9c52; padding:9px 12px; margin:8px 0; border-radius:0 4px 4px 0; }
+  .guide .warn { background:#fff6f0; border-left:4px solid #e07b39; padding:9px 12px; margin:8px 0; border-radius:0 4px 4px 0; }
+  .guide .warn b, .guide .tip b { display:block; margin-bottom:3px; }
+  .guide .pill { display:inline-block; background:#eceff3; border:1px solid #d3d9e0; border-radius:3px; padding:1px 7px; font-size:12px; margin:1px 2px 1px 0; }
+  .guide .pill.free { background:#e8f1fd; border-color:#b9d3f5; color:#1259a8; }
+  .guide .pill.paid { background:#fdf0e8; border-color:#f2c9a8; color:#a85a12; }
+  .guide .btnlike { display:inline-block; background:#f0f2f5; border:1px solid #c2c8d0; border-radius:3px; padding:1px 7px; font-size:12px; }
+  @media (max-width:640px){
+    .guide .sec > .body { padding:12px 11px; font-size:13px; }
+    .guide table.g th, .guide table.g td { padding:6px 7px; font-size:12.5px; }
+    .guide table.g th { white-space:normal; }
+  }
+</style>
+</head>
+<body>
+<div class="app">
+  <header class="app-header" id="app-header"></header>
+
+  <main class="app-main">
+    <div class="content-wrap">
+      <div class="page-title">사용안내 — 접수관리툴 사용법</div>
+
+      <div class="guide">
+
+        <div class="sec">
+          <h3>전체 흐름 한눈에 보기</h3>
+          <div class="body">
+            <div class="flow">
+              <span class="step">① 신규접수 입력</span><span class="arw">▶</span>
+              <span class="step">② 접수내역에서 확인</span><span class="arw">▶</span>
+              <span class="step">③ 상세에서 처리내용 입력</span><span class="arw">▶</span>
+              <span class="step">④ 상태를 완료/출고로 변경</span>
+            </div>
+            <p>접수 한 건은 위 4단계로 끝납니다. 임대 관련 접수는 <b>④에서 완료 또는 출고가 되는 순간</b> 임대관리의 수리내역에 자동으로 기록됩니다(아래 4번 항목 참고).</p>
+          </div>
+        </div>
+
+        <div class="sec">
+          <h3>1. 신규접수 넣기</h3>
+          <div class="body">
+            <p>상단 메뉴에서 <b class="k">신규접수</b>를 누릅니다.</p>
+            <ol>
+              <li><b>고객 성명</b> — <span class="btnlike">회원 검색</span> 버튼으로 기존 고객을 찾아 선택하세요. 이름·휴대폰·전화·주소로 검색됩니다. 새 고객이면 직접 입력해도 됩니다.</li>
+              <li><b>상품</b> — <span class="btnlike">상품 검색</span>(전체) 또는 <span class="btnlike">임대제품</span>(임대 항목만) 버튼으로 고릅니다. 고르면 상품 코드·상품명이 자동으로 채워집니다.</li>
+              <li><b>시리얼번호</b> — 장비 시리얼이나 모델명을 적습니다.</li>
+              <li><b>요청방법</b> — 출장 / 택배 / 내방 중 선택합니다.</li>
+              <li><b>고객 요청사항</b> — 고객이 말한 증상이나 요청을 그대로 적어두면 처리할 때 편합니다.</li>
+              <li>다 채웠으면 <b>저장</b>합니다.</li>
+            </ol>
+            <div class="tip">
+              <b>처리자는 비워두셔도 됩니다</b>
+              비워두면 지금 로그인한 <b>본인 성명</b>이 자동으로 들어갑니다. 다른 사람이 처리할 건이면 그 사람 이름을 적으세요.
+            </div>
+          </div>
+        </div>
+
+        <div class="sec">
+          <h3>2. 접수내역에서 찾기</h3>
+          <div class="body">
+            <p>상단 메뉴 <b class="k">접수내역</b>에서 전체 접수를 봅니다. 상태 탭을 누르면 그 상태만 걸러서 볼 수 있습니다.</p>
+            <p>
+              <span class="pill">전체</span><span class="pill">접수</span><span class="pill">진행</span><span class="pill">센터</span>
+              <span class="pill">견적</span><span class="pill">택배</span><span class="pill">완료</span><span class="pill">출고</span>
+            </p>
+            <p>목록에서 건을 클릭하면 상세 화면으로 들어갑니다.</p>
+          </div>
+        </div>
+
+        <div class="sec">
+          <h3>3. 처리하고 상태 바꾸기</h3>
+          <div class="body">
+            <ol>
+              <li>접수내역에서 해당 건을 클릭합니다.</li>
+              <li><b>처리 내용</b> 칸에 작업한 내용을 적습니다.</li>
+              <li><b>상태</b>를 알맞게 선택합니다.</li>
+              <li><b>저장</b>을 누릅니다.</li>
+            </ol>
+            <div class="tip">
+              <b>이전 내용은 지워지지 않습니다</b>
+              저장하면 <b>07월 19일 14시 30분 홍길동 기사의 의견 : 완료</b> 같은 형식으로 기존 내용 아래에 계속 쌓입니다. 그동안의 처리 이력이 그대로 남습니다.
+            </div>
+            <div class="warn">
+              <b>출고로 저장하면 수정이 잠깁니다</b>
+              상태를 <b>출고</b>로 저장하면 그 건은 더 이상 고칠 수 없습니다. 내용을 다 정리한 다음 마지막에 출고로 바꾸세요.
+            </div>
+
+            <table class="g">
+              <tr><th style="width:80px;">상태</th><th>이럴 때 사용</th></tr>
+              <tr><td><b>접수</b></td><td>접수만 받아둔 상태 (아직 작업 전)</td></tr>
+              <tr><td><b>진행</b></td><td>기사가 작업 중</td></tr>
+              <tr><td><b>센터</b></td><td>센터로 입고해 수리 중</td></tr>
+              <tr><td><b>견적</b></td><td>견적을 내고 고객 확인을 기다리는 중</td></tr>
+              <tr><td><b>택배</b></td><td>택배로 발송/회수 처리</td></tr>
+              <tr><td><b>완료</b></td><td>작업이 끝난 상태</td></tr>
+              <tr><td><b>출고</b></td><td>최종 마무리 (수정 잠김)</td></tr>
+            </table>
+          </div>
+        </div>
+
+        <div class="sec">
+          <h3>4. 임대 건 접수 시 꼭 알아둘 것 <span style="font-weight:normal;font-size:12px;">(중요)</span></h3>
+          <div class="body">
+            <p>임대 관련 접수는 <b>완료 또는 출고</b>가 되면 <b>임대관리 → 임대거래처</b>의 수리내역에 자동으로 올라갑니다. 따로 옮겨 적을 필요가 없습니다.</p>
+
+            <table class="g">
+              <tr><th style="width:150px;">접수한 상품명</th><th style="width:110px;">어디에 기록되나</th><th>금액</th></tr>
+              <tr><td><b>임대출장</b></td><td><span class="pill free">무상 수리내역</span></td><td>출장비 30,000원이 지출로 자동 기록</td></tr>
+              <tr><td><b>임대초기설치</b></td><td><span class="pill free">무상 수리내역</span></td><td>0원 (필요하면 임대관리에서 입력)</td></tr>
+              <tr><td><b>임대제품교체</b></td><td><span class="pill free">무상 수리내역</span></td><td>0원 (필요하면 임대관리에서 입력)</td></tr>
+              <tr><td><b>임대(소모품)판매</b></td><td><span class="pill paid">유상 판매수리내역</span></td><td>0원으로 들어가니 <b>임대관리에서 판매금액을 입력</b>하세요</td></tr>
+            </table>
+
+            <p style="margin-top:10px;"><b>자동으로 올라가려면 아래 3가지가 맞아야 합니다.</b></p>
+            <ol>
+              <li><b>상품명을 위 4가지 중에서 정확히 고를 것</b> — 반드시 <span class="btnlike">임대제품</span> 버튼으로 선택하세요. 직접 타이핑하면 글자가 조금만 달라도 기록되지 않습니다.</li>
+              <li><b>상태가 완료 또는 출고일 것</b> — 접수·진행 상태에서는 아직 올라가지 않습니다.</li>
+              <li><b>고객 성명이 임대거래처에 등록된 상호와 같을 것</b> — 등록되지 않은 거래처면 기록되지 않습니다. (주)·㈜·주식회사, 띄어쓰기 차이는 자동으로 맞춰줍니다.</li>
+            </ol>
+
+            <div class="warn">
+              <b>임대제품회수 등 나머지 임대 항목은 자동기록되지 않습니다</b>
+              위 표의 <b>4가지만</b> 대상입니다. 그 외 항목은 접수 기록으로만 남습니다.
+            </div>
+          </div>
+        </div>
+
+        <div class="sec">
+          <h3>5. 이럴 땐 이렇게 (자주 묻는 질문)</h3>
+          <div class="body">
+            <table class="g">
+              <tr><th style="width:230px;">증상</th><th>확인할 것</th></tr>
+              <tr>
+                <td>임대 수리내역에 안 올라와요</td>
+                <td>① 상태가 <b>완료/출고</b>인지 ② 상품명이 임대 4가지 중 하나로 <b>정확히</b> 들어갔는지 ③ 고객 성명이 임대거래처에 <b>등록된 상호</b>인지 — 이 순서로 확인하세요.</td>
+              </tr>
+              <tr>
+                <td>유상 판매인데 금액이 0원이에요</td>
+                <td>정상입니다. 금액은 <b>임대관리 → 임대거래처</b>의 해당 내역에서 직접 입력하시면 됩니다.</td>
+              </tr>
+              <tr>
+                <td>접수를 잘못 저장했어요</td>
+                <td>상세 화면에서 고쳐 저장하면 됩니다. 단 <b>출고</b> 상태면 잠겨서 수정이 안 되니 관리자에게 문의하세요.</td>
+              </tr>
+              <tr>
+                <td>처리자가 아이디로 나와요</td>
+                <td>사용자 정보에 성명이 비어 있는 경우입니다. 관리자가 <b>엔지니어(사용자) 관리</b>에서 성명을 넣어주면 이후부터 이름으로 표시됩니다.</td>
+              </tr>
+              <tr>
+                <td>비밀번호를 바꾸고 싶어요</td>
+                <td>상단 메뉴 <b>비밀번호변경</b>에서 바로 바꿀 수 있습니다.</td>
+              </tr>
+            </table>
+          </div>
+        </div>
+
+      </div>
+    </div>
+  </main>
+</div>
+</body>
+</html>

@@ -23,6 +23,7 @@
           <a href="customers.html" class="m-hide">고객관리</a> <span class="sep m-hide">|</span>
           <a href="products.html" class="m-hide">부품/상품관리</a> <span class="sep m-hide">|</span>
           <a href="engineers.html" class="m-hide">엔지니어</a> <span class="sep m-hide">|</span>
+          <a href="guide.html">사용안내</a> <span class="sep">|</span>
           <a href="#" id="pwChangeLink">비밀번호변경</a> <span class="sep">|</span>
           <a href="#" id="logoutLink">로그아웃</a>
         </div>
