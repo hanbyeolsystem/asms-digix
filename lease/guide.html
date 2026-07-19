@@ -1,0 +1,407 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>임대관리 사용방법</title>
+<link rel="stylesheet" href="styles.css">
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<script src="config.js"></script>
+<script src="auth.js"></script>
+<style>
+  body { background: var(--bg); margin: 0; }
+  .lg-wrap { max-width: 940px; margin: 0 auto; padding: 18px 16px 60px; }
+  .lg-head { margin-bottom: 16px; }
+  .lg-head h1 { font-size: 21px; margin: 0 0 6px; color: var(--text); }
+  .lg-head p { margin: 0; color: var(--muted); font-size: 13.5px; }
+
+  .lg-toc { background: var(--card); border: 1px solid var(--border); border-radius: 10px;
+            padding: 12px 14px; margin-bottom: 18px; box-shadow: var(--shadow); }
+  .lg-toc b { font-size: 13px; color: var(--text-soft); display: block; margin-bottom: 7px; }
+  .lg-toc a { display: inline-block; font-size: 13px; color: var(--primary); text-decoration: none;
+              background: var(--primary-soft); border: 1px solid #dbe7fb; border-radius: 999px;
+              padding: 4px 11px; margin: 0 5px 5px 0; }
+  .lg-toc a:hover { background: #e3edfd; }
+
+  .sec { background: var(--card); border: 1px solid var(--border); border-radius: 10px;
+         margin-bottom: 14px; overflow: hidden; box-shadow: var(--shadow); scroll-margin-top: 12px; }
+  .sec > h2 { margin: 0; font-size: 15px; color: var(--text); padding: 12px 15px;
+              border-bottom: 1px solid var(--border); background: #fafbfc; }
+  .sec > h2 small { font-weight: normal; color: var(--muted); font-size: 12.5px; margin-left: 6px; }
+  .sec > .body { padding: 15px; font-size: 13.5px; line-height: 1.75; color: var(--text-soft); }
+  .sec > .body p { margin: 0 0 9px; }
+  .sec ol, .sec ul { margin: 0 0 9px; padding-left: 20px; }
+  .sec li { margin-bottom: 5px; }
+  h3.sub { font-size: 13.5px; color: var(--text); margin: 14px 0 6px; padding-left: 9px;
+           border-left: 3px solid var(--primary); }
+  h3.sub:first-child { margin-top: 0; }
+
+  table.g { width: 100%; border-collapse: collapse; font-size: 13px; margin: 6px 0 10px; }
+  table.g th, table.g td { border: 1px solid var(--border); padding: 7px 9px; text-align: left; vertical-align: top; }
+  table.g th { background: #f6f8fa; color: var(--text); font-weight: 600; }
+
+  .note { border-left: 4px solid var(--primary); background: #f4f8ff; padding: 9px 12px;
+          margin: 9px 0; border-radius: 0 6px 6px 0; }
+  .warn { border-left: 4px solid var(--warn); background: #fff8ef; padding: 9px 12px;
+          margin: 9px 0; border-radius: 0 6px 6px 0; }
+  .danger { border-left: 4px solid var(--danger); background: #fef4f4; padding: 9px 12px;
+            margin: 9px 0; border-radius: 0 6px 6px 0; }
+  .note b, .warn b, .danger b { display: block; margin-bottom: 3px; color: var(--text); }
+
+  .btnx { display: inline-block; background: #f1f3f6; border: 1px solid var(--border-strong);
+          border-radius: 4px; padding: 1px 7px; font-size: 12px; color: var(--text); white-space: nowrap; }
+  .pill { display: inline-block; border-radius: 999px; padding: 1px 9px; font-size: 12px; margin: 1px 2px 1px 0; }
+  .pill.b { background: #e8f1fd; color: #1259a8; border: 1px solid #c5daf7; }
+  .pill.r { background: #fdecec; color: #b42121; border: 1px solid #f5c9c9; }
+  .pill.g { background: #e9f6ec; color: #1a7f37; border: 1px solid #c3e6cc; }
+  .pill.o { background: #fff2e3; color: #a2600d; border: 1px solid #f5d9b0; }
+
+  .flow { display: flex; flex-wrap: wrap; gap: 6px; align-items: center; margin: 2px 0 12px; }
+  .flow .st { background: var(--primary-soft); border: 1px solid #c9dcf8; color: #17457f;
+              border-radius: 6px; padding: 6px 11px; font-size: 12.5px; font-weight: 600; }
+  .flow .ar { color: #9aa6b4; }
+  .calc { background: #f7f9fb; border: 1px solid var(--border); border-radius: 6px;
+          padding: 9px 12px; font-size: 13px; margin: 6px 0 10px; line-height: 1.9; }
+  .calc code { background: #eef1f5; border-radius: 3px; padding: 1px 5px; font-size: 12.5px; }
+
+  @media (max-width: 640px) {
+    .lg-wrap { padding: 14px 11px 50px; }
+    .sec > .body { padding: 13px 12px; font-size: 13px; }
+    table.g th, table.g td { padding: 6px 7px; font-size: 12.5px; }
+    .lg-head h1 { font-size: 19px; }
+  }
+</style>
+</head>
+<body>
+<div class="lg-wrap">
+
+  <div class="lg-head">
+    <h1>임대관리 사용방법</h1>
+    <p>임대 거래처·장비·카운터·청구를 다루는 실무 안내서입니다. 처음 쓰시는 분은 <b>2번 매달 하는 일</b>부터 보세요.</p>
+  </div>
+
+  <div class="lg-toc">
+    <b>바로가기</b>
+    <a href="#s1">1. 메뉴 구성</a>
+    <a href="#s2">2. 매달 하는 일</a>
+    <a href="#s3">3. 임대거래처</a>
+    <a href="#s4">4. 임대장비관리</a>
+    <a href="#s5">5. 임대카운터</a>
+    <a href="#s6">6. 추가요금청구</a>
+    <a href="#s7">7. 정기방문관리</a>
+    <a href="#s8">8. 자료실·사용자·현황</a>
+    <a href="#s9">9. 헷갈리는 것 모음</a>
+  </div>
+
+  <!-- 1 -->
+  <div class="sec" id="s1">
+    <h2>1. 메뉴 구성 <small>어떤 화면이 무슨 일을 하나</small></h2>
+    <div class="body">
+      <table class="g">
+        <tr><th style="width:150px;">메뉴</th><th>하는 일</th></tr>
+        <tr><td><b>임대현황</b></td><td>전체 자산·매출을 한눈에 보는 분석 화면 (조회 전용, 입력 없음)</td></tr>
+        <tr><td><b>임대장비관리</b></td><td>고객 PC의 수집기가 올려주는 <b>실시간</b> 카운터·토너 확인, 수집기를 거래처에 연결</td></tr>
+        <tr><td><b>임대거래처</b></td><td><b>모든 설정의 출발점.</b> 거래처·자산 등록, 임대료·무료매수·단가 설정, 수리/판매 내역</td></tr>
+        <tr><td><b>임대카운터</b></td><td>월별 카운터 입력(수기·엑셀), 추가사용료 자동계산, 이상치 확인</td></tr>
+        <tr><td><b>임대추가요금청구</b></td><td>고정 임대료 + 초과 사용료를 합쳐 청구서 생성·발송 처리</td></tr>
+        <tr><td><b>정기방문관리</b></td><td>방문 주기 등록 → 다음 방문일 자동계산, D-day 관리</td></tr>
+        <tr><td><b>자료실</b></td><td>공지·자료·메모용 게시판</td></tr>
+        <tr><td><b>사용자관리</b></td><td>계정 추가·수정·삭제 (관리자만)</td></tr>
+      </table>
+      <div class="note">
+        <b>기억할 원칙 하나</b>
+        임대료·무료매수·단가 같은 <b>기준값은 전부 「임대거래처」에서만</b> 정합니다. 카운터·청구 화면은 그 값을 가져다 계산만 합니다.
+      </div>
+    </div>
+  </div>
+
+  <!-- 2 -->
+  <div class="sec" id="s2">
+    <h2>2. 매달 하는 일 <small>월 업무 흐름</small></h2>
+    <div class="body">
+      <div class="flow">
+        <span class="st">① 카운터 모으기</span><span class="ar">▶</span>
+        <span class="st">② 임대카운터에 입력</span><span class="ar">▶</span>
+        <span class="st">③ 이상치 확인</span><span class="ar">▶</span>
+        <span class="st">④ 청구서 생성</span><span class="ar">▶</span>
+        <span class="st">⑤ 발송 처리</span>
+      </div>
+      <ol>
+        <li><b>카운터 모으기</b> — 수집기를 쓰는 거래처는 <b>임대장비관리 → <span class="btnx">📥 카운터 엑셀</span></b>로 받으면 됩니다. 수집기가 없으면 직접 검침한 값을 씁니다.</li>
+        <li><b>임대카운터에 입력</b> — 받은 엑셀을 업로드하거나, <b>당월COUNT</b> 칸을 직접 눌러 입력합니다.</li>
+        <li><b>이상치 확인</b> — 상단 <span class="pill r">이상치 경고</span> 카드를 눌러 목록을 보고, 검침이 잘못된 게 없는지 봅니다.</li>
+        <li><b>청구서 생성</b> — 임대추가요금청구에서 대상 월을 고르고 청구서를 만듭니다.</li>
+        <li><b>발송 처리</b> — 팩스/카톡/이메일로 보낸 뒤 <b>발송 처리</b>를 눌러 기록을 남깁니다.</li>
+      </ol>
+      <div class="warn">
+        <b>가장 많이 헷갈리는 것 — 쓴 달과 청구하는 달은 1개월 차이입니다</b>
+        4월에 쓴 사용량은 <b>5월에 청구</b>합니다. 청구 화면에서 고르는 월과 실제 데이터 월이 다르게 보이는 건 정상입니다.
+      </div>
+    </div>
+  </div>
+
+  <!-- 3 -->
+  <div class="sec" id="s3">
+    <h2>3. 임대거래처 <small>모든 기준값을 정하는 곳</small></h2>
+    <div class="body">
+      <h3 class="sub">거래처 등록</h3>
+      <p><span class="btnx">+ 거래처 추가</span>를 누르고 <b>사업자상호</b>를 반드시 채웁니다. 나머지는 아는 만큼만 넣어도 됩니다.</p>
+      <ul>
+        <li><b>거래처상호</b>가 비면 사업자상호를, <b>설치주소</b>가 비면 사업자주소를 자동으로 씁니다.</li>
+        <li><b>청구일</b>(1~31일)과 <b>결제방법</b>을 넣어두면 청구할 때 그대로 쓰입니다.</li>
+      </ul>
+
+      <h3 class="sub">자산(임대 물건) 추가</h3>
+      <p>거래처를 고른 뒤 자산을 추가합니다. <b>품목</b>과 <b>월 임대료</b>가 핵심입니다. 같은 모델 여러 대는 <b>수량</b>으로 한 번에 넣을 수 있습니다.</p>
+      <p>복사기·프린터 같은 <b>출력기기</b>는 아래 값을 꼭 채워야 카운터 요금이 계산됩니다.</p>
+      <table class="g">
+        <tr><th style="width:170px;">항목</th><th>뜻</th></tr>
+        <tr><td><b>무료 BW / 무료 컬러</b></td><td>매달 공짜로 주는 흑백·컬러 장수. 이걸 넘긴 만큼만 돈을 받습니다.</td></tr>
+        <tr><td><b>단가 BW / 단가 컬러</b></td><td>무료 장수를 넘겼을 때 1장당 받는 금액</td></tr>
+        <tr><td><b>흑백/컬러 합산 청구</b></td><td>체크하면 흑백·컬러를 <b>합쳐서</b> 계산합니다. 체크해야 아래 두 칸이 열립니다.</td></tr>
+        <tr><td><b>기본 무료 매수 / 매수당 단가</b></td><td>합산 청구일 때 쓰는 무료 장수와 단가</td></tr>
+      </table>
+      <div class="danger">
+        <b>단가를 바꿀 땐 값을 덮어쓰지 마세요</b>
+        기존 단가 칸을 고치면 <b>지난 달 청구까지 같이 틀어집니다.</b> 반드시 <b>「단가/기본매수 변경 이력」</b>에 <b>적용일</b>과 함께 새 값을 넣으세요. 그래야 적용일 이전은 옛 단가로, 이후는 새 단가로 계산됩니다.
+      </div>
+
+      <h3 class="sub">무상수리내역 / 유상판매수리내역</h3>
+      <table class="g">
+        <tr><th style="width:180px;">카드</th><th>넣는 항목</th><th>금액 부호</th></tr>
+        <tr><td><span class="pill r">🛠 무상수리내역</span></td><td>출장 / 여분토너 / 부품교체</td><td>자동 <b>마이너스(−)</b></td></tr>
+        <tr><td><span class="pill g">💰 유상판매수리내역</span></td><td>판매 / 수리</td><td>자동 <b>플러스(+)</b></td></tr>
+      </table>
+      <div class="note">
+        <b>금액은 그냥 숫자만 넣으세요</b>
+        마이너스를 직접 입력할 필요 없습니다. 무상 카드에 넣으면 자동으로 지출(−), 유상 카드에 넣으면 자동으로 수익(+)으로 잡힙니다.
+      </div>
+      <p>품목 옆에 파란 <span class="pill b">ASMS</span> 배지가 붙은 줄은 <b>접수관리툴에서 자동으로 넘어온 건</b>입니다(직접 적은 게 아님). 마우스를 올리면 접수번호가 보입니다.</p>
+
+      <h3 class="sub">월 합계 카드</h3>
+      <p>최근 12개월치 <b>월 임대료 / 유상판매 / 무상수리 / 합계</b>를 한 줄씩 보여줍니다. 이 거래처가 실제로 남는 장사인지 여기서 바로 확인할 수 있습니다.</p>
+
+      <div class="warn">
+        <b>만기 거래처는 기본 목록에 안 보입니다</b>
+        목록 위 <b>활성 거래처 / 만기 거래처</b> 선택을 <b>만기</b>로 바꿔야 보입니다. "거래처가 사라졌다"면 대부분 이 경우입니다.
+      </div>
+    </div>
+  </div>
+
+  <!-- 4 -->
+  <div class="sec" id="s4">
+    <h2>4. 임대장비관리 <small>실시간 카운터와 수집기 연결</small></h2>
+    <div class="body">
+      <p>고객 PC에 설치한 <b>수집기</b>가 프린터 카운터와 토너 잔량을 자동으로 올려줍니다. 이 화면은 그 결과를 보는 곳입니다.</p>
+
+      <h3 class="sub">상단 3개 숫자 — 눌러서 걸러 보기</h3>
+      <p><span class="pill g">온라인</span> <span class="pill r">오프라인</span> <span class="pill o">매핑대기</span> — <b>각각 눌러서 그 상태만</b> 볼 수 있습니다. 다시 누르면 해제됩니다.</p>
+      <table class="g">
+        <tr><th style="width:110px;">상태</th><th>뜻</th></tr>
+        <tr><td><b>온라인</b></td><td>최근에 정상적으로 값을 보내온 장비</td></tr>
+        <tr><td><b>오프라인</b></td><td><b>30분 넘게</b> 소식이 없는 장비 (PC를 껐거나 프린터가 꺼진 경우가 대부분)</td></tr>
+        <tr><td><b>매핑대기</b></td><td>어느 거래처 것인지 <b>아직 지정 안 된</b> 장비 → 매핑이 필요합니다</td></tr>
+      </table>
+
+      <h3 class="sub">신규 매핑 (수집기를 거래처에 연결)</h3>
+      <p>새 거래처에 수집기를 설치하면 위쪽에 <b>"신규 수집기 연결됨"</b> 배너가 뜹니다. <span class="btnx">🔗 신규 매핑</span> 또는 <span class="btnx">매핑하기 →</span>를 눌러 <b>각 PC가 어느 거래처인지 골라 저장</b>하면 끝입니다.</p>
+      <ul>
+        <li>매핑을 해야 그 PC가 보내는 카운터가 그 거래처 것으로 잡힙니다.</li>
+        <li>거래처 목록은 입력할수록 좁혀집니다(한 번에 최대 20개만 보임). 회사명을 더 입력해 보세요.</li>
+      </ul>
+
+      <h3 class="sub">그 밖의 버튼</h3>
+      <ul>
+        <li><span class="btnx">📥 카운터 엑셀</span> — 실시간 카운터를 엑셀로 받습니다. <b>임대카운터에 그대로 업로드</b>할 수 있는 형식입니다.</li>
+        <li><span class="btnx">⬇ 프린터자동설치프로그램</span> — 고객 PC용 프린터 드라이버 자동설치 프로그램</li>
+        <li><b>자산번호·거래처</b>는 표에서 <b>칸을 눌러 바로 수정</b>할 수 있습니다.</li>
+      </ul>
+      <div class="note">
+        <b>우리 제품이 아닌 장비가 섞여 보일 때</b>
+        해당 장비를 <b>숨김</b> 처리하면 다음에도 다시 나타나지 않습니다.
+      </div>
+    </div>
+  </div>
+
+  <!-- 5 -->
+  <div class="sec" id="s5">
+    <h2>5. 임대카운터 <small>월별 카운터 입력과 계산</small></h2>
+    <div class="body">
+      <h3 class="sub">방법 ① 직접 입력</h3>
+      <p>위쪽에서 <b>대상 월</b>을 고른 뒤, 표의 <b>당월COUNT</b> 칸을 눌러 숫자를 넣으면 <b>자동 저장</b>됩니다. 나머지 칸은 전부 자동으로 계산됩니다.</p>
+
+      <h3 class="sub">방법 ② 엑셀 업로드</h3>
+      <p><span class="btnx">📥 엑셀 자동 입력</span>을 열고 파일을 끌어다 놓습니다(.xlsx / .xls / .csv).</p>
+      <ol>
+        <li>업로드하면 <b>미리보기</b>가 뜹니다. <span class="pill g">✔ 매칭</span> <span class="pill o">⚠ 확인필요</span> <span class="pill r">✖ 미매칭</span> 개수를 확인하세요.</li>
+        <li>문제가 없으면 <span class="btnx">💾 최종 저장</span>을 누릅니다.</li>
+        <li>이미 그 달 값이 있으면 <b>중복 제외 후 저장</b> / <b>전체 덮어쓰기</b> 중에 고르라고 물어봅니다.</li>
+      </ol>
+      <div class="danger">
+        <b>⚠ 확인필요·✖ 미매칭 줄은 저장되지 않습니다</b>
+        <span class="pill g">✔ 매칭</span>된 줄만 저장됩니다. 저장 후 그 거래처가 <b>여전히 "입력 안된 업체"에 남아 있다면</b> 매칭이 안 된 것이니 직접 입력해 주세요.
+      </div>
+      <p>매칭은 <b>자산번호 → 시리얼 → 회사명+모델</b> 순으로 찾습니다. 자산번호가 가장 정확하니 엑셀에 자산번호가 들어 있으면 제일 좋습니다.</p>
+      <div class="warn">
+        <b>파일 이름의 월과 데이터 월이 1개월 다릅니다</b>
+        <code>..._2026_05_01-...</code> 처럼 <b>5월 1일자로 받은 파일은 4월 데이터</b>로 들어갑니다. 저장 전에 <b>대상 월</b>이 맞는지 꼭 확인하세요.
+      </div>
+
+      <h3 class="sub">계산은 이렇게 됩니다</h3>
+      <div class="calc">
+        월카운터 = <code>당월COUNT − 전월COUNT</code><br>
+        추가카운터 = <code>월카운터 − 기본매수</code> (마이너스면 0)<br>
+        추가사용료 = <code>추가카운터 × 추가사용단가</code>
+      </div>
+      <p><b>기본매수·추가사용단가</b>는 임대거래처에서 정한 값이라 이 화면에서는 못 고칩니다.</p>
+
+      <h3 class="sub">위쪽 5개 숫자 — 눌러서 목록 보기</h3>
+      <p>다섯 개 모두 <b>누르면 해당 업체 목록</b>이 아래에 펼쳐집니다.</p>
+      <ul>
+        <li><span class="pill r">이상치 경고</span> — 아래 셋 중 하나에 걸린 경우입니다.
+          <ul>
+            <li>최근 6개월 평균보다 <b>3배 넘게</b> 늘었다 (과다 사용 의심)</li>
+            <li>전월과 당월이 <b>똑같다</b> (검침 누락 의심)</li>
+            <li>당월이 전월보다 <b>줄었다</b> (장비 교체·초기화 의심)</li>
+          </ul>
+        </li>
+        <li><span class="pill o">카운터 오버</span> — 추가요금이 발생한 업체. 여기서 <b>할인 금액을 직접 입력</b>할 수 있고, 그 할인이 청구서에 그대로 반영됩니다.</li>
+      </ul>
+    </div>
+  </div>
+
+  <!-- 6 -->
+  <div class="sec" id="s6">
+    <h2>6. 임대추가요금청구 <small>청구서 만들고 보내기</small></h2>
+    <div class="body">
+      <div class="warn">
+        <b>먼저 알아둘 것 — 데이터월과 청구월</b>
+        <b>4월 사용분 → 5월 청구</b>입니다. 화면에 데이터월이 따로 표시되니 항상 확인하세요.
+      </div>
+
+      <h3 class="sub">청구금액은 이렇게 나옵니다</h3>
+      <div class="calc">
+        <b>① 고정 임대료</b> = <code>월 임대료 × 개월수</code><br>
+        <b>② 초과 사용료</b> = 무료 제공 장수를 넘긴 만큼 × 단가 <span style="color:var(--muted);">(출력기기만)</span><br>
+        <b>③ 청구 합계</b> = <code>① + ② − 할인</code> &nbsp;<span style="color:var(--muted);">(할인은 임대카운터에서 입력한 값)</span>
+      </div>
+      <div class="note">
+        <b>부가세는 별도입니다</b>
+        청구서의 <b>합 계 (VAT별도)</b>는 부가세가 포함되지 않은 금액입니다.
+      </div>
+
+      <h3 class="sub">청구 주기</h3>
+      <p>거래처마다 월별 / 3개월 / 6개월 / 1년으로 다를 수 있습니다. <b>이번 달이 청구월이 아닌 거래처는 흐리게 표시</b>되고 일괄 발송에서 빠집니다. 정상입니다.</p>
+
+      <h3 class="sub">발송 처리</h3>
+      <ol>
+        <li>대상 거래처를 체크하고 <span class="btnx">선택 항목 일괄 발송</span>을 누릅니다.</li>
+        <li><span class="btnx">📠 팩스</span> <span class="btnx">✉️ 이메일</span> 등 보낸 방법을 고릅니다.</li>
+        <li>보낸 뒤 <b>발송 처리</b>를 누르면 <span class="pill b">발송됨</span> 상태로 기록됩니다.</li>
+      </ol>
+      <div class="note">
+        <b>시스템이 대신 보내주지는 않습니다</b>
+        실제 팩스·메일 전송은 직접 하시고, 이 화면은 <b>"보냈다는 기록"</b>만 남깁니다. 이메일을 고르면 메일 작성창이, 카카오톡을 고르면 내용이 복사됩니다.
+      </div>
+      <ul>
+        <li>이미 <b>발송됨·입금완료</b>인 건은 다시 일괄 발송되지 않습니다(중복 방지).</li>
+        <li>잘못 보냈으면 <span class="btnx">발송 취소</span>로 초안 상태로 되돌릴 수 있습니다.</li>
+      </ul>
+    </div>
+  </div>
+
+  <!-- 7 -->
+  <div class="sec" id="s7">
+    <h2>7. 정기방문관리 <small>방문 주기 관리</small></h2>
+    <div class="body">
+      <p>상단 3개 카드는 <b>누르면 그 항목만</b> 걸러 보입니다(다시 누르면 해제).</p>
+      <table class="g">
+        <tr><th style="width:150px;">카드</th><th>기준</th></tr>
+        <tr><td><span class="pill r">방문일 지남</span></td><td>다음 방문일이 <b>오늘이거나 이미 지난</b> 경우</td></tr>
+        <tr><td><span class="pill o">임박</span></td><td>알림일(기본 <b>3일</b>) 안으로 다가온 경우 — <b>D-3</b>처럼 표시</td></tr>
+        <tr><td><span class="pill b">예정</span></td><td>아직 여유가 있는 경우</td></tr>
+      </table>
+      <p>방문을 다녀오면 <span class="btnx">방문완료</span>를 누르세요. <b>마지막 방문일이 오늘로 바뀌고 다음 방문일이 주기만큼 자동으로 밀립니다.</b></p>
+      <div class="warn">
+        <b>🔗임대연동 항목은 여기서 지울 수 없습니다</b>
+        출처가 <span class="pill b">🔗임대연동</span>인 줄은 <b>임대거래처</b>의 자산에서 <b>「🗓 정기방문 대상」 체크를 해제</b>해야 없어집니다. 거래처·장비·주기도 잠겨 있고, 여기서는 <b>방문일·알림·메모만</b> 고칠 수 있습니다.
+      </div>
+    </div>
+  </div>
+
+  <!-- 8 -->
+  <div class="sec" id="s8">
+    <h2>8. 자료실 · 사용자관리 · 임대현황</h2>
+    <div class="body">
+      <h3 class="sub">자료실</h3>
+      <ul>
+        <li><span class="btnx">✏ 글쓰기</span>로 공지·자료를 올립니다. 첨부는 여러 개, <b>파일당 50MB</b>까지.</li>
+        <li><b>상단 고정(공지)</b>을 체크하면 맨 위에 📌로 붙습니다.</li>
+        <li>첨부 다운로드 링크는 <b>60초 후 만료</b>되니, 링크를 복사해 두지 말고 그때그때 받으세요.</li>
+      </ul>
+
+      <h3 class="sub">사용자관리 <span style="font-weight:normal;color:var(--muted);font-size:12.5px;">(관리자만)</span></h3>
+      <ul>
+        <li><span class="btnx">+ 사용자 추가</span>로 계정을 만들면 <b>접수관리툴과 임대관리에서 같이 쓸 수 있는 계정</b>이 한 번에 만들어집니다.</li>
+        <li>아이디는 <b>영문·숫자·밑줄</b>만 되고 자동으로 소문자가 됩니다. 비밀번호는 6자 이상.</li>
+        <li><span class="btnx">수정</span>으로 이름·역할·활성 여부를 바꾸면 <b>접수관리툴 쪽도 같이 바뀝니다.</b></li>
+      </ul>
+      <div class="danger">
+        <b>삭제는 되돌릴 수 없습니다</b>
+        접수관리툴과 임대관리 <b>양쪽에서 함께 영구 삭제</b>됩니다. 잠깐 막을 목적이면 삭제 대신 <b>수정에서 「활성 계정」 체크를 해제</b>하세요.
+      </div>
+
+      <h3 class="sub">임대현황</h3>
+      <p>보기만 하는 분석 화면입니다. 자산 노후도는 <b>5년 이상이면 위험(교체 검토), 3년 이상이면 주의</b>로 봅니다. 필요하면 <span class="btnx">⇩ CSV 내보내기</span>로 자료를 받을 수 있습니다.</p>
+    </div>
+  </div>
+
+  <!-- 9 -->
+  <div class="sec" id="s9">
+    <h2>9. 헷갈리는 것 모음 <small>이럴 땐 여기부터</small></h2>
+    <div class="body">
+      <table class="g">
+        <tr><th style="width:250px;">이런 일이 생기면</th><th>확인할 것</th></tr>
+        <tr>
+          <td>카운터를 올렸는데 그 업체가 <b>"입력 안된 업체"</b>에 그대로 있어요</td>
+          <td>미리보기에서 <b>⚠ 확인필요·✖ 미매칭</b>이었을 가능성이 큽니다. 그 줄은 저장되지 않으니 직접 입력하거나, 엑셀의 자산번호·회사명을 등록된 것과 맞춰 다시 올리세요.</td>
+        </tr>
+        <tr>
+          <td>청구 금액이 생각과 달라요</td>
+          <td>① <b>데이터월</b>이 맞는지 ② 임대거래처의 <b>무료매수·단가</b>가 맞는지 ③ 임대카운터에서 <b>할인</b>을 넣지 않았는지 ④ <b>부가세 별도</b> 금액이라는 점 — 순서대로 보세요.</td>
+        </tr>
+        <tr>
+          <td>단가를 바꿨더니 <b>지난 달 청구까지</b> 바뀌었어요</td>
+          <td>단가 칸을 직접 고치면 그렇게 됩니다. <b>「단가/기본매수 변경 이력」에 적용일과 함께</b> 넣어야 그 날짜 이후부터만 바뀝니다.</td>
+        </tr>
+        <tr>
+          <td>거래처가 청구 목록에 <b>흐리게</b> 나와요</td>
+          <td>그 거래처의 <b>청구 주기</b>(3개월·6개월·1년)상 이번 달이 청구월이 아닙니다. 정상입니다.</td>
+        </tr>
+        <tr>
+          <td>장비가 <b>오프라인</b>이에요</td>
+          <td>고객 PC가 켜져 있는지, 수집기 프로그램이 돌고 있는지, 프린터 전원이 켜져 있는지 확인하세요. <b>30분</b> 넘게 소식이 없으면 오프라인으로 표시됩니다.</td>
+        </tr>
+        <tr>
+          <td>새 거래처 장비가 <b>매핑대기</b>에서 안 내려가요</td>
+          <td><span class="btnx">🔗 신규 매핑</span>에서 그 PC의 <b>거래처를 지정하고 저장</b>해야 합니다.</td>
+        </tr>
+        <tr>
+          <td>정기방문 항목이 <b>삭제가 안 돼요</b></td>
+          <td>🔗임대연동 항목입니다. <b>임대거래처 → 해당 자산 → 「🗓 정기방문 대상」 체크 해제</b>로 없애세요.</td>
+        </tr>
+        <tr>
+          <td>거래처가 <b>목록에서 사라졌어요</b></td>
+          <td>목록 위 <b>만기 거래처</b>로 바꿔 보세요. 만기 처리된 거래처는 기본 목록에 안 나옵니다.</td>
+        </tr>
+        <tr>
+          <td>수리내역에 <span class="pill b">ASMS</span> 배지가 붙어 있어요</td>
+          <td>접수관리툴에서 <b>자동으로 넘어온 건</b>이라는 뜻입니다. 접수관리툴에서 임대 관련 접수를 완료·출고하면 이렇게 올라옵니다.</td>
+        </tr>
+      </table>
+    </div>
+  </div>
+
+</div>
+</body>
+</html>
