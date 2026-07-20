@@ -144,6 +144,21 @@
   </div>
 </div>
 
+<!-- 생성·갱신 결과 / 변경 공지 모달 -->
+<div class="ti-modal" id="change-modal">
+  <div class="ti-modal-box" style="width:640px;max-width:96vw;">
+    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:6px;">
+      <h3 id="cm-title" style="margin:0;">생성 · 갱신 완료</h3>
+      <button class="ti-btn" id="cm-close" style="padding:4px 10px;">✕</button>
+    </div>
+    <div id="cm-sub" class="sub" style="font-size:12.5px;color:var(--muted,#8a94a6);margin-bottom:12px;"></div>
+    <div id="cm-body"></div>
+    <div class="ti-modal-foot">
+      <button class="ti-btn primary" id="cm-ok">확인</button>
+    </div>
+  </div>
+</div>
+
 <!-- 상세(명세표/계산서 미리보기) 모달 -->
 <div class="ti-modal" id="detail-modal">
   <div class="ti-modal-box" style="width:760px;max-width:96vw;">
@@ -263,6 +278,47 @@ function splitUsage(items){
   return { bw, co };
 }
 let CHANGED = new Set();   // 직전 갱신 대비 금액이 바뀐 id (화면 강조용)
+
+// 생성·갱신 후 결과/변경 공지창
+function openChangeModal(changes, info){
+  const { ym, nTax, nSlip, skipped } = info || {};
+  const has = changes && changes.length;
+  $('cm-title').innerHTML = has
+    ? `💛 금액이 변경된 ${changes.length}건이 있습니다`
+    : `✅ 생성 · 갱신 완료`;
+  $('cm-sub').textContent = `${ym||''} · 세금계산서 ${nTax||0}건 · 거래명세표 ${nSlip||0}건`
+    + (skipped ? ` · 발행완료 ${skipped}건 보존` : '');
+  if (has) {
+    const rowsHtml = changes.map(ch => {
+      const diff = ch.next - ch.prev;
+      const up = diff > 0;
+      return `<tr>
+        <td style="padding:6px 8px;border-bottom:1px solid #eef1f5;"><span class="ti-doc ${ch.doc_type}">${DOC_LABEL[ch.doc_type]||''}</span> ${esc(ch.name)}</td>
+        <td style="padding:6px 8px;border-bottom:1px solid #eef1f5;text-align:right;color:#94a3b8;">${won(ch.prev)}</td>
+        <td style="padding:6px 8px;border-bottom:1px solid #eef1f5;text-align:center;color:#94a3b8;">→</td>
+        <td style="padding:6px 8px;border-bottom:1px solid #eef1f5;text-align:right;font-weight:700;">${won(ch.next)}</td>
+        <td style="padding:6px 8px;border-bottom:1px solid #eef1f5;text-align:right;font-weight:700;color:${up?'#b91c1c':'#059669'};">${up?'+':''}${won(diff)}</td>
+      </tr>`;
+    }).join('');
+    $('cm-body').innerHTML = `
+      <div style="max-height:52vh;overflow:auto;border:1px solid var(--line,#e5e7eb);border-radius:8px;">
+      <table style="width:100%;border-collapse:collapse;font-size:13px;">
+        <thead><tr style="background:#f6f8fa;position:sticky;top:0;">
+          <th style="padding:7px 8px;text-align:left;">공급받는자</th>
+          <th style="padding:7px 8px;text-align:right;">이전</th>
+          <th></th>
+          <th style="padding:7px 8px;text-align:right;">변경</th>
+          <th style="padding:7px 8px;text-align:right;">차액</th>
+        </tr></thead>
+        <tbody>${rowsHtml}</tbody>
+      </table></div>
+      <p style="font-size:12px;color:var(--muted,#8a94a6);margin:10px 2px 0;">※ 위 건들은 목록에서도 <b style="color:#ca8a04;">노란색(💛)</b>으로 표시됩니다. 임대료·카운터·<b>할인</b>이 바뀐 경우입니다.</p>`;
+  } else {
+    $('cm-body').innerHTML = `<div style="padding:18px;text-align:center;color:#64748b;">직전 대비 <b>금액이 바뀐 건이 없습니다.</b></div>`;
+  }
+  $('change-modal').classList.add('show');
+}
+
 async function build(){
   const ym = $('f-ym').value;
   if (!ym) { alert('대상 월을 선택하세요.'); return; }
@@ -277,6 +333,17 @@ async function build(){
       sb().from('rental_assignments').select('customer_id, monthly_fee, start_date, end_date'),
     ]);
     if (cRes.error) throw cRes.error;
+
+    // 할인은 임대추가요금청구가 쓰는 rental_counter_discounts 를 직접 읽는다
+    // (청구서 저장 여부와 무관하게 '할인 마이너스'가 항상 계산서에 반영되도록)
+    const discByCust = {};
+    try {
+      const dRes = await sb().from('rental_counter_discounts').select('customer_id, amount').eq('ym', ym);
+      if (!dRes.error) (dRes.data || []).forEach(d => {
+        const a = Number(d.amount) || 0;
+        if (a > 0) discByCust[d.customer_id] = (discByCust[d.customer_id] || 0) + a;
+      });
+    } catch (e) { /* 테이블 없으면 할인 0 */ }
 
     // 해당 월에 유효한 배정의 월 고정 임대료 (청구자료가 없을 때 쓰는 기준)
     const feeByCust = {};
@@ -317,35 +384,35 @@ async function build(){
               name:g.name, biz_no:g.biz_no, ceo:g.ceo, biz_type:g.biz_type, biz_item:g.biz_item,
               address:c.address, email:c.email,
               invoice_day: (g.invoice_day || c.invoice_day || null),
-              rent:0, bw:0, co:0, disc:0, supply:0, ids:[], docs:new Set(), mark:'group' }
+              rent:0, usage:0, bw:0, co:0, disc:0, ids:[], docs:new Set(), mark:'group' }
           : { scope:'customer', group_id:null, customer_id:c.id,
               name:c.company, biz_no:c.biz_no, ceo:c.ceo, biz_type:c.biz_type, biz_item:c.biz_item,
               address:c.address, email:c.email,
               invoice_day: (c.invoice_day || (g && g.invoice_day) || null),
-              rent:0, bw:0, co:0, disc:0, supply:0, ids:[], docs:new Set(),
+              rent:0, usage:0, bw:0, co:0, disc:0, ids:[], docs:new Set(),
               mark: (g && c.billing_individual) ? 'indiv' : 'solo' };
       }
       const u = units[key];
       // 문서종류 집계 (그룹 통합이면 소속 거래처들의 발행구분 합집합)
       if ((c.billing_types || []).includes('전자세금계산서')) u.docs.add('tax');
       if ((c.billing_types || []).includes('거래명세표'))     u.docs.add('slip');
+      // 할인은 거래처 단위(rental_counter_discounts) — 청구자료 유무와 무관하게 반영
+      u.disc += discByCust[c.id] || 0;
       const myBills = billsByCust[c.id] || [];
       if (myBills.length) {
-        // 임대추가요금청구 저장값을 그대로 사용 (임대료 + 흑백추가 + 컬러추가 − 할인)
+        // 임대추가요금청구 저장값 사용 (임대료 + 사용료). 할인은 위에서 별도 차감.
         myBills.forEach(b => {
           const ex = splitUsage(b.items);
-          u.rent   += Number(b.fixed_total) || 0;
-          u.bw     += ex.bw;
-          u.co     += ex.co;
-          u.disc   += Number(b.counter_discount) || 0;
-          u.supply += Number(b.total) || 0;
+          u.rent  += Number(b.fixed_total) || 0;
+          u.usage += Number(b.usage_total) || 0;
+          u.bw    += ex.bw;
+          u.co    += ex.co;
           u.ids.push(b.id);
         });
         u.srcBilling = true;
       } else if (feeByCust[c.id]) {
-        // 청구자료가 없으면 그 달 월 고정 임대료만 (추가요금·할인은 청구서가 있어야 산출)
-        u.rent   += feeByCust[c.id];
-        u.supply += feeByCust[c.id];
+        // 청구자료가 없으면 그 달 월 고정 임대료만 (추가요금은 청구서가 있어야 산출)
+        u.rent += feeByCust[c.id];
         u.srcFixed = true;
       }
     });
@@ -359,15 +426,20 @@ async function build(){
     CHANGED = new Set();
 
     const rows = [];
+    const CHANGES = [];   // 변경 내역 공지창용 [{name, doc_type, prev, next}]
     Object.values(units).forEach(u => {
-      const vat = Math.round(u.supply * 0.1);
+      const supply = Math.max(0, u.rent + u.usage - u.disc);   // 임대료 + 사용료 − 할인
+      const vat = Math.round(supply * 0.1);
       const suffix = (u.scope === 'group' ? '_g_' : '_c_') + (u.group_id || u.customer_id);
       // 문서종류(세금계산서/거래명세표)마다 한 건씩 생성 — 둘 다 체크면 2건
       u.docs.forEach(dt => {
         const id = 'ti_' + ym + '_' + dt + suffix;
         if (issuedIds.has(id)) return;                  // 발행완료건 보존
         // 직전 금액과 다르면 변경으로 표시 (신규 생성 건은 변경 아님)
-        if ((id in prevSupply) && prevSupply[id] !== u.supply) CHANGED.add(id);
+        if ((id in prevSupply) && prevSupply[id] !== supply) {
+          CHANGED.add(id);
+          CHANGES.push({ name:u.name, doc_type:dt, prev:prevSupply[id], next:supply });
+        }
         rows.push({
           id, ym, doc_type:dt, scope:u.scope, customer_id:u.customer_id, group_id:u.group_id,
           buyer_name:u.name, buyer_biz_no:u.biz_no, buyer_ceo:u.ceo,
@@ -376,7 +448,7 @@ async function build(){
           invoice_day: u.invoice_day,
           amount_source: u.srcBilling ? 'billing' : (u.srcFixed ? 'fixed' : 'none'),
           rent_amount:u.rent, bw_extra:u.bw, color_extra:u.co, discount_amount:u.disc,
-          supply_amount:u.supply, vat_amount:vat, total_amount:u.supply + vat,
+          supply_amount:supply, vat_amount:vat, total_amount:supply + vat,
           item_count:u.ids.length, billing_ids:u.ids, status:'pending',
           note: u.mark === 'group' ? '그룹 통합' : (u.mark === 'indiv' ? '그룹 내 단독' : null),
         });
@@ -390,11 +462,8 @@ async function build(){
     const skipped = issuedIds.size;
     const nTax = rows.filter(r=>r.doc_type==='tax').length;
     const nSlip = rows.filter(r=>r.doc_type==='slip').length;
-    const nChg = CHANGED.size;
     await load();
-    alert(`${ym} 생성/갱신 완료 — 세금계산서 ${nTax}건 · 거래명세표 ${nSlip}건.`
-      + (nChg ? `\n💛 금액이 바뀐 ${nChg}건은 노란색으로 표시됩니다.` : '')
-      + (skipped ? `\n(이미 발행완료된 ${skipped}건은 그대로 두었습니다)` : ''));
+    openChangeModal(CHANGES, { ym, nTax, nSlip, skipped });
   } catch (e) {
     console.error(e); alert('집계 실패: ' + (e.message || e));
   } finally {
@@ -723,6 +792,9 @@ $('chk-all').onclick = e => {
   else list.forEach(r => SELECTED.delete(r.id));
   render();
 };
+$('cm-close').onclick = () => $('change-modal').classList.remove('show');
+$('cm-ok').onclick    = () => $('change-modal').classList.remove('show');
+$('change-modal').onclick = e => { if (e.target.id === 'change-modal') $('change-modal').classList.remove('show'); };
 $('d-close').onclick = () => $('detail-modal').classList.remove('show');
 $('detail-modal').onclick = e => { if (e.target.id === 'detail-modal') $('detail-modal').classList.remove('show'); };
 $('d-print').onclick = printDetail;
