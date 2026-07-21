@@ -801,22 +801,22 @@ async function loadCollectorVersion() {
   const btn = document.getElementById('btn-collector-download');
   if (!btn) return;
   try {
-    const res = await fetch('../../downloads/collector-version.json?ts=' + Date.now(), { cache: 'no-store' });
+    const res = await fetch('../downloads/collector-version.json?ts=' + Date.now(), { cache: 'no-store' });
     if (!res.ok) return;
     const v = await res.json();
     if (!v || !v.updated_at) return;
-    const fname = v.filename || 'digix-collector.zip';
+    const fname = v.filename || 'hanbyeol-collector.zip';
     const isZip = /\.zip$/i.test(fname);
     const label = isZip ? '고객 카운터프로그램 (ZIP)' : '고객 카운터프로그램';
     btn.innerHTML = `⬇ ${label} <span style="opacity:.7;font-size:11px;font-weight:500;">(${v.updated_at})</span>`;
     btn.title = (
-      `업데이트: ${v.updated_at} · 크기: ${v.size_mb}MB · 페어링 코드: digix\n` +
-      (isZip ? '설치: ZIP 압축 풀기 → 안의 digix-collector 폴더의 EXE 더블클릭\n' : '') +
-      '안랩 V3 가 차단하면 digix-collector 폴더를 V3 예외에 추가'
+      `업데이트: ${v.updated_at} · 크기: ${v.size_mb}MB · 페어링 코드: hanbyeol\n` +
+      (isZip ? '설치: ZIP 압축 풀기 → 안의 hanbyeol-collector 폴더의 EXE 더블클릭\n' : '') +
+      '안랩 V3 가 차단하면 LocalAppData\\HanbyeolCollector 폴더를 V3 예외에 추가'
     );
     btn.setAttribute('download', fname);
     // 버전 쿼리스트링으로 브라우저 캐시 우회 (새 빌드 받도록)
-    btn.href = `../../downloads/${fname}?v=${encodeURIComponent(v.version || v.updated_at)}`;
+    btn.href = `../downloads/${fname}?v=${encodeURIComponent(v.version || v.updated_at)}`;
   } catch (e) {
     console.warn('[collector-version] 로드 실패 (캐시 미반영 가능):', e);
   }
@@ -1242,6 +1242,7 @@ async function loadAll() {
           id, item_id, start_date, end_date, monthly_fee,
           bw_free, co_free, bw_rate, co_rate, notes,
           contract_years, is_short_term, contract_end_date, deposit, expiry_ack,
+          is_prepaid, prepaid_start, prepaid_end, prepaid_amount,
           rental_items(id, category, subtype, brand, model, asset_number, serial, install_date, status, storage_gb, notes, counter_mode, total_free_count, total_unit_price, rental_type, regular_visit, visit_cycle_months)
         )
       `)
@@ -2566,7 +2567,7 @@ function _formatBizNoLocal(s) {
 }
 
 // 관리툴(asms-web) customers 테이블에서 고객 검색.
-// 같은 Supabase 인스턴스(wghjnlhfqypamiwukeio) · authenticated RLS 로 select 가능.
+// 같은 Supabase 인스턴스(jrzesjgyrvgvwazfajec) · authenticated RLS 로 select 가능.
 async function _searchAsmsCustomers(query) {
   const q = (query || '').trim();
   if (q.length < 2) return [];
@@ -3160,6 +3161,30 @@ function setupContractExpiry(f, body, customer, existing) {
     };
   }
 
+  // 선결제 입력란 토글 + 금액 자동 제안
+  const elPre = f.is_prepaid, preRow = body.querySelector('#prepaid-row');
+  if (elPre && preRow) {
+    const syncPre = () => {
+      preRow.style.display = elPre.checked ? '' : 'none';
+      if (elPre.checked && !f.prepaid_start.value) {
+        f.prepaid_start.value = elStart.value || '';
+      }
+    };
+    elPre.addEventListener('change', syncPre);
+    // 기간을 채우면 금액을 월 임대료 × 개월수로 제안
+    const suggest = () => {
+      if (!elPre.checked || f.prepaid_amount.value) return;
+      const ps = f.prepaid_start.value, pe = f.prepaid_end.value, fee = Number(f.monthly_fee.value) || 0;
+      if (!ps || !pe || !fee) return;
+      const a = new Date(ps + 'T00:00:00'), b = new Date(pe + 'T00:00:00');
+      const months = (b.getFullYear()-a.getFullYear())*12 + (b.getMonth()-a.getMonth()) + 1;
+      if (months > 0) f.prepaid_amount.value = fee * months;
+    };
+    f.prepaid_end.addEventListener('change', suggest);
+    f.prepaid_start.addEventListener('change', suggest);
+    syncPre();
+  }
+
   if (!existing) refresh();     // 신규는 자동계산으로 시작
   else if (!existing.is_short_term) refresh();
   else { elEnd.readOnly = false; elEnd.style.background = ''; if (elYears) elYears.disabled = true; }
@@ -3531,6 +3556,10 @@ function openAssetForm(customer, existing, opts) {
     if (f.is_short_term)     f.is_short_term.checked = !!existing.is_short_term;
     if (f.contract_end_date) f.contract_end_date.value = (existing.contract_end_date || '').slice(0, 10);
     if (f.deposit)           f.deposit.value = existing.deposit != null ? existing.deposit : '';
+    if (f.is_prepaid)        f.is_prepaid.checked = !!existing.is_prepaid;
+    if (f.prepaid_start)     f.prepaid_start.value = (existing.prepaid_start || '').slice(0, 10);
+    if (f.prepaid_end)       f.prepaid_end.value = (existing.prepaid_end || '').slice(0, 10);
+    if (f.prepaid_amount)    f.prepaid_amount.value = existing.prepaid_amount != null ? existing.prepaid_amount : '';
     // 합계 카운터 모드 복원 (counter_mode / total_free_count / total_unit_price 는 rental_items 에 저장)
     const counterModeCb = body.querySelector('#asset-use-total-counter');
     if (counterModeCb) {
@@ -3661,10 +3690,15 @@ function openAssetForm(customer, existing, opts) {
         co_free:      f.co_free.value ? Number(f.co_free.value) : null,
         bw_rate:      f.bw_rate.value ? Number(f.bw_rate.value) : null,
         co_rate:      f.co_rate.value ? Number(f.co_rate.value) : null,
+        // 계약기간 / 단기임대 / 만기일 / 보증금
         contract_years:    f.contract_years && f.contract_years.value ? Number(f.contract_years.value) : 3,
         is_short_term:     !!(f.is_short_term && f.is_short_term.checked),
         contract_end_date: (f.contract_end_date && f.contract_end_date.value) || null,
         deposit:           f.deposit && f.deposit.value ? Number(f.deposit.value) : null,
+        is_prepaid:        !!(f.is_prepaid && f.is_prepaid.checked),
+        prepaid_start:     (f.is_prepaid && f.is_prepaid.checked && f.prepaid_start.value) || null,
+        prepaid_end:       (f.is_prepaid && f.is_prepaid.checked && f.prepaid_end.value) || null,
+        prepaid_amount:    (f.is_prepaid && f.is_prepaid.checked && f.prepaid_amount.value) ? Number(f.prepaid_amount.value) : null,
       };
 
       const supa = window.totalasAuth;
@@ -3961,14 +3995,14 @@ function escapeAttr(s) { return escapeHtml(s); }
 // 계약서 (rental_contracts) — 4페이지 디지털 양식
 // =============================================================
 
-// 공급자(디직스코리아) 고정 정보
+// 공급자(한별시스템) 고정 정보
 const SUPPLIER_INFO = {
-  company: '디직스코리아',
-  ceo: '윤일한',
-  biz_no: '511-07-80503',
-  address: '경상북도 문경시 점촌동 141-9',
-  phone: '',
-  email: 'yoonxing@naver.com',
+  company: '한별시스템',
+  ceo: '이한별',
+  biz_no: '000-00-00000',
+  address: '대구광역시',
+  phone: '053-000-0000',
+  email: '',
 };
 
 // 품목 프리셋 (JSON 상수)
@@ -3982,11 +4016,11 @@ const PRESETS = {
   'NAS':      { model: '',  bw_free: 0,    co_free: 0,   bw_rate: 0,  co_rate: 0,   qty: 1, monthly_fee: 0,     fixed_quota: true  },
 };
 
-// 기본 약관 (제1~10조) — 디직스코리아 임대 표준약관
+// 기본 약관 (제1~10조) — 한별시스템 임대 표준약관
 const DEFAULT_TERMS = [
   {
     article: 1, title: '계약의 목적',
-    body: '임대인 디직스코리아(이하 "을")은 임차인(이하 "갑")에게 본 계약서에 명시된 임대 물품(이하 "물품")을 임대하고, 갑은 이를 임차하여 사용한다.',
+    body: '임대인 한별시스템(이하 "을")은 임차인(이하 "갑")에게 본 계약서에 명시된 임대 물품(이하 "물품")을 임대하고, 갑은 이를 임차하여 사용한다.',
     confirmed: true,
   },
   {
@@ -4031,7 +4065,7 @@ const DEFAULT_TERMS = [
   },
   {
     article: 10, title: '분쟁의 해결',
-    body: '1. 본 계약과 관련하여 발생하는 분쟁은 양 당사자가 협의로 해결한다.\n2. 협의가 이루어지지 않을 경우 을(임대인)의 주소지를 관할하는 법원을 1심 관할 법원으로 한다.',
+    body: '1. 본 계약과 관련하여 발생하는 분쟁은 양 당사자가 협의로 해결한다.\n2. 협의가 이루어지지 않을 경우 대구지방법원을 1심 관할 법원으로 한다.',
     confirmed: true,
   },
 ];
@@ -4041,7 +4075,7 @@ const DEFAULT_EXTRAS = [
   { text: '사업장 이전 시 30일 전 서면 통보하며, 이전 설치비 100,000원은 갑이 부담한다.', confirmed: true },
   { text: '임대 기간 중 모델 교체가 필요한 경우 양 당사자 협의로 처리한다.', confirmed: true },
   { text: '계약 종료 시 갑은 물품을 원상태로 반납하며, 정상 반납 확인 후 보증금이 반환된다.', confirmed: true },
-  { text: '본 계약서에 명시되지 않은 사항은 일반 상관례 및 디직스코리아 임대 표준약관에 따른다.', confirmed: true },
+  { text: '본 계약서에 명시되지 않은 사항은 일반 상관례 및 한별시스템 임대 표준약관에 따른다.', confirmed: true },
 ];
 
 // 편집 중인 계약서 상태
@@ -5124,7 +5158,7 @@ function renderPage4() {
         <div class="ct-sign-wrap">
           <div class="ct-sign-box">
             <div class="ct-sign-label">
-              <span>공급자 (디직스코리아) 서명</span>
+              <span>공급자 (한별시스템) 서명</span>
               <button type="button" class="ct-sign-clear no-print" data-sign-clear="supplier">✏ 다시 그리기</button>
             </div>
             <canvas class="ct-sign-canvas" id="ct-sign-supplier" data-sign-pad="supplier"></canvas>
@@ -5147,7 +5181,7 @@ function renderPage4() {
 
         <div class="ct-sign-wrap">
           <div class="ct-sign-box">
-            <div class="ct-sign-label"><span>공급자 (디직스코리아) 도장 / 사인</span></div>
+            <div class="ct-sign-label"><span>공급자 (한별시스템) 도장 / 사인</span></div>
             <div class="ct-stamp-area">(아래 도장 / 자필 사인 영역)</div>
           </div>
           <div class="ct-sign-box">
@@ -5724,7 +5758,7 @@ function buildPrintLayout() {
   root.innerHTML = '';
 
   // 페이지 1·2·3 을 갑/을 각 1매씩
-  const labels = ['갑 (임차인) 보관용', '을 (임대인 · 디직스코리아) 보관용'];
+  const labels = ['갑 (임차인) 보관용', '을 (임대인 · 한별시스템) 보관용'];
   labels.forEach(label => {
     [1, 2, 3].forEach(pageNum => {
       const orig = document.querySelector(`#ct-edit-modal .contract-page[data-page="${pageNum}"]`);

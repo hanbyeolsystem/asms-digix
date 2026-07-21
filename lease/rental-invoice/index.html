@@ -350,7 +350,7 @@ async function build(){
       sb().from('rental_billings').select('id, customer_id, ym, fixed_total, usage_total, counter_discount, total, items, status').eq('ym', useYm),
       sb().from('rental_customers').select('id, company, biz_no, ceo, biz_type, biz_item, address, email, billing_group_id, billing_individual, billing_types, invoice_day, active, archived_at'),
       sb().from('rental_billing_groups').select('*'),
-      sb().from('rental_assignments').select('customer_id, item_id, monthly_fee, start_date, end_date'),
+      sb().from('rental_assignments').select('customer_id, item_id, monthly_fee, start_date, end_date, is_prepaid, prepaid_start, prepaid_end, prepaid_amount'),
       sb().from('rental_items').select('id, category, status'),
     ]);
     if (cRes.error) throw cRes.error;
@@ -373,6 +373,7 @@ async function build(){
     const itemById = {};
     (iRes.data || []).forEach(i => { itemById[i.id] = i; });
     const feeByCust = {};
+    const prepaidNote = {};   // 선결제 안내 문구 (customer_id → text)
     (aRes.data || []).forEach(a => {
       const fee = Number(a.monthly_fee) || 0;
       if (fee <= 0) return;
@@ -381,6 +382,23 @@ async function build(){
       if (!FIXED_CATS.includes(it.category)) return;        // 고정비 대상 카테고리만
       if (a.end_date   && a.end_date   < mStart) return;   // 이미 종료
       if (a.start_date && a.start_date > mEnd)   return;   // 아직 시작 전
+
+      // ── 선결제 처리 ──────────────────────────────────
+      // 선결제는 '시작월에 총액으로 세금계산서 1장'을 끊고 돈을 받는 구조.
+      // 그래서 시작월에는 총액을 청구하고, 그 뒤 기간에는 임대료를 청구하지 않는다.
+      // (추가요금은 선결제와 무관하므로 계속 청구된다)
+      if (a.is_prepaid && a.prepaid_start && a.prepaid_end) {
+        const ps = a.prepaid_start.slice(0, 7);   // YYYY-MM
+        const pe = a.prepaid_end.slice(0, 7);
+        if (ym === ps) {                           // 선결제 시작월 → 총액 1장
+          const amt = Number(a.prepaid_amount) || fee;
+          feeByCust[a.customer_id] = (feeByCust[a.customer_id] || 0) + amt;
+          prepaidNote[a.customer_id] = `선결제 ${a.prepaid_start.slice(0,10)}~${a.prepaid_end.slice(0,10)}`;
+          return;
+        }
+        if (ym > ps && ym <= pe) return;           // 선결제 기간 중 → 임대료 청구 안 함
+        // 선결제 기간이 끝났으면 아래 일반 월 임대료로 진행
+      }
       feeByCust[a.customer_id] = (feeByCust[a.customer_id] || 0) + fee;
     });
 
@@ -432,6 +450,7 @@ async function build(){
       u.disc += discByCust[c.id] || 0;
       // ① 임대료(기본금액) = 임대거래처의 '임대 물품 내역' 총금액 — 항상 이 기준
       u.rent += feeByCust[c.id] || 0;
+      if (prepaidNote[c.id]) u.prepaid = prepaidNote[c.id];   // 선결제 1장 표시용
       // ② 추가요금 = 임대추가요금청구 내용(흑백/컬러 초과) — 청구서가 있는 업체만
       const myBills = billsByCust[c.id] || [];
       if (myBills.length) {
@@ -483,7 +502,9 @@ async function build(){
           rent_amount:u.rent, bw_extra:u.bw, color_extra:u.co, discount_amount:u.disc,
           supply_amount:supply, vat_amount:vat, total_amount:supply + vat,
           item_count:u.ids.length, billing_ids:u.ids, status:'pending',
-          note: u.mark === 'group' ? '그룹 통합' : (u.mark === 'indiv' ? '그룹 내 단독' : null),
+          note: [u.prepaid || null,
+                 u.mark === 'group' ? '그룹 통합' : (u.mark === 'indiv' ? '그룹 내 단독' : null)
+                ].filter(Boolean).join(' · ') || null,
         });
       });
     });
