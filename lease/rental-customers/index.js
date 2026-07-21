@@ -2116,6 +2116,15 @@ function renderDetail() {
   detail.innerHTML = _renderMobileBackBtn() + billingCard + assetCard + contractItemsCard + counters12mCard + expenseCard + incomeCard + monthlyBalanceCard + infoCard + insightCard;
   _bindMobileBackBtn(detail);
 
+  // 카드 제목 클릭 → 이전 내역 펼치기/접기 (카운터 · 월합계 · 무상/유상 수리내역)
+  detail.querySelectorAll('[data-rc-expand]').forEach(el => {
+    el.addEventListener('click', () => {
+      const key = el.dataset.rcExpand;
+      EXPAND_STATE[key] = !EXPAND_STATE[key];
+      renderDetail();
+    });
+  });
+
   // 청구정보 카드 이벤트 — 그룹 편집, 같은그룹 사업장 이동
   detail.querySelectorAll('[data-rc-act="edit-group"]').forEach(btn => {
     btn.addEventListener('click', () => openGroupForm(btn.dataset.gid));
@@ -4069,6 +4078,28 @@ function renderContractItemsCard(customer) {
 }
 
 // ─────────────────────────────────────────────────────────────
+// 카드별 "이전 내역 모두 보기" 토글 상태 — 거래처를 바꾸면 초기화
+const EXPAND_STATE = { customerId: null, counters: false, monthly: false, expense: false, income: false };
+function isExpanded(customerId, key) {
+  if (EXPAND_STATE.customerId !== customerId) {
+    EXPAND_STATE.customerId = customerId;
+    EXPAND_STATE.counters = false;
+    EXPAND_STATE.monthly  = false;
+    EXPAND_STATE.expense  = false;
+    EXPAND_STATE.income   = false;
+  }
+  return !!EXPAND_STATE[key];
+}
+
+// ym('YYYY-MM') 부터 이번 달까지의 개월 수 (최소 12)
+function monthSpanFrom(earliestYm) {
+  if (!earliestYm) return 12;
+  const [ey, em] = earliestYm.split('-').map(Number);
+  if (!ey || !em) return 12;
+  const now = new Date();
+  return Math.max(12, (now.getFullYear() - ey) * 12 + (now.getMonth() + 1 - em) + 1);
+}
+
 // 카운터 12개월 카드 — 거래처 자산의 "월별 사용량" (가로 레이아웃)
 //   - 데이터 소스: STATE.countersByItem (rental_counters; 누적 odometer 값)
 //   - 월별 사용량 = 이번 달 누적 - 직전 달 누적 (음수면 자산 교체로 간주 → 0)
@@ -4086,10 +4117,22 @@ function renderCounters12mCard(customer) {
     </div>`;
   }
 
-  // 최근 12개월 ym 목록 (오래된 → 최신)
+  // 표시 범위 — 기본 최근 12개월, 펼치면 카운터가 등록된 최초 달부터 전체
+  const expanded = isExpanded(customer.id, 'counters');
+  let earliestYm = null;
+  if (expanded) {
+    for (const itemId of itemIds) {
+      for (const row of (STATE.countersByItem && STATE.countersByItem[itemId]) || []) {
+        if (row.ym && (!earliestYm || row.ym < earliestYm)) earliestYm = row.ym;
+      }
+    }
+  }
+  const span = expanded ? monthSpanFrom(earliestYm) : 12;
+
+  // ym 목록 (오래된 → 최신)
   const now = new Date();
   const months = [];
-  for (let i = 11; i >= 0; i--) {
+  for (let i = span - 1; i >= 0; i--) {
     const d = new Date(now.getFullYear(), now.getMonth() - i, 1);
     const ym  = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`;
     const lbl = `${String(d.getFullYear()).slice(2)}/${String(d.getMonth() + 1).padStart(2, '0')}`;
@@ -4133,11 +4176,15 @@ function renderCounters12mCard(customer) {
     ? '<p class="muted" style="margin:8px 0 0; font-size:11.5px;">⚠ 이 거래처 자산에 카운터 데이터가 없습니다.</p>'
     : '';
 
+  const rangeLabel = expanded ? `전체 기간 (${months.length}개월)` : '최근 12개월';
+  const toggleHint = expanded ? '▲ 최근 12개월만 보기' : '▼ 이전 내역 모두 보기';
+
   return `<div class="card">
-    <h3 style="margin:0 0 8px;">📊 카운터 — 최근 12개월 <span class="muted-small" style="font-weight:400;">(월별 사용량 · 누적 차감)</span>
+    <h3 data-rc-expand="counters" style="margin:0 0 8px; cursor:pointer; user-select:none;" title="클릭하면 등록 이후 전체 기간을 봅니다">📊 카운터 — ${rangeLabel} <span class="muted-small" style="font-weight:400;">(월별 사용량 · 누적 차감)</span>
       <span class="muted-small" style="font-weight:400; margin-left:8px;">
         흑백 ${totalBw.toLocaleString()} · 컬러 ${totalColor.toLocaleString()} · 합계 ${grandTotal.toLocaleString()}
       </span>
+      <span class="muted-small" style="font-weight:400; margin-left:8px; color:#94a3b8;">${toggleHint}</span>
     </h3>
     <div class="rc-counter-12m-wrap" style="overflow-x:auto;">
       <table class="rc-asset-table" style="font-size:11.5px; white-space:nowrap;">
@@ -5809,9 +5856,23 @@ async function loadRepairsFor(customerId) {
 //   행: 월 임대료 / 유상판매 / 무상수리 / 합계
 //   임대료는 assignment.start_date / end_date 기준 월별로 active 였던 자산만 합산
 function renderMonthlyBalanceCard(customer) {
+  // 표시 범위 — 기본 최근 12개월, 펼치면 계약 시작/수리내역 중 가장 이른 달부터 전체
+  const expanded = isExpanded(customer.id, 'monthly');
+  const allAssign = customer._allAssignments || customer._assignments || [];
+  let earliestYm = null;
+  if (expanded) {
+    const bump = (d) => {
+      const ym = (d || '').slice(0, 7);
+      if (ym && (!earliestYm || ym < earliestYm)) earliestYm = ym;
+    };
+    for (const a of allAssign) bump(a.start_date);
+    for (const r of (REPAIR_STATE.byCustomer[customer.id] || [])) bump(r.service_date);
+  }
+  const span = expanded ? monthSpanFrom(earliestYm) : 12;
+
   const now = new Date();
   const months = [];
-  for (let i = 11; i >= 0; i--) {
+  for (let i = span - 1; i >= 0; i--) {
     const d = new Date(now.getFullYear(), now.getMonth() - i, 1);
     const ym  = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`;
     const lbl = `${String(d.getFullYear()).slice(2)}/${String(d.getMonth() + 1).padStart(2, '0')}`;
@@ -5820,7 +5881,6 @@ function renderMonthlyBalanceCard(customer) {
   const idx = new Map(months.map((m, i) => [m.ym, i]));
 
   // 1) 월별 임대료: assignment 의 [start_date, end_date] 범위에 걸친 달에만 monthly_fee 가산
-  const allAssign = customer._allAssignments || customer._assignments || [];
   for (const a of allAssign) {
     const fee = Number(a.monthly_fee) || 0;
     if (!fee) continue;
@@ -5885,11 +5945,15 @@ function renderMonthlyBalanceCard(customer) {
     ? ''
     : `<p class="muted-small" style="margin:8px 0 0; color:#94a3b8;">수리내역 로딩 중… 잠시 후 자동 반영됩니다.</p>`;
 
+  const rangeLabel = expanded ? `전체 기간 (${months.length}개월)` : '최근 12개월';
+  const toggleHint = expanded ? '▲ 최근 12개월만 보기' : '▼ 이전 내역 모두 보기';
+
   return `<div class="card rc-monthly-balance-card">
-    <h3 style="margin:0 0 8px;">💼 월 합계 — 최근 12개월
+    <h3 data-rc-expand="monthly" style="margin:0 0 8px; cursor:pointer; user-select:none;" title="클릭하면 등록 이후 전체 기간을 봅니다">💼 월 합계 — ${rangeLabel}
       <span class="muted-small" style="font-weight:400; margin-left:8px;">
         임대료 ${totals.rental.toLocaleString()} · 유상 +${totals.income.toLocaleString()} · 무상 ${totals.expense.toLocaleString()} · 합계 ${grandTotal.toLocaleString()}
       </span>
+      <span class="muted-small" style="font-weight:400; margin-left:8px; color:#94a3b8;">${toggleHint}</span>
     </h3>
     <div class="rc-monthly-balance-wrap" style="overflow-x:auto;">
       <table class="rc-asset-table" style="font-size:11.5px; white-space:nowrap;">
@@ -5943,10 +6007,12 @@ function renderRepairCard(customer, mode) {
 
   const inputStyle = 'font-size:12px; padding:4px 6px; border:1px solid var(--border); border-radius:4px; width:100%;';
 
-  // 항상 전체 데이터 표시. 5행 높이의 스크롤 영역으로 이전 내역 확인.
-  const VISIBLE_ROWS = 5;
-  const ROW_PX = 38; // 행 높이 평균(여유 포함)
-  const visibleRows = loaded ? rows : [];
+  // 기본은 최근 3건만. 카드 제목을 클릭하면 나머지 이전 내역까지 전부 표시.
+  const DEFAULT_ROWS = 3;
+  const SCROLL_ROWS = 8;   // 펼쳤을 때 스크롤 없이 보이는 행 수
+  const ROW_PX = 38;       // 행 높이 평균(여유 포함)
+  const expanded = isExpanded(customer.id, mode);
+  const visibleRows = loaded ? (expanded ? rows : rows.slice(0, DEFAULT_ROWS)) : [];
 
   const makeRowHtml = (r) => {
     const amt = Number(r.amount) || 0;
@@ -6009,19 +6075,20 @@ function renderRepairCard(customer, mode) {
     </tr>
   `;
 
-  const scrollMaxPx = VISIBLE_ROWS * ROW_PX; // 5행 분 (헤더는 sticky 라 별도)
-  const needsScroll = rows.length > VISIBLE_ROWS;
-  const scrollHint = needsScroll
-    ? `<span class="muted-small" style="font-weight:400; color:#94a3b8;">↕ 스크롤로 이전 내역 보기</span>`
-    : '';
+  const hiddenCount = Math.max(0, rows.length - DEFAULT_ROWS);
+  const needsScroll = expanded && rows.length > SCROLL_ROWS;
+  const scrollStyle = needsScroll ? `max-height:${SCROLL_ROWS * ROW_PX}px;` : '';
+  const toggleHint = (hiddenCount === 0 && !expanded)
+    ? ''
+    : `<span class="muted-small" style="font-weight:400; color:#94a3b8;">${expanded ? '▲ 접기' : `▼ 이전 내역 ${hiddenCount}건 더 보기`}</span>`;
 
   return `
     <div class="card rc-repair-card" data-rp-mode="${mode}">
-      <div style="display:flex; justify-content:space-between; align-items:center; gap:10px; flex-wrap:wrap; margin-bottom:8px;">
+      <div data-rc-expand="${mode}" style="display:flex; justify-content:space-between; align-items:center; gap:10px; flex-wrap:wrap; margin-bottom:8px; cursor:pointer; user-select:none;" title="클릭하면 이전 내역을 모두 봅니다">
         <h3 style="margin:0;">${cat.icon} ${cat.label} <span class="muted-small" style="font-weight:400;">${rows.length}건 · 합계 <b style="${sumStyle}">${sum.toLocaleString()}원</b></span></h3>
-        ${scrollHint}
+        ${toggleHint}
       </div>
-      <div class="rc-repair-scroll" style="max-height:${scrollMaxPx}px; overflow-y:auto; overflow-x:auto; border:1px solid var(--border); border-radius:4px;">
+      <div class="rc-repair-scroll" style="${scrollStyle} overflow-y:auto; overflow-x:auto; border:1px solid var(--border); border-radius:4px;">
         <table class="rc-asset-table" style="margin:0;">
           <thead>
             <tr>
