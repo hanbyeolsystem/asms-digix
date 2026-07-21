@@ -566,6 +566,102 @@
   .rc-asset-modal-box {
     max-width: 640px;
   }
+  /* 전체 기간 모달 (카운터 / 수익 분석) — 세로 표 + 도표 */
+  .rc-wide-modal-box { max-width: 860px; }
+  .rc-big-head {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    gap: 10px;
+    padding-bottom: 10px;
+    margin-bottom: 12px;
+    border-bottom: 1px solid var(--border);
+  }
+  .rc-big-scroll {
+    max-height: 46vh;
+    overflow-y: auto;
+    border: 1px solid var(--border);
+    border-radius: 6px;
+  }
+  .rc-big-scroll thead th {
+    position: sticky; top: 0; z-index: 1;
+    background: #f8fafc;
+  }
+  .rc-big-sec { margin-top: 16px; }
+  .rc-big-sec-title {
+    font-size: 12px;
+    font-weight: 700;
+    color: var(--muted);
+    letter-spacing: .3px;
+    margin-bottom: 8px;
+  }
+
+  /* 요약 타일 3개 */
+  .rc-stat-grid {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: 10px;
+  }
+  .rc-stat {
+    background: #f8fafc;
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    padding: 10px 12px;
+    display: flex;
+    flex-direction: column;
+    gap: 3px;
+  }
+  .rc-stat span { font-size: 11.5px; color: var(--muted); }
+  .rc-stat span em { font-style: normal; color: #94a3b8; margin-left: 3px; }
+  .rc-stat b { font-size: 17px; letter-spacing: -.3px; }
+
+  /* 가로 막대 (총수익/총지출/순수익) */
+  .rc-hb-row {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    margin-bottom: 7px;
+  }
+  .rc-hb-lbl { width: 54px; font-size: 12px; color: var(--muted); flex: none; }
+  .rc-hb-track {
+    flex: 1;
+    display: block;
+    height: 14px;
+    background: #eef2f7;
+    border-radius: 7px;
+    overflow: hidden;
+  }
+  .rc-hb-fill { display: block; height: 100%; border-radius: 7px; }
+  .rc-hb-val { width: 120px; text-align: right; font-size: 12.5px; flex: none; }
+
+  /* 월별 순익 막대 (0 기준 위/아래) */
+  .rc-nb-chart {
+    display: flex;
+    align-items: flex-end;
+    gap: 3px;
+    overflow-x: auto;
+    padding: 4px 2px 0;
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    background: #fcfdfe;
+  }
+  .rc-nb-col { flex: 1 0 26px; min-width: 26px; text-align: center; }
+  .rc-nb-up, .rc-nb-dn { height: 74px; display: flex; justify-content: center; }
+  .rc-nb-up { align-items: flex-end; }
+  .rc-nb-dn { align-items: flex-start; }
+  .rc-nb-up i, .rc-nb-dn i { display: block; width: 60%; border-radius: 2px; }
+  .rc-nb-zero { height: 1px; background: #cbd5e1; }
+  .rc-nb-lbl {
+    font-size: 9.5px;
+    color: var(--muted);
+    padding: 3px 0 5px;
+    white-space: nowrap;
+  }
+
+  @media (max-width: 640px) {
+    .rc-stat-grid { grid-template-columns: 1fr; }
+    .rc-hb-val { width: 96px; font-size: 11.5px; }
+  }
   .rc-form-divider {
     margin: 14px 0 10px 0;
     padding-top: 10px;

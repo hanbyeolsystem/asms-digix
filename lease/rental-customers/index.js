@@ -2116,7 +2116,15 @@ function renderDetail() {
   detail.innerHTML = _renderMobileBackBtn() + billingCard + assetCard + contractItemsCard + counters12mCard + expenseCard + incomeCard + monthlyBalanceCard + infoCard + insightCard;
   _bindMobileBackBtn(detail);
 
-  // 카드 제목 클릭 → 이전 내역 펼치기/접기 (카운터 · 월합계 · 무상/유상 수리내역)
+  // 전체 기간 창 열기 — 카운터 / 월 합계
+  detail.querySelectorAll('[data-rc-open]').forEach(btn => {
+    btn.addEventListener('click', () => {
+      if (btn.dataset.rcOpen === 'counters') openCountersModal(c);
+      else openMonthlyBalanceModal(c);
+    });
+  });
+
+  // 카드 제목 클릭 → 이전 내역 펼치기/접기 (무상/유상 수리내역)
   detail.querySelectorAll('[data-rc-expand]').forEach(el => {
     el.addEventListener('click', () => {
       const key = el.dataset.rcExpand;
@@ -2950,6 +2958,7 @@ async function openItemTypesModal() {
 function closeModal() {
   document.getElementById('rc-modal').classList.remove('show');
   document.getElementById('rc-modal-body').classList.remove('rc-asset-modal-box');
+  document.getElementById('rc-modal-body').classList.remove('rc-wide-modal-box');
 }
 
 // ─────────────────────────────────────────────────────────────
@@ -4078,15 +4087,13 @@ function renderContractItemsCard(customer) {
 }
 
 // ─────────────────────────────────────────────────────────────
-// 카드별 "이전 내역 모두 보기" 토글 상태 — 거래처를 바꾸면 초기화
-const EXPAND_STATE = { customerId: null, counters: false, monthly: false, expense: false, income: false };
+// 수리내역 카드 "이전 내역 모두 보기" 토글 상태 — 거래처를 바꾸면 초기화
+const EXPAND_STATE = { customerId: null, expense: false, income: false };
 function isExpanded(customerId, key) {
   if (EXPAND_STATE.customerId !== customerId) {
     EXPAND_STATE.customerId = customerId;
-    EXPAND_STATE.counters = false;
-    EXPAND_STATE.monthly  = false;
-    EXPAND_STATE.expense  = false;
-    EXPAND_STATE.income   = false;
+    EXPAND_STATE.expense = false;
+    EXPAND_STATE.income  = false;
   }
   return !!EXPAND_STATE[key];
 }
@@ -4106,28 +4113,19 @@ function monthSpanFrom(earliestYm) {
 //   - 범위: 이번 달 기준 최근 12개월
 //   - 레이아웃: 월이 열 헤더 (YY/MM), 행은 흑백/컬러 2줄 + 합계 열
 // ─────────────────────────────────────────────────────────────
-function renderCounters12mCard(customer) {
-  const assignments = customer._assignments || [];
-  const itemIds = assignments.map(a => a.item_id).filter(Boolean);
+// 카운터 월별 사용량 시리즈 — full=true 면 카운터가 등록된 최초 달부터 전체 기간
+function buildCounterSeries(customer, full) {
+  const itemIds = (customer._assignments || []).map(a => a.item_id).filter(Boolean);
 
-  if (!itemIds.length) {
-    return `<div class="card">
-      <h3 style="margin:0 0 8px;">📊 카운터 — 최근 12개월 (월별 사용량)</h3>
-      <p class="muted" style="margin:0; font-size:12.5px;">등록된 자산이 없어 카운터를 표시할 수 없습니다.</p>
-    </div>`;
-  }
-
-  // 표시 범위 — 기본 최근 12개월, 펼치면 카운터가 등록된 최초 달부터 전체
-  const expanded = isExpanded(customer.id, 'counters');
   let earliestYm = null;
-  if (expanded) {
+  if (full) {
     for (const itemId of itemIds) {
       for (const row of (STATE.countersByItem && STATE.countersByItem[itemId]) || []) {
         if (row.ym && (!earliestYm || row.ym < earliestYm)) earliestYm = row.ym;
       }
     }
   }
-  const span = expanded ? monthSpanFrom(earliestYm) : 12;
+  const span = full ? monthSpanFrom(earliestYm) : 12;
 
   // ym 목록 (오래된 → 최신)
   const now = new Date();
@@ -4164,6 +4162,19 @@ function renderCounters12mCard(customer) {
   const totalColor = months.reduce((s, m) => s + m.color, 0);
   const grandTotal = totalBw + totalColor;
 
+  return { itemIds, months, dataPoints, totalBw, totalColor, grandTotal };
+}
+
+function renderCounters12mCard(customer) {
+  const { itemIds, months, dataPoints, totalBw, totalColor, grandTotal } = buildCounterSeries(customer, false);
+
+  if (!itemIds.length) {
+    return `<div class="card">
+      <h3 style="margin:0 0 8px;">📊 카운터 — 최근 12개월 (월별 사용량)</h3>
+      <p class="muted" style="margin:0; font-size:12.5px;">등록된 자산이 없어 카운터를 표시할 수 없습니다.</p>
+    </div>`;
+  }
+
   const headCells  = months.map(m => `<th class="num">${m.lbl}</th>`).join('');
   const bwCells    = months.map(m => `<td class="num"${m.bw    === 0 ? ' style="color:#cbd5e1;"' : ''}>${m.bw.toLocaleString()}</td>`).join('');
   const coCells    = months.map(m => `<td class="num"${m.color === 0 ? ' style="color:#cbd5e1;"' : ''}>${m.color.toLocaleString()}</td>`).join('');
@@ -4176,16 +4187,15 @@ function renderCounters12mCard(customer) {
     ? '<p class="muted" style="margin:8px 0 0; font-size:11.5px;">⚠ 이 거래처 자산에 카운터 데이터가 없습니다.</p>'
     : '';
 
-  const rangeLabel = expanded ? `전체 기간 (${months.length}개월)` : '최근 12개월';
-  const toggleHint = expanded ? '▲ 최근 12개월만 보기' : '▼ 이전 내역 모두 보기';
-
   return `<div class="card">
-    <h3 data-rc-expand="counters" style="margin:0 0 8px; cursor:pointer; user-select:none;" title="클릭하면 등록 이후 전체 기간을 봅니다">📊 카운터 — ${rangeLabel} <span class="muted-small" style="font-weight:400;">(월별 사용량 · 누적 차감)</span>
-      <span class="muted-small" style="font-weight:400; margin-left:8px;">
-        흑백 ${totalBw.toLocaleString()} · 컬러 ${totalColor.toLocaleString()} · 합계 ${grandTotal.toLocaleString()}
-      </span>
-      <span class="muted-small" style="font-weight:400; margin-left:8px; color:#94a3b8;">${toggleHint}</span>
-    </h3>
+    <div style="display:flex; justify-content:space-between; align-items:center; gap:10px; flex-wrap:wrap; margin-bottom:8px;">
+      <h3 style="margin:0;">📊 카운터 — 최근 12개월 <span class="muted-small" style="font-weight:400;">(월별 사용량 · 누적 차감)</span>
+        <span class="muted-small" style="font-weight:400; margin-left:8px;">
+          흑백 ${totalBw.toLocaleString()} · 컬러 ${totalColor.toLocaleString()} · 합계 ${grandTotal.toLocaleString()}
+        </span>
+      </h3>
+      <button class="btn small" type="button" data-rc-open="counters">🔍 전체 기간 크게 보기</button>
+    </div>
     <div class="rc-counter-12m-wrap" style="overflow-x:auto;">
       <table class="rc-asset-table" style="font-size:11.5px; white-space:nowrap;">
         <thead>
@@ -5855,12 +5865,11 @@ async function loadRepairsFor(customerId) {
 // 월 합계 카드 — 최근 12개월 가로 표 (카운터 카드와 동일 레이아웃)
 //   행: 월 임대료 / 유상판매 / 무상수리 / 합계
 //   임대료는 assignment.start_date / end_date 기준 월별로 active 였던 자산만 합산
-function renderMonthlyBalanceCard(customer) {
-  // 표시 범위 — 기본 최근 12개월, 펼치면 계약 시작/수리내역 중 가장 이른 달부터 전체
-  const expanded = isExpanded(customer.id, 'monthly');
+// 월별 수지 시리즈 — full=true 면 계약 시작/수리내역 중 가장 이른 달부터 전체 기간
+function buildBalanceSeries(customer, full) {
   const allAssign = customer._allAssignments || customer._assignments || [];
   let earliestYm = null;
-  if (expanded) {
+  if (full) {
     const bump = (d) => {
       const ym = (d || '').slice(0, 7);
       if (ym && (!earliestYm || ym < earliestYm)) earliestYm = ym;
@@ -5868,7 +5877,7 @@ function renderMonthlyBalanceCard(customer) {
     for (const a of allAssign) bump(a.start_date);
     for (const r of (REPAIR_STATE.byCustomer[customer.id] || [])) bump(r.service_date);
   }
-  const span = expanded ? monthSpanFrom(earliestYm) : 12;
+  const span = full ? monthSpanFrom(earliestYm) : 12;
 
   const now = new Date();
   const months = [];
@@ -5919,6 +5928,12 @@ function renderMonthlyBalanceCard(customer) {
   }, { rental: 0, income: 0, expense: 0 });
   const grandTotal = totals.rental + totals.income + totals.expense;
 
+  return { months, totals, grandTotal, loaded };
+}
+
+function renderMonthlyBalanceCard(customer) {
+  const { months, totals, grandTotal, loaded } = buildBalanceSeries(customer, false);
+
   // 4) 셀 렌더 헬퍼
   const numCell = (n, opt = {}) => {
     const dim = n === 0;
@@ -5945,16 +5960,15 @@ function renderMonthlyBalanceCard(customer) {
     ? ''
     : `<p class="muted-small" style="margin:8px 0 0; color:#94a3b8;">수리내역 로딩 중… 잠시 후 자동 반영됩니다.</p>`;
 
-  const rangeLabel = expanded ? `전체 기간 (${months.length}개월)` : '최근 12개월';
-  const toggleHint = expanded ? '▲ 최근 12개월만 보기' : '▼ 이전 내역 모두 보기';
-
   return `<div class="card rc-monthly-balance-card">
-    <h3 data-rc-expand="monthly" style="margin:0 0 8px; cursor:pointer; user-select:none;" title="클릭하면 등록 이후 전체 기간을 봅니다">💼 월 합계 — ${rangeLabel}
-      <span class="muted-small" style="font-weight:400; margin-left:8px;">
-        임대료 ${totals.rental.toLocaleString()} · 유상 +${totals.income.toLocaleString()} · 무상 ${totals.expense.toLocaleString()} · 합계 ${grandTotal.toLocaleString()}
-      </span>
-      <span class="muted-small" style="font-weight:400; margin-left:8px; color:#94a3b8;">${toggleHint}</span>
-    </h3>
+    <div style="display:flex; justify-content:space-between; align-items:center; gap:10px; flex-wrap:wrap; margin-bottom:8px;">
+      <h3 style="margin:0;">💼 월 합계 — 최근 12개월
+        <span class="muted-small" style="font-weight:400; margin-left:8px;">
+          임대료 ${totals.rental.toLocaleString()} · 유상 +${totals.income.toLocaleString()} · 무상 ${totals.expense.toLocaleString()} · 합계 ${grandTotal.toLocaleString()}
+        </span>
+      </h3>
+      <button class="btn small primary" type="button" data-rc-open="monthly">📈 전체 수익 분석 보기</button>
+    </div>
     <div class="rc-monthly-balance-wrap" style="overflow-x:auto;">
       <table class="rc-asset-table" style="font-size:11.5px; white-space:nowrap;">
         <thead>
@@ -5992,6 +6006,189 @@ function renderMonthlyBalanceCard(customer) {
     </div>
     ${loadingNote}
   </div>`;
+}
+
+// =============================================================
+// 전체 기간 모달 — 카운터 / 월 합계
+//   카드의 가로 표는 12개월이 한계라 옆으로 늘어난다.
+//   모달에서는 "월이 행" 인 세로 표로 뒤집어 세로 스크롤로 본다.
+// =============================================================
+
+function openBigModal(html) {
+  const body = document.getElementById('rc-modal-body');
+  body.classList.add('rc-wide-modal-box');
+  body.innerHTML = html;
+  body.querySelectorAll('[data-close]').forEach(b => b.addEventListener('click', closeModal));
+  document.getElementById('rc-modal').classList.add('show');
+}
+
+// 가로 막대 한 줄 (총수익 / 총지출 / 순수익 비교용)
+function hBar(label, value, max, color) {
+  const pct = max > 0 ? Math.min(100, Math.abs(value) / max * 100) : 0;
+  return `
+    <div class="rc-hb-row">
+      <span class="rc-hb-lbl">${label}</span>
+      <span class="rc-hb-track"><span class="rc-hb-fill" style="width:${pct}%; background:${color};"></span></span>
+      <b class="rc-hb-val" style="color:${color};">${value.toLocaleString()}원</b>
+    </div>`;
+}
+
+function openCountersModal(customer) {
+  const { itemIds, months, dataPoints, totalBw, totalColor, grandTotal } = buildCounterSeries(customer, true);
+  const name = escapeHtml((customer.trade_name || customer.company || '').split('\n')[0]);
+
+  if (!itemIds.length || dataPoints === 0) {
+    openBigModal(`
+      <div class="rc-big-head">
+        <h3 style="margin:0;">📊 ${name} — 카운터 전체 기간</h3>
+        <button class="btn small" type="button" data-close>닫기</button>
+      </div>
+      <p class="muted" style="margin:16px 0 0;">표시할 카운터 데이터가 없습니다.</p>
+    `);
+    return;
+  }
+
+  // 최신 달이 위로 오도록 뒤집는다
+  const rowsDesc = months.slice().reverse();
+  const maxSum = Math.max(1, ...rowsDesc.map(m => m.bw + m.color));
+
+  const bodyRows = rowsDesc.map(m => {
+    const sum = m.bw + m.color;
+    const pct = sum / maxSum * 100;
+    return `
+      <tr${sum === 0 ? ' style="color:#cbd5e1;"' : ''}>
+        <td style="font-weight:600; white-space:nowrap;">${m.lbl}</td>
+        <td class="num">${m.bw.toLocaleString()}</td>
+        <td class="num">${m.color.toLocaleString()}</td>
+        <td class="num" style="font-weight:700;">${sum.toLocaleString()}</td>
+        <td style="width:34%;"><span class="rc-hb-track" style="height:9px;"><span class="rc-hb-fill" style="width:${pct}%; background:#6366f1;"></span></span></td>
+      </tr>`;
+  }).join('');
+
+  openBigModal(`
+    <div class="rc-big-head">
+      <h3 style="margin:0;">📊 ${name} — 카운터 전체 기간 <span class="muted-small" style="font-weight:400;">(${months.length}개월 · 월별 사용량)</span></h3>
+      <button class="btn small" type="button" data-close>닫기</button>
+    </div>
+    <div class="rc-stat-grid">
+      <div class="rc-stat"><span>총 흑백</span><b style="color:#334155;">${totalBw.toLocaleString()}</b></div>
+      <div class="rc-stat"><span>총 컬러</span><b style="color:#6366f1;">${totalColor.toLocaleString()}</b></div>
+      <div class="rc-stat"><span>총 출력</span><b style="color:#0f172a;">${grandTotal.toLocaleString()}</b></div>
+    </div>
+    <div class="rc-big-scroll">
+      <table class="rc-asset-table" style="margin:0;">
+        <thead>
+          <tr>
+            <th style="width:80px;">월</th>
+            <th class="num" style="width:90px;">흑백</th>
+            <th class="num" style="width:90px;">컬러</th>
+            <th class="num" style="width:100px;">합계</th>
+            <th>사용량</th>
+          </tr>
+        </thead>
+        <tbody>${bodyRows}</tbody>
+      </table>
+    </div>
+  `);
+}
+
+function openMonthlyBalanceModal(customer) {
+  const { months, totals, grandTotal, loaded } = buildBalanceSeries(customer, true);
+  const name = escapeHtml((customer.trade_name || customer.company || '').split('\n')[0]);
+
+  // 총수익 = 임대료 + 유상판매 / 총지출 = 무상수리(절대값) / 순수익 = 총수익 − 총지출
+  const revenue = totals.rental + totals.income;
+  const cost    = Math.abs(totals.expense);
+  const net     = grandTotal;
+  const margin  = revenue > 0 ? (net / revenue * 100) : 0;
+  const netColor = net > 0 ? '#059669' : (net < 0 ? '#dc2626' : '#64748b');
+
+  // 월별 순익 막대 (0 기준 위/아래)
+  const maxAbs = Math.max(1, ...months.map(m => Math.abs(m.rental + m.income + m.expense)));
+  const BAR_H = 74;
+  const netBars = months.map(m => {
+    const v = m.rental + m.income + m.expense;
+    const h = Math.round(Math.abs(v) / maxAbs * BAR_H);
+    const up = v >= 0;
+    return `
+      <div class="rc-nb-col" title="${m.lbl} 순익 ${v.toLocaleString()}원">
+        <div class="rc-nb-up"><i style="height:${up ? h : 0}px; background:#059669;"></i></div>
+        <div class="rc-nb-zero"></div>
+        <div class="rc-nb-dn"><i style="height:${up ? 0 : h}px; background:#dc2626;"></i></div>
+        <div class="rc-nb-lbl">${m.lbl}</div>
+      </div>`;
+  }).join('');
+
+  const maxBar = Math.max(revenue, cost, Math.abs(net), 1);
+
+  // 최신 달이 위로
+  const bodyRows = months.slice().reverse().map(m => {
+    const v = m.rental + m.income + m.expense;
+    const c = v > 0 ? '#059669' : (v < 0 ? '#dc2626' : '#cbd5e1');
+    return `
+      <tr>
+        <td style="font-weight:600; white-space:nowrap;">${m.lbl}</td>
+        <td class="num" style="${m.rental  ? 'color:#0ea5e9;' : 'color:#cbd5e1;'}">${m.rental.toLocaleString()}</td>
+        <td class="num" style="${m.income  ? 'color:#059669;' : 'color:#cbd5e1;'}">${m.income.toLocaleString()}</td>
+        <td class="num" style="${m.expense ? 'color:#dc2626;' : 'color:#cbd5e1;'}">${m.expense.toLocaleString()}</td>
+        <td class="num" style="color:${c}; font-weight:700; background:#f8fafc;">${v.toLocaleString()}</td>
+      </tr>`;
+  }).join('');
+
+  const loadingNote = loaded ? '' : `<p class="muted-small" style="margin:8px 0 0; color:#94a3b8;">수리내역 로딩 중… 잠시 후 다시 열어주세요.</p>`;
+
+  openBigModal(`
+    <div class="rc-big-head">
+      <h3 style="margin:0;">📈 ${name} — 수익 분석 <span class="muted-small" style="font-weight:400;">(전체 ${months.length}개월)</span></h3>
+      <button class="btn small" type="button" data-close>닫기</button>
+    </div>
+
+    <div class="rc-stat-grid">
+      <div class="rc-stat"><span>총수익 <em>임대료+유상판매</em></span><b style="color:#059669;">${revenue.toLocaleString()}원</b></div>
+      <div class="rc-stat"><span>총지출 <em>무상수리</em></span><b style="color:#dc2626;">${cost.toLocaleString()}원</b></div>
+      <div class="rc-stat"><span>순수익 <em>수익률 ${margin.toFixed(1)}%</em></span><b style="color:${netColor};">${net.toLocaleString()}원</b></div>
+    </div>
+
+    <div class="rc-big-sec">
+      <div class="rc-big-sec-title">수익 · 지출 비교</div>
+      ${hBar('총수익', revenue, maxBar, '#059669')}
+      ${hBar('총지출', cost,    maxBar, '#dc2626')}
+      ${hBar('순수익', net,     maxBar, netColor)}
+    </div>
+
+    <div class="rc-big-sec">
+      <div class="rc-big-sec-title">월별 순익 추이 <span class="muted-small" style="font-weight:400;">(초록 = 흑자 · 빨강 = 적자)</span></div>
+      <div class="rc-nb-chart">${netBars}</div>
+    </div>
+
+    <div class="rc-big-sec">
+      <div class="rc-big-sec-title">월별 상세</div>
+      <div class="rc-big-scroll">
+        <table class="rc-asset-table" style="margin:0;">
+          <thead>
+            <tr>
+              <th style="width:80px;">월</th>
+              <th class="num">월 임대료</th>
+              <th class="num">유상판매</th>
+              <th class="num">무상수리</th>
+              <th class="num">월 순익</th>
+            </tr>
+          </thead>
+          <tbody>${bodyRows}</tbody>
+          <tfoot>
+            <tr style="border-top:2px solid #e2e8f0;">
+              <td style="font-weight:700;">합계</td>
+              <td class="num" style="font-weight:700; color:#0ea5e9;">${totals.rental.toLocaleString()}</td>
+              <td class="num" style="font-weight:700; color:#059669;">${totals.income.toLocaleString()}</td>
+              <td class="num" style="font-weight:700; color:#dc2626;">${totals.expense.toLocaleString()}</td>
+              <td class="num" style="font-weight:800; color:${netColor}; background:#eef2ff;">${net.toLocaleString()}</td>
+            </tr>
+          </tfoot>
+        </table>
+      </div>
+    </div>
+    ${loadingNote}
+  `);
 }
 
 function renderRepairCard(customer, mode) {
