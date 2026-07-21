@@ -6,3 +6,7 @@
 
 window.SUPABASE_URL  = "https://wghjnlhfqypamiwukeio.supabase.co";
 window.SUPABASE_ANON = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6IndnaGpubGhmcXlwYW1pd3VrZWlvIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODExNTYyODAsImV4cCI6MjA5NjczMjI4MH0.sOjiDveMGn_uIt6fzu4fqQtlDwNWkkoXWrz6gxy0XZg";
+
+// 공지사항 기본 글이 가리킬 사용방법 페이지 주소 (A/S 페이지 기준 상대경로)
+window.GUIDE_ASMS_URL  = "guide.html";
+window.GUIDE_LEASE_URL = "lease/guide.html";
