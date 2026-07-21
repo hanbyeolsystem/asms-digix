@@ -8,6 +8,31 @@
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 <script src="config.js?v=20260611"></script>
 <script src="auth.js"></script>
+<style>
+#nt2-wrap{border-bottom:1px solid #d1d5db;background:#fff;font-size:13px;}
+#nt2-head{display:flex;align-items:center;justify-content:space-between;padding:6px 14px;background:#f7f9fb;border-bottom:1px solid #eef1f5;}
+#nt2-head b{color:#1e2939;font-size:13px;}
+.nt2-btn{background:#fff;border:1px solid #c2c8d0;border-radius:3px;padding:2px 9px;font-size:12px;cursor:pointer;}
+.nt2-btn:hover{background:#f1f3f6;}
+#nt2-split{display:flex;}
+#nt2-list-col{width:280px;flex-shrink:0;border-right:1px solid #eef1f5;}
+#nt2-list{list-style:none;margin:0;padding:0;}
+#nt2-list li{display:flex;align-items:center;gap:8px;padding:7px 12px;border-bottom:1px solid #f3f5f8;cursor:pointer;}
+#nt2-list li:hover{background:#f7f9fb;}
+#nt2-list li.nt2-active{background:#eff6ff;}
+.nt2-tag{background:#fdecec;color:#b42121;border:1px solid #f5c9c9;border-radius:3px;font-size:11px;padding:1px 6px;white-space:nowrap;flex-shrink:0;}
+.nt2-item-title{flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;color:#1d4ed8;}
+.nt2-item-date{color:#98a2b3;font-size:11.5px;white-space:nowrap;}
+.nt2-del{color:#c0392b;cursor:pointer;font-size:12px;flex-shrink:0;}
+.nt2-empty{padding:8px 12px;color:#98a2b3;}
+#nt2-view{flex:1;display:none;flex-direction:column;}
+#nt2-view.show{display:flex;}
+#nt2-view-head{display:flex;align-items:center;justify-content:space-between;padding:8px 14px;background:#f7f9fb;border-bottom:1px solid #eef1f5;flex-shrink:0;}
+#nt2-view-title{font-size:14px;font-weight:bold;color:#1e2939;flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;}
+#nt2-view-close{background:none;border:none;font-size:16px;cursor:pointer;color:#666;padding:0 4px;flex-shrink:0;}
+#nt2-view-meta{padding:5px 14px;font-size:12px;color:#888;border-bottom:1px solid #f3f5f8;flex-shrink:0;}
+#nt2-view-body{padding:12px 14px;font-size:13.5px;line-height:1.8;white-space:pre-wrap;color:#222;overflow-y:auto;max-height:200px;}
+</style>
 </head>
 <body>
 
@@ -56,6 +81,25 @@
       <div class="errorcode-actions">
         <a href="https://digix.co.kr/orders.html" target="_blank" rel="noopener" class="btn ghost small" id="btn-open-new" title="새 창에서 열기">↗ 새 창</a>
         <button class="btn ghost small" id="btn-reload" title="새로고침">↻ 새로고침</button>
+      </div>
+    </div>
+    <div id="nt2-wrap">
+      <div id="nt2-head">
+        <b>📢 공지사항</b>
+        <span id="nt2-admin"></span>
+      </div>
+      <div id="nt2-split">
+        <div id="nt2-list-col">
+          <ul id="nt2-list"><li class="nt2-empty">불러오는 중…</li></ul>
+        </div>
+        <div id="nt2-view">
+          <div id="nt2-view-head">
+            <span id="nt2-view-title"></span>
+            <button id="nt2-view-close" title="닫기">✕</button>
+          </div>
+          <div id="nt2-view-meta"></div>
+          <div id="nt2-view-body"></div>
+        </div>
       </div>
     </div>
     <iframe
@@ -187,6 +231,84 @@ async function updateVisitBadge() {
 }
 document.addEventListener('totalas:ready', updateVisitBadge, { once: false });
 if (window.currentUser) updateVisitBadge();
+
+// ── 공지사항 (종합관리툴) ──
+(function(){
+  var ntData=[], ntSb=function(){return window.totalasAuth;};
+  function ntEsc(s){return String(s==null?'':s).replace(/[&<>"']/g,function(m){return({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[m]);});}
+  async function loadNt2(){
+    var sb=ntSb(); if(!sb) return;
+    var isAdmin=(typeof window.currentIsAdmin==='function')?await window.currentIsAdmin():false;
+    var r=await sb.from('board_posts').select('id,title,content,created_at').eq('pinned',true).order('created_at',{ascending:false}).limit(10);
+    ntData=r.data||[];
+    var ul=document.getElementById('nt2-list'); if(!ul) return;
+    if(r.error||!ntData.length){ul.innerHTML='<li class="nt2-empty">'+(r.error?'공지를 불러오지 못했습니다.':'등록된 공지가 없습니다.')+'</li>';return;}
+    ul.innerHTML=ntData.map(function(p){return '<li data-ntid="'+p.id+'"><span class="nt2-tag">공지</span><span class="nt2-item-title">'+ntEsc(p.title)+'</span><span class="nt2-item-date">'+(p.created_at||'').slice(0,10)+'</span>'+(isAdmin?'<span class="nt2-del" data-ntdel="'+p.id+'" title="삭제">✕</span>':'')+'</li>';}).join('');
+    ul.querySelectorAll('li[data-ntid]').forEach(function(li){
+      li.addEventListener('click',function(e){
+        if(e.target.classList.contains('nt2-del')) return;
+        var post=ntData.find(function(x){return x.id===li.dataset.ntid;});
+        if(post) openNt2View(post,li);
+      });
+    });
+    ul.querySelectorAll('[data-ntdel]').forEach(function(s){
+      s.addEventListener('click',async function(e){
+        e.stopPropagation();
+        if(!confirm('이 공지를 삭제할까요?')) return;
+        await ntSb().from('board_posts').delete().eq('id',s.dataset.ntdel);
+        closeNt2View(); await loadNt2();
+      });
+    });
+    if(isAdmin){
+      var adminEl=document.getElementById('nt2-admin');
+      if(adminEl&&!adminEl.querySelector('button')){
+        adminEl.innerHTML='<button class="nt2-btn" id="nt2-write">+ 공지쓰기</button>';
+        document.getElementById('nt2-write').addEventListener('click',openNt2Modal);
+      }
+    }
+  }
+  function openNt2View(post,liEl){
+    var body=(post.content||'').trim();
+    if(/^https?:\/\//i.test(body)){window.open(body,'_blank','noopener');return;}
+    document.querySelectorAll('#nt2-list li').forEach(function(l){l.classList.remove('nt2-active');});
+    if(liEl) liEl.classList.add('nt2-active');
+    document.getElementById('nt2-view-title').textContent=post.title;
+    document.getElementById('nt2-view-meta').textContent=(post.created_at||'').slice(0,10);
+    document.getElementById('nt2-view-body').textContent=body;
+    document.getElementById('nt2-view').classList.add('show');
+  }
+  function closeNt2View(){
+    var v=document.getElementById('nt2-view'); if(v) v.classList.remove('show');
+    document.querySelectorAll('#nt2-list li').forEach(function(l){l.classList.remove('nt2-active');});
+  }
+  var cb=document.getElementById('nt2-view-close'); if(cb) cb.addEventListener('click',closeNt2View);
+  function openNt2Modal(){
+    var m=document.getElementById('nt2-modal');
+    if(!m){
+      var d=document.createElement('div');
+      d.innerHTML='<div id="nt2-modal" style="position:fixed;inset:0;background:rgba(0,0,0,.42);display:none;align-items:center;justify-content:center;z-index:1200"><div style="background:#fff;width:520px;max-width:94vw;border-radius:6px;overflow:hidden"><div style="background:#1e2939;color:#fff;padding:9px 13px;font-weight:bold;font-size:14px;display:flex;justify-content:space-between;align-items:center"><span>공지 등록</span><button id="nt2-mx" style="background:none;border:none;color:#fff;font-size:17px;cursor:pointer">×</button></div><div style="padding:14px"><label style="display:block;font-size:12px;font-weight:600;margin:0 0 4px;color:#374151">제목 *</label><input id="nt2-t" type="text" placeholder="예: 2026-07 업데이트 안내" style="width:100%;box-sizing:border-box;padding:7px 9px;border:1px solid #ccc;border-radius:3px;font-size:13px;margin-bottom:10px;font-family:inherit"><label style="display:block;font-size:12px;font-weight:600;margin:0 0 4px;color:#374151">내용 또는 링크</label><textarea id="nt2-c" placeholder="내용을 입력하세요.&#10;링크만 넣으면 클릭 시 새 창으로 열립니다." style="width:100%;box-sizing:border-box;padding:7px 9px;border:1px solid #ccc;border-radius:3px;font-size:13px;min-height:110px;resize:vertical;font-family:inherit;margin-bottom:4px"></textarea><div id="nt2-msg" style="font-size:12px;color:#c0392b;min-height:15px"></div></div><div style="padding:10px 13px;border-top:1px solid #eee;text-align:right"><button id="nt2-cancel" style="padding:6px 14px;font-size:13px;cursor:pointer;margin-right:6px">취소</button><button id="nt2-save" style="padding:6px 14px;font-size:13px;cursor:pointer;background:#1e2939;color:#fff;border:1px solid #1e2939;border-radius:3px">등록</button></div></div></div>';
+      document.body.appendChild(d.firstElementChild);
+      m=document.getElementById('nt2-modal');
+      function close(){m.style.display='none';}
+      document.getElementById('nt2-mx').addEventListener('click',close);
+      document.getElementById('nt2-cancel').addEventListener('click',close);
+      m.addEventListener('click',function(e){if(e.target===m) close();});
+      document.getElementById('nt2-save').addEventListener('click',async function(){
+        var t=document.getElementById('nt2-t').value.trim(),c=document.getElementById('nt2-c').value.trim(),msg=document.getElementById('nt2-msg');
+        if(!t){msg.textContent='제목을 입력하세요.';return;}
+        var btn=document.getElementById('nt2-save'); btn.disabled=true; msg.textContent='등록 중…';
+        var res=await ntSb().from('board_posts').insert({title:t,content:c,author:localStorage.getItem('current_user')||'관리자',pinned:true});
+        btn.disabled=false;
+        if(res.error){msg.textContent='등록 실패: '+res.error.message;return;}
+        close(); await loadNt2();
+      });
+    }
+    document.getElementById('nt2-t').value=''; document.getElementById('nt2-c').value=''; document.getElementById('nt2-msg').textContent='';
+    m.style.display='flex'; setTimeout(function(){document.getElementById('nt2-t').focus();},50);
+  }
+  document.addEventListener('totalas:ready',function(){loadNt2();},{once:false});
+  setTimeout(function(){if(ntSb()) loadNt2();},2000);
+})();
 </script>
 
 </body>

@@ -218,8 +218,8 @@
       try { localStorage.setItem("current_user", n || ""); } catch (e) {}
     }
 
-    // 공지사항 (로그인 페이지 제외)
-    if (!["login.html", ""].includes(path)) initNotice();
+    // 공지사항 (로그인 페이지 제외, 종합관리툴 iframe 안에서는 실행 안 함)
+    if (!["login.html", ""].includes(path) && window === window.top) initNotice();
   });
 
   /* ══════════════ 공지사항 ══════════════
