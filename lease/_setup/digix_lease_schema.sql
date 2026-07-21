@@ -1352,7 +1352,7 @@ DROP POLICY IF EXISTS rental_item_types_auth_all ON rental_item_types;
 CREATE POLICY rental_item_types_auth_all ON rental_item_types
   FOR ALL TO authenticated USING (true) WITH CHECK (true);
 
--- 시드 (기존 11종) — ON CONFLICT(label) 로 멱등 (재실행 안전)
+-- 시드 (12종) — ON CONFLICT(label) 로 멱등 (재실행 안전)
 INSERT INTO rental_item_types (label, category, icon, sort_order, form_label, is_print, active) VALUES
   ('흑백복사기',   '출력', '🖨', 10, '흑백복사기(A3)',         TRUE,  TRUE),
   ('컬러복사기',   '출력', '🖨', 20, '컬러복사기(A3)',         TRUE,  TRUE),
@@ -1364,7 +1364,8 @@ INSERT INTO rental_item_types (label, category, icon, sort_order, form_label, is
   ('모니터',       'IT',   '🖥', 80, '모니터',                 FALSE, TRUE),
   ('PC유지보수',   'IT',   '🛠', 90, 'PC유지보수',             FALSE, TRUE),
   ('웰리스',       '위생', '🌿', 100,'웰리스',                 FALSE, TRUE),
-  ('나스',         'IT',   '📦', 110,'나스',                   FALSE, TRUE)
+  ('나스',         'IT',   '📦', 110,'나스',                   FALSE, TRUE),
+  ('CCTV',         'IT',   '📹', 120,'CCTV',                   FALSE, TRUE)
 ON CONFLICT (label) DO NOTHING;
 
 SELECT label, category, icon, sort_order, form_label, is_print, active FROM rental_item_types ORDER BY sort_order;
