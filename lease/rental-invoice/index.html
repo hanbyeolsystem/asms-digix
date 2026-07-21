@@ -87,7 +87,13 @@
       <div class="page-head">
         <div>
           <h1>🧾 임대명세표/계산서</h1>
-          <p class="muted" style="margin:2px 0 0 0;">임대거래처의 발행구분에 따라 <b>전자세금계산서</b>·<b>거래명세표</b>를 만듭니다(둘 다 체크면 둘 다). 금액은 해당 월 청구자료 우선, 없으면 월 고정임대료로 잡으며 <b>공급가액=청구합계, 세액=10%</b>입니다. 청구일별로 골라 다운로드해 발행하세요.</p>
+          <p class="muted" style="margin:2px 0 0 0;">임대거래처의 발행구분에 따라 <b>전자세금계산서</b>·<b>거래명세표</b>를 만듭니다(둘 다 체크면 둘 다). 청구일별로 골라 다운로드해 발행하세요.</p>
+          <div style="margin-top:8px;font-size:12.5px;background:#f4f8ff;border-left:4px solid var(--primary,#2563eb);padding:8px 12px;border-radius:0 6px 6px 0;color:#334155;">
+            <b style="color:#0f172a;">금액 기준</b> —
+            <b>임대료</b>는 <b>임대거래처 「임대 물품 내역」 총금액</b>,
+            <b>추가요금(흑백·컬러)</b>과 <b>할인</b>은 <b>임대추가요금청구</b> 내용을 그대로 가져옵니다.
+            공급가액 = 임대료 + 추가요금 − 할인 · <b>세액 = 10%(VAT 별도)</b>
+          </div>
         </div>
       </div>
 
@@ -407,22 +413,19 @@ async function build(){
       if ((c.billing_types || []).includes('거래명세표'))     u.docs.add('slip');
       // 할인은 거래처 단위(rental_counter_discounts) — 청구자료 유무와 무관하게 반영
       u.disc += discByCust[c.id] || 0;
+      // ① 임대료(기본금액) = 임대거래처의 '임대 물품 내역' 총금액 — 항상 이 기준
+      u.rent += feeByCust[c.id] || 0;
+      // ② 추가요금 = 임대추가요금청구 내용(흑백/컬러 초과) — 청구서가 있는 업체만
       const myBills = billsByCust[c.id] || [];
       if (myBills.length) {
-        // 임대추가요금청구 저장값 사용 (임대료 + 사용료). 할인은 위에서 별도 차감.
         myBills.forEach(b => {
           const ex = splitUsage(b.items);
-          u.rent  += Number(b.fixed_total) || 0;
           u.usage += Number(b.usage_total) || 0;
           u.bw    += ex.bw;
           u.co    += ex.co;
           u.ids.push(b.id);
         });
         u.srcBilling = true;
-      } else if (feeByCust[c.id]) {
-        // 청구자료가 없으면 그 달 월 고정 임대료만 (추가요금은 청구서가 있어야 산출)
-        u.rent += feeByCust[c.id];
-        u.srcFixed = true;
       }
     });
 
@@ -455,7 +458,7 @@ async function build(){
           buyer_biz_type:u.biz_type, buyer_biz_item:u.biz_item,
           buyer_address:u.address, buyer_email:u.email,
           invoice_day: u.invoice_day,
-          amount_source: u.srcBilling ? 'billing' : (u.srcFixed ? 'fixed' : 'none'),
+          amount_source: u.srcBilling ? 'billing' : (u.rent > 0 ? 'fixed' : 'none'),
           rent_amount:u.rent, bw_extra:u.bw, color_extra:u.co, discount_amount:u.disc,
           supply_amount:supply, vat_amount:vat, total_amount:supply + vat,
           item_count:u.ids.length, billing_ids:u.ids, status:'pending',
@@ -595,11 +598,11 @@ function lineItemsHtml(r, period){
   const other = supply - (rent + bw + co - disc);   // 합계모드 초과 등 잔차
   const td = (v, a) => `<td style="padding:6px 8px;border:1px solid #e2e8f0;text-align:${a||'left'};">${v}</td>`;
   const line = (label, amt, color) => `<tr>${td(label)}${td('1','center')}<td style="padding:6px 8px;border:1px solid #e2e8f0;text-align:right;${color?('color:'+color+';'):''}">${won(amt)}</td></tr>`;
-  let body = line(`임대료청구 (${esc(period)})`, rent);
-  if (bw > 0)  body += line('흑백 추가요금', bw);
-  if (co > 0)  body += line('컬러 추가요금', co);
-  if (other > 0) body += line('기타 사용료', other);
-  if (disc > 0) body += line('추가요금 할인', -disc, '#059669');
+  let body = line(`임대료 (${esc(period)}) <span style="color:#94a3b8;font-size:11.5px;">· 임대물품 내역 총액</span>`, rent);
+  if (bw > 0)  body += line('흑백 추가요금 <span style="color:#94a3b8;font-size:11.5px;">· 추가요금청구</span>', bw);
+  if (co > 0)  body += line('컬러 추가요금 <span style="color:#94a3b8;font-size:11.5px;">· 추가요금청구</span>', co);
+  if (other > 0) body += line('기타 사용료 <span style="color:#94a3b8;font-size:11.5px;">· 추가요금청구</span>', other);
+  if (disc > 0) body += line('추가요금 할인 <span style="color:#94a3b8;font-size:11.5px;">· 추가요금청구</span>', -disc, '#059669');
   return `
     <table style="width:100%;border-collapse:collapse;border:1px solid #cbd5e1;margin-top:12px;">
       <thead><tr style="background:#f6f8fa;">
