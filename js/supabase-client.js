@@ -333,3 +333,50 @@ async function currentIsAdmin() {
   } catch (e) { return false; }
 }
 window.currentIsAdmin = currentIsAdmin;
+
+/* ══════════════ 접수 사진 첨부 ══════════════
+   버킷: order-files (public) · orders.attachments = [{name,url,type,at}] */
+const ORDER_BUCKET = "order-files";
+
+/** 파일 여러 개 업로드 → [{name,url,type,at}] 반환 */
+async function uploadOrderFiles(files) {
+  if (!window.SB_CONFIGURED || !files || !files.length) return [];
+  const out = [];
+  for (const f of files) {
+    const safe = f.name.replace(/[^\w.\-가-힣]/g, "_");
+    const path = `${Date.now()}_${Math.random().toString(36).slice(2, 8)}_${safe}`;
+    const up = await sb().storage.from(ORDER_BUCKET).upload(path, f, { upsert: false });
+    if (up.error) throw new Error("사진 업로드 실패: " + up.error.message);
+    const { data: pub } = sb().storage.from(ORDER_BUCKET).getPublicUrl(path);
+    out.push({ name: f.name, url: pub.publicUrl, type: f.type, at: new Date().toISOString() });
+  }
+  return out;
+}
+window.uploadOrderFiles = uploadOrderFiles;
+
+/** 첨부 목록 HTML (보기용) — 이미지는 썸네일, 그 외는 링크 */
+function orderAttachHtml(list) {
+  const arr = Array.isArray(list) ? list : [];
+  if (!arr.length) return '<span style="color:#999;font-size:12px;">첨부 없음</span>';
+  return arr.map(f => {
+    const isImg = /^image\//.test(f.type || "") || /\.(jpe?g|png|gif|webp)$/i.test(f.name || "");
+    return isImg
+      ? `<a href="${f.url}" target="_blank" rel="noopener" title="${f.name}">
+           <img src="${f.url}" alt="${f.name}" style="width:90px;height:90px;object-fit:cover;border:1px solid #ddd;border-radius:4px;margin:0 6px 6px 0;"></a>`
+      : `<a href="${f.url}" target="_blank" rel="noopener" style="font-size:12px;margin-right:8px;">📎 ${f.name}</a>`;
+  }).join("");
+}
+window.orderAttachHtml = orderAttachHtml;
+
+/** 선택한 파일 미리보기 (업로드 전) */
+function orderFilePreview(files, el) {
+  if (!el) return;
+  const arr = Array.from(files || []);
+  el.innerHTML = arr.map(f => {
+    const u = URL.createObjectURL(f);
+    return /^image\//.test(f.type)
+      ? `<img src="${u}" style="width:70px;height:70px;object-fit:cover;border:1px solid #ddd;border-radius:4px;margin:0 5px 5px 0;">`
+      : `<span style="font-size:12px;margin-right:8px;">📎 ${f.name}</span>`;
+  }).join("");
+}
+window.orderFilePreview = orderFilePreview;

@@ -270,6 +270,8 @@ function populate(o, listOrder) {
   }
   set("re_content",  o.re_content);
   set("re_content2", "");
+  const alEl = document.getElementById("attach-list");
+  if (alEl) alEl.innerHTML = window.orderAttachHtml ? window.orderAttachHtml(o.attachments) : "";
   const view = document.getElementById("reContentView");
   if (view) {
     const cleaned = cleanReContent(o.re_content);
@@ -378,6 +380,13 @@ async function save() {
   o.re_now       = radio("re_now"); o.status = o.re_now;
   if (window.SB_CONFIGURED) {
     delete o.created_at; delete o.updated_at;
+    try {
+      const picked = f.photos && f.photos.files ? f.photos.files : null;
+      if (picked && picked.length) {
+        const added = await window.uploadOrderFiles(picked);
+        o.attachments = (Array.isArray(o.attachments) ? o.attachments : []).concat(added);
+      }
+    } catch (e) { alert(e.message || String(e)); return; }
     const res = await window.dbOrderUpsert(o);
     if (res?.error) { alert("저장 실패: " + res.error); return; }
   } else {
@@ -547,6 +556,17 @@ document.addEventListener("DOMContentLoaded", async () => {
         <tr class="print-hide">
           <th>추가의견 및<br>통보여부</th>
           <td colspan="3"><textarea name="re_content2" placeholder="처리 내용 입력 (저장 시 기존의견에 누적)"></textarea></td>
+        </tr>
+        <tr>
+          <th>사진 첨부</th>
+          <td colspan="3">
+            <div id="attach-list" style="margin-bottom:6px;"></div>
+            <div class="print-hide">
+              <input type="file" name="photos" multiple accept="image/*" onchange="orderFilePreview(this.files, document.getElementById('attach-preview'))">
+              <div style="font-size:11px;color:#888;margin-top:3px;">추가로 첨부할 사진을 선택하세요. 기존 사진은 유지됩니다.</div>
+              <div id="attach-preview" style="margin-top:6px;"></div>
+            </div>
+          </td>
         </tr>
 
       </table>

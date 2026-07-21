@@ -466,11 +466,16 @@ async function go() {
     address2:     f.address2.value,
     mo_number:    f.mo_number.value,
     cu_want:      f.cu_want.value,
+    attachments:  [],
     created_at:   t.toISOString(),
   };
 
   if (window.SB_CONFIGURED) {
     delete newOrder.created_at;
+    try {
+      const picked = f.photos && f.photos.files ? f.photos.files : null;
+      if (picked && picked.length) newOrder.attachments = await window.uploadOrderFiles(picked);
+    } catch (e) { alert(e.message || String(e)); return; }
     const res = await window.dbOrderUpsert(newOrder);
     if (res?.error) { alert("등록 실패: " + res.error); return; }
 
@@ -642,6 +647,14 @@ document.addEventListener("keydown", e => {
         <tr>
           <th>고객 요청사항</th>
           <td colspan="3"><textarea name="cu_want"></textarea></td>
+        </tr>
+        <tr>
+          <th>사진 첨부</th>
+          <td colspan="3">
+            <input type="file" name="photos" multiple accept="image/*" onchange="orderFilePreview(this.files, document.getElementById('photo-preview'))">
+            <div style="font-size:11px;color:#888;margin-top:3px;">고장 부위·현장 사진 등을 첨부할 수 있습니다. 여러 장 선택 가능.</div>
+            <div id="photo-preview" style="margin-top:6px;"></div>
+          </td>
         </tr>
       </table>
       </form>
