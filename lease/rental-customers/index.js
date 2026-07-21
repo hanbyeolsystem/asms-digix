@@ -3041,18 +3041,31 @@ function renderExpiryAlert() {
   (STATE.customers || []).forEach(c => {
     (c.rental_assignments || []).forEach(a => {
       if (a.expiry_ack) return;                                  // 처리완료 제외
-      if (!a.contract_end_date) return;
       if (a.end_date && a.end_date < todayStr) return;            // 이미 회수됨
       const it = a.rental_items || {};
       if (it.status === 'returned') return;
-      const d = Math.round((new Date(a.contract_end_date + 'T00:00:00') - today) / 86400000);
-      if (d > CE_ALERT_DAYS) return;                              // 아직 이름
-      rows.push({
+
+      const base = {
         aid: a.id, cid: c.id, company: c.company || '(이름없음)',
         item: [it.subtype, it.model].filter(Boolean).join(' ') || '품목미상',
-        end: a.contract_end_date.slice(0, 10), d,
         short: !!a.is_short_term,
-      });
+      };
+      const dday = ymd => Math.round((new Date(ymd + 'T00:00:00') - today) / 86400000);
+
+      // ① 계약 만기
+      if (a.contract_end_date) {
+        const d = dday(a.contract_end_date.slice(0, 10));
+        if (d <= CE_ALERT_DAYS) {
+          rows.push({ ...base, kind: '계약만기', end: a.contract_end_date.slice(0, 10), d });
+        }
+      }
+      // ② 선결제 종료 — 끝나면 다시 청구해야 하므로 함께 알림
+      if (a.is_prepaid && a.prepaid_end) {
+        const d = dday(a.prepaid_end.slice(0, 10));
+        if (d <= CE_ALERT_DAYS) {
+          rows.push({ ...base, aid: a.id + ':prepaid', kind: '선결제종료', end: a.prepaid_end.slice(0, 10), d });
+        }
+      }
     });
   });
 
@@ -3061,13 +3074,15 @@ function renderExpiryAlert() {
 
   const over = rows.filter(r => r.d < 0).length;
   document.getElementById('ce-alert-sub').textContent =
-    `${rows.length}건` + (over ? ` · 만기경과 ${over}건` : '');
+    `${rows.length}건` + (over ? ` · 경과 ${over}건` : '')
+    + (rows.some(r => r.kind === '선결제종료') ? ` · 선결제종료 ${rows.filter(r=>r.kind==='선결제종료').length}건` : '');
 
   bodyEl.innerHTML = rows.map(r => {
     const cls = r.d < 0 ? 'over' : 'soon';
     const lbl = r.d < 0 ? `${Math.abs(r.d)}일 지남` : (r.d === 0 ? '오늘 만기' : `D-${r.d}`);
     return `<div class="ce-row" data-aid="${escapeAttr(r.aid)}">
       <span class="ce-dday ${cls}">${lbl}</span>
+      <span class="ce-kind ${r.kind === '선결제종료' ? 'pre' : 'con'}">${escapeHtml(r.kind)}</span>
       <a class="ce-co" data-cid="${escapeAttr(r.cid)}">${escapeHtml(r.company)}</a>
       <span class="ce-item">${escapeHtml(r.item)}${r.short ? ' · 단기' : ''}</span>
       <span class="ce-date">${escapeHtml(r.end)} 만기</span>
@@ -3091,11 +3106,11 @@ function renderExpiryAlert() {
       const who = (window.currentUser && (window.currentUser.full_name || window.currentUser.display_id)) || '관리자';
       const { error } = await window.totalasAuth.from('rental_assignments')
         .update({ expiry_ack: true, expiry_ack_at: new Date().toISOString(), expiry_ack_by: who })
-        .eq('id', b.dataset.ack);
+        .eq('id', String(b.dataset.ack).split(':')[0]);   // 선결제 행은 'id:prepaid' 형태
       if (error) { alert('처리 실패: ' + error.message); b.disabled = false; return; }
       // 메모리 반영 후 다시 그림 (전체 재조회 없이)
       (STATE.customers || []).forEach(c => (c.rental_assignments || []).forEach(a => {
-        if (a.id === b.dataset.ack) a.expiry_ack = true;
+        if (a.id === String(b.dataset.ack).split(':')[0]) a.expiry_ack = true;
       }));
       renderExpiryAlert();
       toast('만기 알림을 처리완료로 표시했습니다.', 'ok');
