@@ -1241,6 +1241,7 @@ async function loadAll() {
         rental_assignments(
           id, item_id, start_date, end_date, monthly_fee,
           bw_free, co_free, bw_rate, co_rate, notes,
+          contract_years, is_short_term, contract_end_date, deposit, expiry_ack,
           rental_items(id, category, subtype, brand, model, asset_number, serial, install_date, status, storage_gb, notes, counter_mode, total_free_count, total_unit_price, rental_type, regular_visit, visit_cycle_months)
         )
       `)
@@ -1289,6 +1290,7 @@ async function loadAll() {
     // 거래처가 선택되지 않은 경우에만 '제품별 전체 보기' 즉시 표시
     // 선택 상태에서 저장/재로드 시 renderDetail()은 호출부에서 직접 호출
     if (!STATE.selectedId) renderDetail();
+    renderExpiryAlert();   // 계약만기 임박 알림
   } catch (err) {
     console.error(err);
     listEl.innerHTML = `<div class="rc-error" style="text-align:center; padding:20px;">조회 실패: ${escapeHtml(err.message || String(err))}</div>`;
@@ -3019,6 +3021,146 @@ function classifyToItemType(it, asgn) {
   return '';
 }
 
+/* ══════════ 계약만기 알림 (D-15 이내 + 경과, 미처리 건) ══════════ */
+const CE_ALERT_DAYS = 15;
+
+function renderExpiryAlert() {
+  const box = document.getElementById('ce-alert');
+  const bodyEl = document.getElementById('ce-alert-body');
+  if (!box || !bodyEl) return;
+
+  const today = new Date(); today.setHours(0, 0, 0, 0);
+  const todayStr = today.toISOString().slice(0, 10);
+  const rows = [];
+
+  (STATE.customers || []).forEach(c => {
+    (c.rental_assignments || []).forEach(a => {
+      if (a.expiry_ack) return;                                  // 처리완료 제외
+      if (!a.contract_end_date) return;
+      if (a.end_date && a.end_date < todayStr) return;            // 이미 회수됨
+      const it = a.rental_items || {};
+      if (it.status === 'returned') return;
+      const d = Math.round((new Date(a.contract_end_date + 'T00:00:00') - today) / 86400000);
+      if (d > CE_ALERT_DAYS) return;                              // 아직 이름
+      rows.push({
+        aid: a.id, cid: c.id, company: c.company || '(이름없음)',
+        item: [it.subtype, it.model].filter(Boolean).join(' ') || '품목미상',
+        end: a.contract_end_date.slice(0, 10), d,
+        short: !!a.is_short_term,
+      });
+    });
+  });
+
+  if (!rows.length) { box.style.display = 'none'; return; }
+  rows.sort((x, y) => x.d - y.d);
+
+  const over = rows.filter(r => r.d < 0).length;
+  document.getElementById('ce-alert-sub').textContent =
+    `${rows.length}건` + (over ? ` · 만기경과 ${over}건` : '');
+
+  bodyEl.innerHTML = rows.map(r => {
+    const cls = r.d < 0 ? 'over' : 'soon';
+    const lbl = r.d < 0 ? `${Math.abs(r.d)}일 지남` : (r.d === 0 ? '오늘 만기' : `D-${r.d}`);
+    return `<div class="ce-row" data-aid="${escapeAttr(r.aid)}">
+      <span class="ce-dday ${cls}">${lbl}</span>
+      <a class="ce-co" data-cid="${escapeAttr(r.cid)}">${escapeHtml(r.company)}</a>
+      <span class="ce-item">${escapeHtml(r.item)}${r.short ? ' · 단기' : ''}</span>
+      <span class="ce-date">${escapeHtml(r.end)} 만기</span>
+      <button type="button" class="ce-ack" data-ack="${escapeAttr(r.aid)}">처리완료</button>
+    </div>`;
+  }).join('');
+  box.style.display = '';
+
+  // 거래처명 클릭 → 해당 거래처 선택
+  bodyEl.querySelectorAll('[data-cid]').forEach(a => {
+    a.onclick = () => {
+      STATE.selectedId = a.dataset.cid;
+      renderList(); renderDetail();
+      document.querySelector('.rc-layout')?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    };
+  });
+  // 처리완료 → 알림에서 제외
+  bodyEl.querySelectorAll('[data-ack]').forEach(b => {
+    b.onclick = async () => {
+      b.disabled = true;
+      const who = (window.currentUser && (window.currentUser.full_name || window.currentUser.display_id)) || '관리자';
+      const { error } = await window.totalasAuth.from('rental_assignments')
+        .update({ expiry_ack: true, expiry_ack_at: new Date().toISOString(), expiry_ack_by: who })
+        .eq('id', b.dataset.ack);
+      if (error) { alert('처리 실패: ' + error.message); b.disabled = false; return; }
+      // 메모리 반영 후 다시 그림 (전체 재조회 없이)
+      (STATE.customers || []).forEach(c => (c.rental_assignments || []).forEach(a => {
+        if (a.id === b.dataset.ack) a.expiry_ack = true;
+      }));
+      renderExpiryAlert();
+      toast('만기 알림을 처리완료로 표시했습니다.', 'ok');
+    };
+  });
+}
+
+document.getElementById('ce-alert-toggle')?.addEventListener('click', e => {
+  const box = document.getElementById('ce-alert');
+  box.classList.toggle('collapsed');
+  e.target.textContent = box.classList.contains('collapsed') ? '펼치기 ▸' : '접기 ▾';
+});
+
+/** 계약 만기일 자동계산 + 기존 계약 만기에 맞추기
+ *  - 일반: 임대 시작일 + 계약기간(년)  → 자동 계산(읽기전용)
+ *  - 단기임대 체크: 만기일 직접 입력
+ *  - 같은 거래처에 이미 계약이 있으면 "기존 계약 만기(YYYY-MM-DD)에 맞추기" 버튼 노출 */
+function setupContractExpiry(f, body, customer, existing) {
+  const elYears = f.contract_years, elShort = f.is_short_term,
+        elEnd = f.contract_end_date, elStart = f.start_date;
+  if (!elEnd || !elShort) return;
+  const hint = body.querySelector('#ce-hint');
+  const matchBtn = body.querySelector('#ce-match');
+
+  const addYears = (ymd, yrs) => {
+    if (!ymd) return '';
+    const d = new Date(ymd + 'T00:00:00');
+    if (isNaN(d)) return '';
+    d.setFullYear(d.getFullYear() + (Number(yrs) || 3));
+    return d.toISOString().slice(0, 10);
+  };
+
+  function refresh() {
+    const short = elShort.checked;
+    elEnd.readOnly = !short;
+    elEnd.style.background = short ? '' : '#f1f5f9';
+    if (elYears) elYears.disabled = short;
+    if (!short) {
+      elEnd.value = addYears(elStart.value, elYears ? elYears.value : 3);
+      if (hint) hint.textContent = '임대 시작일 + 계약기간으로 자동 계산됩니다.';
+    } else if (hint) {
+      hint.textContent = '단기임대 — 만기일을 직접 입력하세요.';
+    }
+  }
+  elShort.addEventListener('change', refresh);
+  elStart.addEventListener('change', refresh);
+  if (elYears) elYears.addEventListener('input', refresh);
+
+  // 기존 계약이 있으면 만기 맞추기 버튼 (추가 렌탈 시 계약 통일용)
+  const others = ((customer && customer.rental_assignments) || []).filter(a =>
+    a.contract_end_date && (!existing || a.id !== existing.id) &&
+    (!a.end_date || a.end_date >= new Date().toISOString().slice(0, 10)));
+  if (others.length && matchBtn) {
+    // 가장 늦은 만기(대표 계약)로 맞춘다
+    const target = others.map(a => a.contract_end_date.slice(0, 10)).sort().pop();
+    matchBtn.textContent = `기존 계약 만기(${target})에 맞추기`;
+    matchBtn.style.display = '';
+    matchBtn.onclick = () => {
+      elShort.checked = true;   // 직접 지정이므로 단기임대(직접입력) 모드로
+      refresh();
+      elEnd.value = target;
+      if (hint) hint.textContent = `기존 계약 만기(${target})에 맞췄습니다.`;
+    };
+  }
+
+  if (!existing) refresh();     // 신규는 자동계산으로 시작
+  else if (!existing.is_short_term) refresh();
+  else { elEnd.readOnly = false; elEnd.style.background = ''; if (elYears) elYears.disabled = true; }
+}
+
 function applyAssetVisibility(form) {
   const itemType = form.item_type ? form.item_type.value : '';
   const info = ITEM_TO_CATSUB[itemType] || { isPrint: false, isNas: false };
@@ -3381,6 +3523,10 @@ function openAssetForm(customer, existing, opts) {
     f.bw_rate.value = existing.bw_rate != null ? existing.bw_rate : '';
     f.co_rate.value = existing.co_rate != null ? existing.co_rate : '';
     f.start_date.value = (existing.start_date || '').slice(0, 10);
+    if (f.contract_years)    f.contract_years.value = existing.contract_years != null ? existing.contract_years : 3;
+    if (f.is_short_term)     f.is_short_term.checked = !!existing.is_short_term;
+    if (f.contract_end_date) f.contract_end_date.value = (existing.contract_end_date || '').slice(0, 10);
+    if (f.deposit)           f.deposit.value = existing.deposit != null ? existing.deposit : '';
     // 합계 카운터 모드 복원 (counter_mode / total_free_count / total_unit_price 는 rental_items 에 저장)
     const counterModeCb = body.querySelector('#asset-use-total-counter');
     if (counterModeCb) {
@@ -3438,6 +3584,7 @@ function openAssetForm(customer, existing, opts) {
     if (qtyRow) { qtyRow.style.display = ''; f.qty.value = 1; }
   }
   applyAssetVisibility(f);
+  setupContractExpiry(f, body, customer, existing);
 
   body.querySelectorAll('[data-close]').forEach(b => b.addEventListener('click', closeModal));
 
@@ -3510,6 +3657,10 @@ function openAssetForm(customer, existing, opts) {
         co_free:      f.co_free.value ? Number(f.co_free.value) : null,
         bw_rate:      f.bw_rate.value ? Number(f.bw_rate.value) : null,
         co_rate:      f.co_rate.value ? Number(f.co_rate.value) : null,
+        contract_years:    f.contract_years && f.contract_years.value ? Number(f.contract_years.value) : 3,
+        is_short_term:     !!(f.is_short_term && f.is_short_term.checked),
+        contract_end_date: (f.contract_end_date && f.contract_end_date.value) || null,
+        deposit:           f.deposit && f.deposit.value ? Number(f.deposit.value) : null,
       };
 
       const supa = window.totalasAuth;

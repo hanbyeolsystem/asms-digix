@@ -11,6 +11,29 @@
 <script src="../item-types.js"></script>
 <style>
   /* ===== 임대거래처 전용 인라인 스타일 ===== */
+  /* ── 계약만기 알림 ── */
+  .ce-alert { background:#fff; border:1px solid #fecaca; border-left:4px solid #dc2626;
+              border-radius:10px; margin-bottom:14px; overflow:hidden; }
+  .ce-alert-head { display:flex; align-items:center; gap:8px; padding:9px 13px;
+                   background:#fef2f2; font-size:13.5px; color:#7f1d1d; }
+  .ce-alert-sub { font-size:12px; color:#b91c1c; font-weight:normal; }
+  .ce-alert.collapsed .ce-alert-body { display:none; }
+  .ce-alert-body { max-height:230px; overflow:auto; }
+  .ce-row { display:flex; align-items:center; gap:10px; padding:7px 13px;
+            border-bottom:1px solid #f8e8e8; font-size:13px; }
+  .ce-row:last-child { border-bottom:none; }
+  .ce-dday { flex:none; font-weight:700; font-size:11.5px; padding:2px 8px; border-radius:999px; }
+  .ce-dday.over { background:#fee2e2; color:#b91c1c; }
+  .ce-dday.soon { background:#ffedd5; color:#c2410c; }
+  .ce-co { flex:1; min-width:0; color:#1f2937; cursor:pointer; text-decoration:none;
+           overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+  .ce-co:hover { color:#2563eb; text-decoration:underline; }
+  .ce-item { flex:none; font-size:12px; color:#64748b; }
+  .ce-date { flex:none; font-size:12px; color:#94a3b8; }
+  .ce-ack { flex:none; font-size:11.5px; padding:3px 9px; border:1px solid #cbd5e1;
+            background:#fff; border-radius:6px; cursor:pointer; }
+  .ce-ack:hover { background:#f1f5f9; border-color:#94a3b8; }
+  @media (max-width:640px){ .ce-item, .ce-date { display:none; } }
   .rc-layout {
     display: grid;
     grid-template-columns: 320px 1fr;
@@ -1847,6 +1870,16 @@
     </div>
   </div>
 
+  <!-- 계약만기 임박 알림 -->
+  <section class="ce-alert" id="ce-alert" style="display:none;">
+    <div class="ce-alert-head">
+      <b>⏰ 계약만기 임박·경과</b>
+      <span class="ce-alert-sub" id="ce-alert-sub"></span>
+      <button type="button" class="btn ghost small" id="ce-alert-toggle" style="margin-left:auto;">접기 ▾</button>
+    </div>
+    <div class="ce-alert-body" id="ce-alert-body"></div>
+  </section>
+
   <div class="rc-layout">
     <!-- 좌측: 거래처 리스트 -->
     <section class="card rc-list-card">
@@ -2258,6 +2291,37 @@
       <div class="rc-form-row" style="margin:0;">
         <label>임대 시작일</label>
         <input name="start_date" type="date">
+      </div>
+    </div>
+
+    <div class="rc-form-row two">
+      <div class="rc-form-row" style="margin:0;">
+        <label>계약기간 (년)</label>
+        <input name="contract_years" type="number" min="1" max="10" step="1" value="3">
+      </div>
+      <div class="rc-form-row" style="margin:0;">
+        <label>보증금 (원)</label>
+        <input name="deposit" type="number" min="0" step="1">
+      </div>
+    </div>
+
+    <div class="rc-form-row">
+      <label style="display:flex;align-items:center;gap:6px;font-weight:normal;">
+        <input name="is_short_term" type="checkbox"> 단기임대 (만기일을 직접 입력)
+      </label>
+    </div>
+
+    <div class="rc-form-row two">
+      <div class="rc-form-row" style="margin:0;">
+        <label>계약 만기일</label>
+        <input name="contract_end_date" type="date">
+        <div class="rc-form-hint" id="ce-hint" style="font-size:11.5px;color:#8a94a6;margin-top:3px;">
+          임대 시작일 + 계약기간으로 자동 계산됩니다.
+        </div>
+      </div>
+      <div class="rc-form-row" style="margin:0;">
+        <label>&nbsp;</label>
+        <button type="button" class="btn ghost small" id="ce-match" style="display:none;width:100%;"></button>
       </div>
     </div>
     <div class="rc-form-row two hidden" data-show="print">

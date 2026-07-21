@@ -107,7 +107,7 @@
           <span class="group-caret">▶</span><span>임대 관리</span>
         </button>
         <div class="sidebar-subnav">
-          <a href="rental-customers/index.html"><span class="nav-icon">👥</span><span>임대거래처</span></a>
+          <a href="rental-customers/index.html"><span class="nav-icon">👥</span><span>임대거래처</span><span id="ce-badge" style="display:none;margin-left:auto;background:#dc2626;color:#fff;font-size:10px;font-weight:700;min-width:16px;height:16px;line-height:16px;text-align:center;border-radius:8px;padding:0 4px;"></span></a>
           <a href="rental-equipment/index.html"><span class="nav-icon">🖥</span><span>임대장비관리</span></a>
           <a href="visit-schedule/index.html"><span class="nav-icon">🗓</span><span>정기방문관리</span><span id="vs-badge" style="display:none;margin-left:auto;background:#dc2626;color:#fff;font-size:10px;font-weight:700;min-width:16px;height:16px;line-height:16px;text-align:center;border-radius:8px;padding:0 4px;"></span></a>
           <a href="rental-counters/index.html"><span class="nav-icon">🖨</span><span>임대카운터</span></a>
@@ -331,6 +331,27 @@ async function updateVisitBadge() {
     if (b) { if (n > 0) { b.textContent = n; b.style.display = 'inline-block'; } else b.style.display = 'none'; }
   } catch (e) {}
 }
+/** 계약만기 임박(D-15 이내, 미처리) 건수를 사이드바 배지로 표시 */
+async function updateExpiryBadge() {
+  try {
+    const sb = window.totalasAuth; if (!sb) return;
+    const today = new Date(); today.setHours(0,0,0,0);
+    const limit = new Date(today); limit.setDate(limit.getDate() + 15);
+    const { data } = await sb.from('rental_assignments')
+      .select('id, contract_end_date, end_date, expiry_ack')
+      .eq('expiry_ack', false)
+      .not('contract_end_date', 'is', null)
+      .lte('contract_end_date', limit.toISOString().slice(0,10));
+    if (!data) return;
+    const todayStr = today.toISOString().slice(0,10);
+    const n = data.filter(r => !r.end_date || r.end_date >= todayStr).length;
+    const b = document.getElementById('ce-badge');
+    if (b) { if (n > 0) { b.textContent = n; b.style.display = 'inline-block'; } else b.style.display = 'none'; }
+  } catch (e) {}
+}
+document.addEventListener('totalas:ready', updateExpiryBadge, { once: false });
+if (window.currentUser) updateExpiryBadge();
+
 document.addEventListener('totalas:ready', updateVisitBadge, { once: false });
 if (window.currentUser) updateVisitBadge();
 
