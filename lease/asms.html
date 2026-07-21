@@ -438,6 +438,12 @@ if (window.currentUser) updateVisitBadge();
    목록은 한 줄씩, 제목 클릭 시 연결주소가 있으면 새 창 / 없으면 내용 보기 */
 const NT_BUCKET = 'notice-files';
 let NT_FILES = [];   // 글쓰기 첨부 대기 목록
+/* 읽은 공지 기록 — 읽으면 배지에서 빠진다 (사용자 브라우저 단위) */
+const NT_READ_KEY = 'totalas.notice.read';
+function ntReadSet() {
+  try { return new Set(JSON.parse(localStorage.getItem(NT_READ_KEY) || '[]')); }
+  catch (e) { return new Set(); }
+}
 
 function ntSb() { return window.totalasAuth; }
 const ntEsc = s => String(s == null ? '' : s).replace(/[&<>"']/g, m =>
@@ -458,11 +464,13 @@ async function ntLoad() {
   if (!data || !data.length) { ul.innerHTML = `<li class="nt-empty">등록된 공지가 없습니다.</li>`; return; }
 
   const isAdmin = (window.currentUser && window.currentUser.role === 'admin');
+  const readSet = ntReadSet();
   ul.innerHTML = data.map(n => {
     const att = Array.isArray(n.attachments) ? n.attachments.length : 0;
+    const isNew = !readSet.has(n.id);
     return `<li>
       ${n.pinned ? '<span class="nt-tag">공지</span>' : ''}
-      <a class="nt-title" data-ntid="${n.id}">${ntEsc(n.title)}${att ? ` 📎${att}` : ''}</a>
+      <a class="nt-title" data-ntid="${n.id}" style="${isNew ? 'font-weight:700;' : ''}">${ntEsc(n.title)}${att ? ` 📎${att}` : ''}${isNew ? ' <span style="color:#dc2626;font-size:11px;">N</span>' : ''}</a>
       <span class="nt-date">${(n.created_at || '').slice(0, 10)}</span>
       ${isAdmin ? `<button class="nt-del" data-ntdel="${n.id}" title="삭제">✕</button>` : ''}
     </li>`;
@@ -470,13 +478,18 @@ async function ntLoad() {
 
   const badge = document.getElementById('nt-badge');
   if (badge) {
-    const pinned = data.filter(x => x.pinned).length;
-    badge.textContent = pinned || '';
-    badge.style.display = pinned ? '' : 'none';
+    const read = ntReadSet();
+    const unread = data.filter(x => !read.has(x.id)).length;   // 읽지 않은 공지만
+    badge.textContent = unread || '';
+    badge.style.display = unread ? '' : 'none';
   }
 
   ul.querySelectorAll('[data-ntid]').forEach(a => {
-    a.onclick = () => ntView(data.find(x => x.id === a.dataset.ntid));
+    a.onclick = () => {
+      ntMarkRead(a.dataset.ntid);      // 읽으면 알림(배지)에서 제외
+      ntView(data.find(x => x.id === a.dataset.ntid));
+      ntLoad();                        // 배지·목록 갱신
+    };
   });
   ul.querySelectorAll('[data-ntdel]').forEach(b => {
     b.onclick = async () => {
