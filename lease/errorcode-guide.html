@@ -1,0 +1,184 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>에러코드/토너검색 사용방법</title>
+<link rel="stylesheet" href="styles.css">
+<style>
+  body { background: var(--bg); margin: 0; }
+  .lg-wrap { max-width: 940px; margin: 0 auto; padding: 18px 16px 60px; }
+  .lg-head { margin-bottom: 16px; }
+  .lg-head h1 { font-size: 21px; margin: 0 0 6px; color: var(--text); }
+  .lg-head p { margin: 0; color: var(--muted); font-size: 13.5px; }
+
+  .stat-row { display:flex; flex-wrap:wrap; gap:10px; margin-bottom:18px; }
+  .stat { flex:1; min-width:130px; background:var(--card); border:1px solid var(--border);
+          border-radius:10px; padding:12px 14px; box-shadow:var(--shadow); }
+  .stat .n { font-size:20px; font-weight:800; color:var(--primary,#2563eb); line-height:1.1; }
+  .stat .t { font-size:12px; color:var(--muted); margin-top:4px; }
+
+  .lg-toc { background: var(--card); border: 1px solid var(--border); border-radius: 10px;
+            padding: 12px 14px; margin-bottom: 18px; box-shadow: var(--shadow); }
+  .lg-toc b { font-size: 13px; color: var(--text-soft); display: block; margin-bottom: 7px; }
+  .lg-toc a { display: inline-block; font-size: 13px; color: var(--primary); text-decoration: none;
+              background: var(--primary-soft); border: 1px solid #dbe7fb; border-radius: 999px;
+              padding: 4px 11px; margin: 0 5px 5px 0; }
+  .lg-toc a:hover { background: #e3edfd; }
+
+  .sec { background: var(--card); border: 1px solid var(--border); border-radius: 10px;
+         margin-bottom: 14px; overflow: hidden; box-shadow: var(--shadow); scroll-margin-top: 12px; }
+  .sec > h2 { margin: 0; font-size: 15px; color: var(--text); padding: 12px 15px;
+              border-bottom: 1px solid var(--border); background: #fafbfc; }
+  .sec > h2 small { font-weight: normal; color: var(--muted); font-size: 12.5px; margin-left: 6px; }
+  .sec > .body { padding: 15px; font-size: 13.5px; line-height: 1.75; color: var(--text-soft); }
+  .sec > .body p { margin: 0 0 9px; }
+  .sec ol, .sec ul { margin: 0 0 9px; padding-left: 20px; }
+  .sec li { margin-bottom: 5px; }
+  h3.sub { font-size: 13.5px; color: var(--text); margin: 14px 0 6px; padding-left: 9px;
+           border-left: 3px solid var(--primary); }
+  h3.sub:first-child { margin-top: 0; }
+
+  table.g { width: 100%; border-collapse: collapse; font-size: 13px; margin: 6px 0 10px; }
+  table.g th, table.g td { border: 1px solid var(--border); padding: 7px 9px; text-align: left; vertical-align: top; }
+  table.g th { background: #f6f8fa; color: var(--text); font-weight: 600; }
+
+  .note { border-left: 4px solid var(--primary); background: #f4f8ff; padding: 9px 12px; margin: 9px 0; border-radius: 0 6px 6px 0; }
+  .warn { border-left: 4px solid var(--warn,#d97706); background: #fff8ef; padding: 9px 12px; margin: 9px 0; border-radius: 0 6px 6px 0; }
+  .note b, .warn b { display: block; margin-bottom: 3px; color: var(--text); }
+
+  .btnx { display: inline-block; background: #f1f3f6; border: 1px solid var(--border-strong,#cbd5e1);
+          border-radius: 4px; padding: 1px 7px; font-size: 12px; color: var(--text); white-space: nowrap; }
+  .flow { display: flex; flex-wrap: wrap; gap: 6px; align-items: center; margin: 2px 0 12px; }
+  .flow .st { background: var(--primary-soft,#eff6ff); border: 1px solid #c9dcf8; color: #17457f;
+              border-radius: 6px; padding: 6px 11px; font-size: 12.5px; font-weight: 600; }
+  .flow .ar { color: #9aa6b4; }
+
+  @media (max-width: 640px) {
+    .lg-wrap { padding: 14px 11px 50px; }
+    .sec > .body { padding: 13px 12px; font-size: 13px; }
+    table.g th, table.g td { padding: 6px 7px; font-size: 12.5px; }
+    .lg-head h1 { font-size: 19px; }
+  }
+</style>
+</head>
+<body>
+<div class="lg-wrap">
+
+  <div class="lg-head">
+    <h1>🔧 에러코드/토너검색 사용방법</h1>
+    <p>프린터·복합기에 뜬 <b>에러코드의 원인과 해결방법</b>을 바로 찾아보는 화면입니다. 현장에서 휴대폰으로도 검색할 수 있습니다.</p>
+  </div>
+
+  <div class="stat-row">
+    <div class="stat"><div class="n">17,146</div><div class="t">등록된 에러코드</div></div>
+    <div class="stat"><div class="n">9</div><div class="t">제조사</div></div>
+    <div class="stat"><div class="n">8</div><div class="t">고장 분류</div></div>
+  </div>
+
+  <div class="lg-toc">
+    <b>바로가기</b>
+    <a href="#s1">1. 검색하는 법</a>
+    <a href="#s2">2. 결과 보는 법</a>
+    <a href="#s3">3. 현장 활용 요령</a>
+    <a href="#s4">4. 자주 묻는 질문</a>
+  </div>
+
+  <!-- 1 -->
+  <div class="sec" id="s1">
+    <h2>1. 검색하는 법 <small>에러코드만 넣으면 바로 나옵니다</small></h2>
+    <div class="body">
+      <div class="flow">
+        <span class="st">① 에러코드 입력</span><span class="ar">▶</span>
+        <span class="st">② (필요시) 제조사 선택</span><span class="ar">▶</span>
+        <span class="st">③ 원인·해결방법 확인</span>
+      </div>
+
+      <h3 class="sub">가장 빠른 방법 — 코드만 입력</h3>
+      <p>프린터 화면에 뜬 코드를 <b>그대로 검색창에 입력</b>하면 됩니다. 예를 들어 <b>C2557</b>, <b>E000</b>, <b>SC552</b> 처럼요.</p>
+
+      <h3 class="sub">결과가 너무 많을 때 — 조건으로 좁히기</h3>
+      <table class="g">
+        <tr><th style="width:110px;">조건</th><th>설명</th></tr>
+        <tr><td><b>제조사</b></td><td>신도리코 · 캐논 · 코니카미놀타 · 삼성 · 교세라 · 브라더 · 엡손 · HP · 제록스</td></tr>
+        <tr><td><b>카테고리</b></td><td>급지/용지걸림 · 스캐너 · 정착 시스템 · 급지 시스템 · 통신/네트워크 · 현상기/이미지 · 전원/PCB · 기타</td></tr>
+        <tr><td><b>모델</b></td><td>기종명 일부만 넣어도 검색됩니다</td></tr>
+      </table>
+      <p><span class="btnx">조건 초기화</span>를 누르면 걸어둔 조건이 한 번에 풀립니다.</p>
+
+      <div class="note">
+        <b>코드가 정확히 기억나지 않아도 됩니다</b>
+        일부만 넣어도 관련된 코드들이 함께 나옵니다. 증상 단어(예: <b>용지걸림</b>)로 찾아도 됩니다.
+      </div>
+    </div>
+  </div>
+
+  <!-- 2 -->
+  <div class="sec" id="s2">
+    <h2>2. 결과 보는 법</h2>
+    <div class="body">
+      <p>목록에서 코드를 누르면 <b>상세 정보</b>가 열립니다.</p>
+      <table class="g">
+        <tr><th style="width:110px;">항목</th><th>내용</th></tr>
+        <tr><td><b>원인</b></td><td>이 에러가 왜 발생했는지</td></tr>
+        <tr><td><b>해결방법</b></td><td>어떤 순서로 조치하면 되는지</td></tr>
+        <tr><td><b>팁</b></td><td>현장에서 유용한 참고사항 (있는 코드만)</td></tr>
+        <tr><td><b>원문</b></td><td>제조사 원문 표기 — 매뉴얼과 대조할 때 사용</td></tr>
+      </table>
+      <div class="warn">
+        <b>해결방법은 순서대로 시도하세요</b>
+        보통 <b>간단한 조치부터</b> 적힙니다. 앞의 방법으로 해결되면 뒤 작업(부품 교체 등)은 하지 않아도 됩니다.
+      </div>
+    </div>
+  </div>
+
+  <!-- 3 -->
+  <div class="sec" id="s3">
+    <h2>3. 현장 활용 요령</h2>
+    <div class="body">
+      <ul>
+        <li><b>휴대폰에서 그대로 됩니다.</b> 현장에서 코드를 보고 바로 검색하세요.</li>
+        <li>관리툴 좌측 <b>🔧 에러코드/토너검색</b> 메뉴로 들어가거나, <span class="btnx">↗ 새 창</span>을 눌러 크게 볼 수 있습니다.</li>
+        <li><b>접수 처리와 함께 쓰기</b> — 접수 상세에서 처리 내용을 적을 때, 검색한 <b>원인·조치 내용을 그대로 옮겨 적으면</b> 이력이 정확해집니다.</li>
+        <li><b>사진을 함께 남기세요</b> — 접수 화면에서 고장 부위 사진을 첨부하면 다음에 같은 증상이 왔을 때 도움이 됩니다.</li>
+      </ul>
+      <div class="note">
+        <b>토너 검색도 여기서</b>
+        기종명으로 검색하면 해당 모델 관련 정보를 함께 찾을 수 있습니다.
+      </div>
+    </div>
+  </div>
+
+  <!-- 4 -->
+  <div class="sec" id="s4">
+    <h2>4. 자주 묻는 질문</h2>
+    <div class="body">
+      <table class="g">
+        <tr><th style="width:240px;">이런 경우</th><th>이렇게 하세요</th></tr>
+        <tr>
+          <td>검색해도 <b>결과가 없습니다</b></td>
+          <td>① 제조사·카테고리 조건이 걸려 있는지 확인하고 <span class="btnx">조건 초기화</span> ② 코드 일부만 넣어 다시 검색 ③ 그래도 없으면 한별시스템에 알려주세요. 추가해 드립니다.</td>
+        </tr>
+        <tr>
+          <td>같은 코드가 <b>여러 개 나옵니다</b></td>
+          <td>제조사마다 같은 코드를 다른 의미로 쓰기 때문입니다. <b>제조사를 선택</b>하면 정확한 것만 나옵니다.</td>
+        </tr>
+        <tr>
+          <td>해결방법대로 했는데 <b>안 됩니다</b></td>
+          <td>같은 코드라도 기종에 따라 원인이 다를 수 있습니다. <b>모델명으로 다시 검색</b>해 보시고, 안 되면 접수 등록 후 방문 조치하세요.</td>
+        </tr>
+        <tr>
+          <td>내용이 <b>틀렸거나 부족합니다</b></td>
+          <td>한별시스템에 알려주시면 수정·보완합니다. 현장에서 확인한 실제 조치법이 가장 정확합니다.</td>
+        </tr>
+      </table>
+      <div class="note">
+        <b>문의</b>
+        한별시스템 <b>053-588-7119</b>
+      </div>
+    </div>
+  </div>
+
+</div>
+</body>
+</html>
