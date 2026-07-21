@@ -33,6 +33,49 @@
 #nt2-view-meta{padding:5px 14px;font-size:12px;color:#888;border-bottom:1px solid #f3f5f8;flex-shrink:0;}
 #nt2-view-body{padding:12px 14px;font-size:13.5px;line-height:1.8;white-space:pre-wrap;color:#222;overflow-y:auto;max-height:200px;}
 </style>
+<style>
+  /* ── 공지사항 ── */
+  .nt-btn { padding:4px 10px; font-size:12px; border:1px solid var(--line,#d7dbe2);
+            background:#fff; border-radius:6px; cursor:pointer; }
+  .nt-btn:hover { background:#f1f5f9; }
+  .nt-btn.primary { background:#2563eb; border-color:#2563eb; color:#fff; }
+  .nt-list { list-style:none; margin:0; padding:0; max-height:60vh; overflow:auto; }
+  .nt-list li { display:flex; align-items:center; gap:8px; padding:7px 12px;
+                border-bottom:1px solid #f1f5f9; font-size:13px; }
+  .nt-list li:last-child { border-bottom:none; }
+  .nt-tag { flex:none; font-size:10.5px; font-weight:700; background:#fee2e2; color:#b91c1c;
+            border-radius:5px; padding:1px 6px; }
+  .nt-title { flex:1; color:#1f2937; text-decoration:none; cursor:pointer;
+              overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+  .nt-title:hover { color:#2563eb; text-decoration:underline; }
+  .nt-date { flex:none; font-size:11.5px; color:#94a3b8; }
+  .nt-del { flex:none; border:none; background:none; color:#cbd5e1; cursor:pointer; font-size:13px; }
+  .nt-del:hover { color:#dc2626; }
+  .nt-empty { justify-content:center; color:#94a3b8; font-size:12.5px; }
+
+  .nt-modal { position:fixed; inset:0; background:rgba(15,23,42,.45); display:none;
+              align-items:center; justify-content:center; z-index:1200; }
+  .nt-modal.show { display:flex; }
+  .nt-modal-box { background:#fff; border-radius:12px; width:640px; max-width:94vw;
+                  max-height:88vh; overflow:auto; }
+  .nt-modal-head { display:flex; justify-content:space-between; align-items:center;
+                   padding:12px 16px; border-bottom:1px solid var(--line,#eef1f5); font-weight:700; }
+  .nt-modal-head button { border:none; background:none; font-size:20px; cursor:pointer; color:#64748b; }
+  .nt-modal-body { padding:16px; font-size:13.5px; line-height:1.7; color:#334155; }
+  .nt-modal-body input[type="text"], .nt-modal-body textarea {
+    width:100%; box-sizing:border-box; padding:8px 10px; border:1px solid var(--line,#d7dbe2);
+    border-radius:8px; font-size:14px; font-family:inherit; }
+  .nt-modal-body textarea { min-height:130px; resize:vertical; }
+  .nt-fld { margin-bottom:10px; }
+  .nt-fld label { display:block; font-size:12px; font-weight:600; margin-bottom:4px; color:#1f2937; }
+  .nt-modal-foot { padding:10px 16px; border-top:1px solid var(--line,#eef1f5); text-align:right; }
+  .nt-att { display:flex; flex-wrap:wrap; gap:8px; margin-top:8px; }
+  .nt-att figure { margin:0; width:150px; }
+  .nt-att img, .nt-att video { width:100%; border-radius:8px; border:1px solid var(--line,#e5e7eb); display:block; }
+  .nt-att figcaption { font-size:11px; color:#64748b; margin-top:3px; word-break:break-all; }
+  .nt-view-media img, .nt-view-media video { max-width:100%; border-radius:8px; margin-top:10px; display:block; }
+  @media (max-width:640px){ .nt-date { display:none; } }
+</style>
 </head>
 <body>
 
@@ -44,6 +87,11 @@
     <a href="index.html" class="sidebar-brand">
       <span class="brand-mark">🖨</span>
       <span class="brand-text">디직스코리아</span>
+    </a>
+    <a href="#notice" class="sidebar-tool" id="nav-notice">
+      <span class="nav-icon">📢</span>
+      <span>공지사항</span>
+      <span id="nt-badge" style="display:none;margin-left:auto;background:#dc2626;color:#fff;font-size:10px;font-weight:700;min-width:16px;height:16px;line-height:16px;text-align:center;border-radius:8px;padding:0 4px;"></span>
     </a>
     <a href="asms.html" class="sidebar-tool active">
       <span class="nav-icon">🛠</span>
@@ -108,6 +156,60 @@
       title="접수관리툴 ASMS"
       loading="lazy">
     </iframe>
+  </div>
+</div>
+
+
+<!-- 공지 목록 -->
+<div class="nt-modal" id="nt-list-modal">
+  <div class="nt-modal-box" style="width:720px;">
+    <div class="nt-modal-head">
+      <span>📢 공지사항</span>
+      <div style="display:flex;align-items:center;gap:8px;">
+        <button type="button" class="nt-btn" id="nt-write" style="display:none;">+ 공지쓰기</button>
+        <button type="button" id="ntl-x">×</button>
+      </div>
+    </div>
+    <ul class="nt-list" id="nt-list"><li class="nt-empty">불러오는 중…</li></ul>
+  </div>
+</div>
+
+<!-- 공지 보기 -->
+<div class="nt-modal" id="nt-view">
+  <div class="nt-modal-box">
+    <div class="nt-modal-head"><span id="ntv-title">공지</span><button type="button" id="ntv-x">×</button></div>
+    <div class="nt-modal-body">
+      <div id="ntv-meta" style="font-size:12px;color:#94a3b8;margin-bottom:10px;"></div>
+      <div id="ntv-content" style="white-space:pre-wrap;"></div>
+      <div id="ntv-media" class="nt-view-media"></div>
+      <div id="ntv-link" style="margin-top:14px;"></div>
+    </div>
+  </div>
+</div>
+
+<!-- 공지 쓰기 -->
+<div class="nt-modal" id="nt-edit">
+  <div class="nt-modal-box">
+    <div class="nt-modal-head"><span>공지 등록</span><button type="button" id="nte-x">×</button></div>
+    <div class="nt-modal-body">
+      <div class="nt-fld"><label>제목 *</label><input type="text" id="nte-title" placeholder="예) 임대명세표/계산서 기능 추가 안내"></div>
+      <div class="nt-fld"><label>내용</label><textarea id="nte-content" placeholder="공지 내용을 입력하세요."></textarea></div>
+      <div class="nt-fld"><label>연결 주소 (선택)</label><input type="text" id="nte-link" placeholder="https://... 입력하면 제목 클릭 시 이 주소가 새 창으로 열립니다"></div>
+      <div class="nt-fld">
+        <label>사진 · 영상 첨부 (선택)</label>
+        <input type="file" id="nte-files" multiple accept="image/*,video/*">
+        <div style="font-size:11.5px;color:#94a3b8;margin-top:3px;">이미지(jpg·png·gif)와 영상(mp4 등) 첨부 가능 · 파일당 50MB 이하 권장</div>
+        <div class="nt-att" id="nte-preview"></div>
+      </div>
+      <label style="display:flex;align-items:center;gap:6px;font-size:13px;">
+        <input type="checkbox" id="nte-pinned" checked> 상단 고정(공지)
+      </label>
+      <div id="nte-msg" style="font-size:12.5px;color:#dc2626;min-height:16px;margin-top:8px;"></div>
+    </div>
+    <div class="nt-modal-foot">
+      <button type="button" class="nt-btn" id="nte-cancel">취소</button>
+      <button type="button" class="nt-btn primary" id="nte-save">등록</button>
+    </div>
   </div>
 </div>
 
@@ -309,6 +411,165 @@ if (window.currentUser) updateVisitBadge();
   document.addEventListener('totalas:ready',function(){loadNt2();},{once:false});
   setTimeout(function(){if(ntSb()) loadNt2();},2000);
 })();
+
+/* ══════════════ 공지사항 ══════════════
+   저장: notice_posts · 첨부: notice-files 버킷(사진/영상)
+   목록은 한 줄씩, 제목 클릭 시 연결주소가 있으면 새 창 / 없으면 내용 보기 */
+const NT_BUCKET = 'notice-files';
+let NT_FILES = [];   // 글쓰기 첨부 대기 목록
+
+function ntSb() { return window.totalasAuth; }
+const ntEsc = s => String(s == null ? '' : s).replace(/[&<>"']/g, m =>
+  ({ '&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;' }[m]));
+const ntIsVideo = t => /^video\//.test(t || '');
+
+async function ntLoad() {
+  const ul = document.getElementById('nt-list');
+  if (!ul || !ntSb()) return;
+  const { data, error } = await ntSb()
+    .from('notice_posts').select('*')
+    .order('pinned', { ascending: false }).order('created_at', { ascending: false })
+    .limit(20);
+  if (error) {
+    ul.innerHTML = `<li class="nt-empty">공지를 불러오지 못했습니다.</li>`;
+    console.warn('[notice]', error.message); return;
+  }
+  if (!data || !data.length) { ul.innerHTML = `<li class="nt-empty">등록된 공지가 없습니다.</li>`; return; }
+
+  const isAdmin = (window.currentUser && window.currentUser.role === 'admin');
+  ul.innerHTML = data.map(n => {
+    const att = Array.isArray(n.attachments) ? n.attachments.length : 0;
+    return `<li>
+      ${n.pinned ? '<span class="nt-tag">공지</span>' : ''}
+      <a class="nt-title" data-ntid="${n.id}">${ntEsc(n.title)}${att ? ` 📎${att}` : ''}</a>
+      <span class="nt-date">${(n.created_at || '').slice(0, 10)}</span>
+      ${isAdmin ? `<button class="nt-del" data-ntdel="${n.id}" title="삭제">✕</button>` : ''}
+    </li>`;
+  }).join('');
+
+  const badge = document.getElementById('nt-badge');
+  if (badge) {
+    const pinned = data.filter(x => x.pinned).length;
+    badge.textContent = pinned || '';
+    badge.style.display = pinned ? '' : 'none';
+  }
+
+  ul.querySelectorAll('[data-ntid]').forEach(a => {
+    a.onclick = () => ntView(data.find(x => x.id === a.dataset.ntid));
+  });
+  ul.querySelectorAll('[data-ntdel]').forEach(b => {
+    b.onclick = async () => {
+      if (!confirm('이 공지를 삭제할까요?')) return;
+      const { error: e2 } = await ntSb().from('notice_posts').delete().eq('id', b.dataset.ntdel);
+      if (e2) { alert('삭제 실패: ' + e2.message); return; }
+      ntLoad();
+    };
+  });
+}
+
+/** 공지 보기 — 연결주소만 있고 내용/첨부가 없으면 바로 새 창 */
+function ntView(n) {
+  if (!n) return;
+  const hasBody = (n.content && n.content.trim()) || (Array.isArray(n.attachments) && n.attachments.length);
+  if (n.link_url && !hasBody) { window.open(n.link_url, '_blank', 'noopener'); return; }
+
+  document.getElementById('ntv-title').textContent = n.title || '공지';
+  document.getElementById('ntv-meta').textContent =
+    `${n.author || ''} · ${(n.created_at || '').slice(0, 10)}`;
+  document.getElementById('ntv-content').textContent = n.content || '';
+  document.getElementById('ntv-media').innerHTML = (n.attachments || []).map(f =>
+    ntIsVideo(f.type)
+      ? `<video src="${ntEsc(f.url)}" controls playsinline></video>`
+      : `<img src="${ntEsc(f.url)}" alt="${ntEsc(f.name)}">`
+  ).join('');
+  document.getElementById('ntv-link').innerHTML = n.link_url
+    ? `<a href="${ntEsc(n.link_url)}" target="_blank" rel="noopener" class="nt-btn primary" style="display:inline-block;text-decoration:none;">↗ 자세히 보기</a>`
+    : '';
+  document.getElementById('nt-view').classList.add('show');
+}
+
+/* ── 글쓰기 ── */
+function ntOpenWrite() {
+  NT_FILES = [];
+  ['nte-title','nte-content','nte-link'].forEach(id => document.getElementById(id).value = '');
+  document.getElementById('nte-files').value = '';
+  document.getElementById('nte-preview').innerHTML = '';
+  document.getElementById('nte-pinned').checked = true;
+  document.getElementById('nte-msg').textContent = '';
+  document.getElementById('nt-edit').classList.add('show');
+}
+
+document.getElementById('nte-files').addEventListener('change', e => {
+  NT_FILES = Array.from(e.target.files || []);
+  document.getElementById('nte-preview').innerHTML = NT_FILES.map(f => {
+    const url = URL.createObjectURL(f);
+    return `<figure>${f.type.startsWith('video/')
+      ? `<video src="${url}" muted></video>` : `<img src="${url}" alt="">`}
+      <figcaption>${ntEsc(f.name)}</figcaption></figure>`;
+  }).join('');
+});
+
+async function ntSave() {
+  const title = document.getElementById('nte-title').value.trim();
+  const msg = document.getElementById('nte-msg');
+  const btn = document.getElementById('nte-save');
+  if (!title) { msg.textContent = '제목을 입력하세요.'; return; }
+  btn.disabled = true; msg.style.color = '#64748b'; msg.textContent = '등록 중…';
+  try {
+    // 첨부 업로드
+    const attachments = [];
+    for (const f of NT_FILES) {
+      const path = `${Date.now()}_${Math.random().toString(36).slice(2,8)}_${f.name.replace(/[^\w.\-가-힣]/g,'_')}`;
+      const up = await ntSb().storage.from(NT_BUCKET).upload(path, f, { upsert: false });
+      if (up.error) throw new Error('첨부 업로드 실패: ' + up.error.message);
+      const { data: pub } = ntSb().storage.from(NT_BUCKET).getPublicUrl(path);
+      attachments.push({ name: f.name, url: pub.publicUrl, type: f.type });
+    }
+    const payload = {
+      title,
+      content: document.getElementById('nte-content').value.trim(),
+      link_url: document.getElementById('nte-link').value.trim() || null,
+      pinned: document.getElementById('nte-pinned').checked,
+      author: (window.currentUser && (window.currentUser.full_name || window.currentUser.display_id)) || '관리자',
+      attachments,
+    };
+    const { error } = await ntSb().from('notice_posts').insert(payload);
+    if (error) throw error;
+    document.getElementById('nt-edit').classList.remove('show');
+    ntLoad();
+  } catch (e) {
+    msg.style.color = '#dc2626';
+    msg.textContent = e.message || String(e);
+  } finally {
+    btn.disabled = false;
+  }
+}
+
+document.getElementById('nt-write').onclick  = ntOpenWrite;
+document.getElementById('nte-save').onclick  = ntSave;
+document.getElementById('nte-cancel').onclick = () => document.getElementById('nt-edit').classList.remove('show');
+document.getElementById('nte-x').onclick      = () => document.getElementById('nt-edit').classList.remove('show');
+document.getElementById('ntv-x').onclick      = () => document.getElementById('nt-view').classList.remove('show');
+document.getElementById('nt-view').onclick = e => { if (e.target.id === 'nt-view') e.target.classList.remove('show'); };
+document.getElementById('nt-edit').onclick = e => { if (e.target.id === 'nt-edit') e.target.classList.remove('show'); };
+document.getElementById('ntl-x').onclick = () => document.getElementById('nt-list-modal').classList.remove('show');
+document.getElementById('nt-list-modal').onclick = e => { if (e.target.id === 'nt-list-modal') e.target.classList.remove('show'); };
+// 사이드바 [공지사항] 클릭 → 목록 열기 (iframe 이동 없음)
+document.getElementById('nav-notice').addEventListener('click', e => {
+  e.preventDefault(); e.stopPropagation();
+  document.getElementById('nt-list-modal').classList.add('show');
+  ntLoad();
+  sidebar.classList.remove('open'); backdrop.classList.remove('show');
+});
+
+function ntBoot() {
+  if (window.currentUser && window.currentUser.role === 'admin') {
+    document.getElementById('nt-write').style.display = '';
+  }
+  ntLoad();
+}
+if (window.currentUser) ntBoot();
+else document.addEventListener('totalas:ready', ntBoot, { once: true });
 </script>
 
 </body>
