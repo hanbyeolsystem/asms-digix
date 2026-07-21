@@ -359,7 +359,7 @@
 
     const fixedItems = [];
     const usageItems = [];
-    const FIXED_CATS = ['IT', '위생', '출력'];
+    const FIXED_CATS = ['IT', '위생', '출력', '기타'];
 
     // 고정비 — actualMonths 개월 × monthly_fee (Phase 2: 첫 청구 부분 기간 반영)
     for (const a of myAssigns) {

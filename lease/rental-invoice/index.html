@@ -326,11 +326,12 @@ async function build(){
   try {
     const mStart = ym + '-01';
     const mEnd   = ym + '-31';
-    const [bRes, cRes, gRes, aRes] = await Promise.all([
+    const [bRes, cRes, gRes, aRes, iRes] = await Promise.all([
       sb().from('rental_billings').select('id, customer_id, ym, fixed_total, usage_total, counter_discount, total, items, status').eq('ym', ym),
       sb().from('rental_customers').select('id, company, biz_no, ceo, biz_type, biz_item, address, email, billing_group_id, billing_individual, billing_types, invoice_day, active, archived_at'),
       sb().from('rental_billing_groups').select('*'),
-      sb().from('rental_assignments').select('customer_id, monthly_fee, start_date, end_date'),
+      sb().from('rental_assignments').select('customer_id, item_id, monthly_fee, start_date, end_date'),
+      sb().from('rental_items').select('id, category, status'),
     ]);
     if (cRes.error) throw cRes.error;
 
@@ -346,10 +347,18 @@ async function build(){
     } catch (e) { /* 테이블 없으면 할인 0 */ }
 
     // 해당 월에 유효한 배정의 월 고정 임대료 (청구자료가 없을 때 쓰는 기준)
+    // ⚠ 임대추가요금청구(computeBilling)와 같은 기준이어야 금액이 어긋나지 않는다:
+    //    고정비 대상 카테고리만 + 반납(returned) 자산 제외
+    const FIXED_CATS = ['IT', '위생', '출력', '기타'];
+    const itemById = {};
+    (iRes.data || []).forEach(i => { itemById[i.id] = i; });
     const feeByCust = {};
     (aRes.data || []).forEach(a => {
       const fee = Number(a.monthly_fee) || 0;
       if (fee <= 0) return;
+      const it = itemById[a.item_id];
+      if (!it || it.status === 'returned') return;          // 반납 자산 제외
+      if (!FIXED_CATS.includes(it.category)) return;        // 고정비 대상 카테고리만
       if (a.end_date   && a.end_date   < mStart) return;   // 이미 종료
       if (a.start_date && a.start_date > mEnd)   return;   // 아직 시작 전
       feeByCust[a.customer_id] = (feeByCust[a.customer_id] || 0) + fee;
