@@ -2377,10 +2377,11 @@ function openForm(existing) {
       'company','biz_no','ceo','contact_name','biz_type','biz_item',
       'address','install_address','trade_name',
       'phone','fax','mobile','email',
-      'deposit','period_years','invoice_day','notes'
+      'deposit','period_years','invoice_day','reading_day','notes'
     ].forEach(k => {
       if (f[k] != null) f[k].value = existing[k] == null ? '' : existing[k];
     });
+    if (f.bill_same_month) f.bill_same_month.checked = !!existing.bill_same_month;
     // 청구 그룹 prefill — billing_group_id 가 있으면 'existing' 라디오 + 선택
     if (existing.billing_group_id) {
       const exR = body.querySelector('input[name="bg_choice"][value="existing"]');
@@ -2466,6 +2467,9 @@ function openForm(existing) {
         deposit:       f.deposit.value ? Number(f.deposit.value) : null,
         period_years:  f.period_years.value ? Number(f.period_years.value) : null,
         invoice_day:   f.invoice_day.value ? Number(f.invoice_day.value) : null,
+        // 은행·관공서형 — 검침일 + 검침한 달에 바로 청구
+        reading_day:     f.reading_day && f.reading_day.value ? Number(f.reading_day.value) : null,
+        bill_same_month: !!(f.bill_same_month && f.bill_same_month.checked),
         notes:         f.notes.value.trim() || null,
         active:        f.active.value === 'true',
       };

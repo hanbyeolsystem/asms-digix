@@ -91,23 +91,29 @@
   // ── 데이터 로드 ─────────────────────────────────────────────
   async function loadAll() {
     state.loading = true;
+    // 거래처 컬럼 — bill_same_month/reading_day 미적용 DB 폴백용으로 2벌 유지
+    const CUST_COLS_LEGACY = 'id, company, biz_no, payment_type, invoice_day, address, phone, fax, mobile, email, active, bill_combined, billing_months, billing_started_at';
+    const CUST_COLS = CUST_COLS_LEGACY + ', bill_same_month, reading_day';
+
     setStatusText('데이터 로딩 중…');
     renderList();
     renderDetail();
     try {
       const ym = state.ym;
       const prevYm = prevMonth(ym);
-      // 최대 12개월 합산 청구를 지원하기 위해 13개월(이번달 + 12개월 전)치 카운터 로드
-      const ymList = ymRange(ym, 13);
+      // 즉시청구(은행형) 거래처는 데이터월이 한 달 뒤(=청구월)라 그 달까지 같이 로드해야 한다
+      const nextYm = nextMonth(ym);
+      // 최대 12개월 합산 청구를 지원하기 위해 13개월치 + 즉시청구용 1개월치 카운터 로드
+      const ymList = ymRange(nextYm, 14);
       const client = sb();
 
       // rate 이력 로드: 합산 기간 범위 내 + 그 이전 최신 1건을 잡기 위해 전체 로드 후 클라이언트 필터
       // (자산 수가 적으므로 전체 로드가 실용적)
-      const [
+      let [
         rCust, rItems, rAssign, rCnt, rBill, rOv, rDisc, rRateHist,
       ] = await Promise.all([
         client.from('rental_customers')
-          .select('id, company, biz_no, payment_type, invoice_day, address, phone, fax, mobile, email, active, bill_combined, billing_months, billing_started_at')
+          .select(CUST_COLS)
           .eq('active', true)
           .order('company', { ascending: true }),
         client.from('rental_items')
@@ -120,21 +126,30 @@
           .in('ym', ymList),
         client.from('rental_billings')
           .select('id, customer_id, ym, fixed_total, usage_total, total, items, status, issued_at, paid_at, notes, sent_via')
-          .in('ym', [ym, prevYm]),
+          .in('ym', [nextYm, ym, prevYm, prevMonth(prevYm)]),
         // 이번 달 override 전체 로드
         client.from('rental_billing_overrides')
           .select('customer_id, ym, item_id, kind, field, original_val, override_val, memo')
           .eq('ym', ym),
         // 이번 달 카운터 오버 할인 로드 (테이블 없으면 무시)
         client.from('rental_counter_discounts')
-          .select('customer_id, amount')
-          .eq('ym', ym),
+          .select('customer_id, ym, amount')
+          .in('ym', [nextYm, ym]),
         // Phase 3: 자산별 rate 변경 이력 (테이블 없으면 무시)
         // total_free_count, total_unit_price 는 합계 모드용 — 컬럼 없는 환경엔 NULL 반환되어 graceful
         client.from('rental_item_rate_history')
           .select('id, item_id, effective_date, bw_free, co_free, bw_rate, co_rate, total_free_count, total_unit_price, note')
           .order('effective_date', { ascending: true }),
       ]);
+
+      // bill_same_month / reading_day 컬럼이 없는 환경(53 SQL 미적용)에서도 동작하도록 폴백
+      if (rCust.error) {
+        console.warn('[billing] bill_same_month/reading_day 컬럼 없음 — 53_customer_bill_same_month.sql 실행 필요');
+        rCust = await client.from('rental_customers')
+          .select(CUST_COLS_LEGACY)
+          .eq('active', true)
+          .order('company', { ascending: true });
+      }
 
       // 에러 체크 (할인/이력 테이블은 미생성 환경에서 건너뜀)
       for (const r of [rCust, rItems, rAssign, rCnt, rBill, rOv]) {
@@ -176,10 +191,14 @@
       state.prevUsageGross = 0;
       state.prevUsageNet = 0;
       state.prevBillingsCount = 0;
+      // 거래처마다 데이터월이 다르다 (즉시청구=nextYm, 일반=ym) → 각자 자기 달의 청구서만 집는다
+      const custById = new Map(state.customers.map((c) => [c.id, c]));
       (rBill.data || []).forEach((b) => {
-        if (b.ym === ym) {
+        const cYm     = dataYmFor(custById.get(b.customer_id));
+        const cPrevYm = prevMonth(cYm);
+        if (b.ym === cYm) {
           state.billings.set(b.customer_id, b);
-        } else if (b.ym === prevYm) {
+        } else if (b.ym === cPrevYm) {
           const usage = b.usage_total || 0;
           // 발행 추가요금(할인 후) = 총청구액 − 고정료 (total 에 할인이 이미 반영됨)
           const net = Math.max(0, (b.total || 0) - (b.fixed_total || 0));
@@ -200,6 +219,8 @@
       // 카운터 오버 할인 맵 구성
       state.discounts = new Map();
       ((rDisc.error ? [] : rDisc.data) || []).forEach((row) => {
+        // 할인도 거래처 자기 데이터월 것만 적용
+        if (row.ym && row.ym !== dataYmFor(custById.get(row.customer_id))) return;
         if (row.amount > 0) state.discounts.set(row.customer_id, row.amount);
       });
 
@@ -341,9 +362,10 @@
   // ── 빌링 계산 (한 거래처) ───────────────────────────────────
   // 반환: { fixed_total, usage_total, items: [...], billingPeriod }
   function computeBilling(customerId) {
-    const ym = state.ym;
     const myAssigns = state.assignments.filter((a) => a.customer_id === customerId);
     const customer = state.customers.find((c) => c.id === customerId);
+    // 즉시청구(은행형)면 청구월과 같은 달 데이터를 쓴다
+    const ym = dataYmFor(customer);
     const combined = !!customer?.bill_combined;
     const months   = Math.max(1, Number(customer?.billing_months) || 1);
     const startDate = getCustomerStartDate(customer);
@@ -922,7 +944,7 @@
     const getBillingPeriodInfo = (c) => {
       const bm = getBillingMonths(c);
       const sd = getCustomerStartDate(c);
-      return computeBillingPeriod(bm, sd, state.ym);
+      return computeBillingPeriod(bm, sd, dataYmFor(c));
     };
 
     // 이번 달이 청구월인지 여부
@@ -1301,15 +1323,15 @@
               ${escapeHtml(c.biz_no || '')}${c.biz_no ? ' · ' : ''}${escapeHtml(c.address || '')}
               · ${statusBadge}
             </div>
-            <div class="rb-meta-row">청구월: <b>${escapeHtml(nextMonth(state.ym))}</b> · ${(() => {
+            <div class="rb-meta-row">청구월: <b>${escapeHtml(billYmOfScreen())}</b>${c.bill_same_month ? ' <span class="rb-samemonth-tag">즉시청구</span>' : ''} · ${(() => {
               const bm2 = Math.max(1, Number(c.billing_months) || 1);
               const sd2 = getCustomerStartDate(c);
-              const bp2 = computeBillingPeriod(bm2, sd2, state.ym);
+              const bp2 = computeBillingPeriod(bm2, sd2, dataYmFor(c));
               if (bp2.isBillingMonth) {
                 if (bp2.monthsCount > 1) {
                   return `합산기간: <b>${escapeHtml(bp2.periodStart)}~${escapeHtml(bp2.periodEnd)}</b> (${bp2.monthsCount}개월 합산)`;
                 }
-                return `사용 기간: <b>${escapeHtml(state.ym)}</b>`;
+                return `사용 기간: <b>${escapeHtml(readingPeriodLabel(c, dataYmFor(c)))}</b>`;
               }
               return `다음 청구: <b>${escapeHtml(bp2.nextBillingYm)}</b> (${bp2.monthsCount}개월 합산)`;
             })()} · 결제: ${escapeHtml(c.payment_type || '-')} · 청구일: ${escapeHtml(c.invoice_day || '-')}</div>
@@ -1376,7 +1398,7 @@
             <div class="rb-meta-row" style="color:#dc2626;">
               청구서 렌더링 오류: ${escapeHtml(err && err.message ? err.message : String(err))}
             </div>
-            <div class="rb-meta-row">청구월: <b>${escapeHtml(nextMonth(state.ym))}</b> · 사용 기간: ${escapeHtml(state.ym)}</div>
+            <div class="rb-meta-row">청구월: <b>${escapeHtml(billYmOfScreen())}</b> · 사용 기간: ${escapeHtml(readingPeriodLabel(c, dataYmFor(c)))}</div>
           </div>
           <div class="rb-detail-actions">
             ${renderActionButtons(billingOnErr)}
@@ -1413,9 +1435,22 @@
 
   // ── 엑셀 양식 청구서 HTML 생성 ──────────────────────────────
   function buildInvoiceHTML(c, view, fixedRows, usageRows) {
-    // state.ym = 데이터월(사용 기간), 청구월 = nextMonth(state.ym)
-    const dataYm  = state.ym;                         // 예: "2026-04" (4월 사용량)
-    const billYm  = nextMonth(dataYm);                // 예: "2026-05" (5월 청구)
+    // 데이터월은 거래처별(즉시청구면 청구월과 같은 달), 청구월은 화면 기준 하나
+    const dataYm  = dataYmFor(c);                     // 예: "2026-04" (4월 사용량)
+    const billYm  = billYmOfScreen();                 // 예: "2026-05" (5월 청구)
+
+    // 기간 문구 — 검침일이 지정된 거래처(은행형)는 실제 검침 구간으로 찍는다
+    //   reading_day=20 → "6월20일부터 / 7월 19일까지"
+    const periodStrFor = (r) => {
+      const months = r.billing_months || 1;
+      const rr = readingRange(c, dataYm);
+      if (rr && months <= 1) {
+        return `${rr.start.getMonth() + 1}월${rr.start.getDate()}일부터\n${rr.end.getMonth() + 1}월 ${rr.end.getDate()}일까지`;
+      }
+      return (r.period_start && r.period_end)
+        ? buildPeriodStrFromRange(r.period_start, r.period_end)
+        : buildPeriodStr(dataYm, months);
+    };
     const [billY, billM] = billYm.split('-').map(Number);
     const billYShort = String(billY).slice(2);        // "26"
 
@@ -1499,9 +1534,7 @@
       counterBodyHTML = usageRows.map((r) => {
         // ── total 모드 행 (합계 카운터 단일 행) ─────────────────
         if (r.counter_mode === 'total') {
-          const periodStr = (r.period_start && r.period_end)
-            ? buildPeriodStrFromRange(r.period_start, r.period_end)
-            : buildPeriodStr(dataYm, r.billing_months || 1);
+          const periodStr = periodStrFor(r);
           const modelName = extractModelName(r.label || r.subtype || '') || r.subtype || '';
           const totalUsed  = r.total_used  || 0;
           const totalFree  = r.total_free  || 0;
@@ -1579,9 +1612,7 @@
         const coFee   = coExtra > 0 ? Math.round(coExtra * coRate) : 0;
 
         // Phase 2: period_start/period_end 가 있으면 그걸 사용, 없으면 기존 로직
-        const periodStr = (r.period_start && r.period_end)
-          ? buildPeriodStrFromRange(r.period_start, r.period_end)
-          : buildPeriodStr(dataYm, r.billing_months || 1);
+        const periodStr = periodStrFor(r);
 
         // 출력합산 행: 날짜(기간) + 합산 댓수 표시 (모델명 생략), 카운터 컬럼은 합산값 그대로 표시
         // 자산별 행: 모델명 + 기간 표시
@@ -2055,7 +2086,7 @@
     try {
       const payload = {
         customer_id: customerId,
-        ym: state.ym,
+        ym: dataYmForId(customerId),
         item_id: itemId,
         kind,
         field,
@@ -2091,7 +2122,7 @@
         .from('rental_billing_overrides')
         .delete()
         .eq('customer_id', customerId)
-        .eq('ym', state.ym)
+        .eq('ym', dataYmForId(customerId))
         .eq('item_id', itemId)
         .eq('kind', kind)
         .eq('field', field);
@@ -2113,7 +2144,7 @@
   async function saveOne(customerId, { silent = false } = {}) {
     try {
       const calc = computeBilling(customerId);
-      const ym = state.ym;
+      const ym = dataYmForId(customerId);
       // _rawSub 등 내부 메타 필드는 저장하지 않음
       const cleanItems = calc.items.map(stripMeta);
       // Phase 2: 청구 기간 정보 — ym(YYYY-MM) → DATE(YYYY-MM-DD) 변환
@@ -2124,6 +2155,8 @@
         const last = new Date(y, m, 0).getDate();
         return `${s}-${String(last).padStart(2, '0')}`;
       };
+      const toDateStr = (d) => `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+      const rr = readingRange(state.customers.find((c) => c.id === customerId), ym);
       const payload = {
         id: `b_${customerId}_${ym}`,
         customer_id: customerId,
@@ -2137,8 +2170,10 @@
         ...(calc.counter_discount > 0 ? { counter_discount: calc.counter_discount } : {}),
         // 청구 기간 정보 (Phase 2 — 컬럼이 없으면 무시됨)
         ...(bp ? {
-          billing_period_start: ymToFirstDay(bp.periodStart),
-          billing_period_end:   ymToLastDay(bp.periodEnd),
+          // 검침일 지정 거래처(은행형)는 1일~말일이 아니라 실제 검침 구간으로 저장
+          ...(rr && bp.monthsCount <= 1
+            ? { billing_period_start: toDateStr(rr.start), billing_period_end: toDateStr(rr.end) }
+            : { billing_period_start: ymToFirstDay(bp.periodStart), billing_period_end: ymToLastDay(bp.periodEnd) }),
           billing_months_actual: bp.monthsCount,
         } : {}),
       };
@@ -2274,8 +2309,8 @@
     }
 
     const company  = c ? c.company : '';
-    const billYm   = nextMonth(state.ym);         // 예: 2026-05
-    const dataYm   = state.ym;                    // 예: 2026-04
+    const billYm   = billYmOfScreen();            // 예: 2026-05
+    const dataYm   = dataYmFor(c);                // 예: 2026-04
     const [by, bm] = billYm.split('-').map(Number);
     const byShort  = String(by).slice(2);
     const billLabel = `${byShort}.${String(bm).padStart(2,'0')}월`;
@@ -2558,12 +2593,11 @@ ${summaryText}
   // ── 일괄 생성 — override 유지 (덮어쓰지 않음) ───────────────
   async function bulkGenerate() {
     if (state.loading) return;
-    if (!confirm(`${state.ym} 청구서를 모든 활성 거래처(${state.customers.length}곳)에 대해 일괄 생성/갱신합니다.\n기존 draft 는 갱신, 발송/입금된 건은 건너뜁니다. 계속하시겠습니까?`)) {
+    if (!confirm(`${billYmOfScreen()} 청구분 청구서를 모든 활성 거래처(${state.customers.length}곳)에 대해 일괄 생성/갱신합니다.\n기존 draft 는 갱신, 발송/입금된 건은 건너뜁니다. 계속하시겠습니까?`)) {
       return;
     }
 
     setStatusText('일괄 생성 중…');
-    const ym = state.ym;
     const rows = [];
     let skipped = 0, candidate = 0;
 
@@ -2590,6 +2624,7 @@ ${summaryText}
         }
       }
 
+      const ym = dataYmFor(c);   // 즉시청구 거래처는 청구월과 같은 달로 저장
       rows.push({
         id: `b_${c.id}_${ym}`,
         customer_id: c.id,
@@ -2646,7 +2681,7 @@ ${summaryText}
       const c = state.customers.find((x) => x.id === customerId);
       if (!c) { toast('거래처를 찾을 수 없습니다', 'error'); return; }
 
-      const ym = state.ym;
+      const ym = dataYmFor(c);
       // override 포함 최종 계산값으로 view 구성
       const calc = computeBilling(customerId);
       const view = {
@@ -2747,6 +2782,44 @@ ${summaryText}
     const [y, m] = ym.split('-').map(Number);
     const d = new Date(y, m - 2, 1);
     return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`;
+  }
+
+  // ── 거래처별 데이터월 ────────────────────────────────────────
+  // state.ym = 일반 거래처 기준 데이터월(= 청구월 - 1개월).
+  // 은행/관공서형(bill_same_month)은 20일 등에 검침하고 그 달에 바로 청구하므로
+  // 데이터월 = 청구월 = nextMonth(state.ym).
+  function dataYmFor(customer) {
+    return customer?.bill_same_month ? nextMonth(state.ym) : state.ym;
+  }
+  function dataYmForId(customerId) {
+    return dataYmFor(state.customers.find((c) => c.id === customerId));
+  }
+  // 화면이 보고 있는 청구월 — 거래처와 무관하게 하나 (툴바에서 고른 달)
+  function billYmOfScreen() {
+    return nextMonth(state.ym);
+  }
+
+  // ── 검침일 기준 실제 사용 구간 ───────────────────────────────
+  // reading_day=20, ym='2026-07' → 2026-06-20 ~ 2026-07-19
+  // reading_day 없으면 null 반환 → 호출부가 기존 "1일~말일" 방식을 쓴다.
+  function readingRange(customer, ym) {
+    const day = Number(customer?.reading_day) || 0;
+    if (!day || !ym) return null;
+    const [y, m] = ym.split('-').map(Number);
+    // 해당 월에 그 날짜가 없으면(2월 31일 등) 그 달 말일로 클램프
+    const clamp = (yy, mm) => Math.min(day, new Date(yy, mm, 0).getDate());
+    const end   = new Date(y, m - 1, clamp(y, m));
+    end.setDate(end.getDate() - 1);                 // 검침 전날까지
+    const ps    = new Date(y, m - 2, 1);            // 직전월
+    const start = new Date(ps.getFullYear(), ps.getMonth(), clamp(ps.getFullYear(), ps.getMonth() + 1));
+    return { start, end };
+  }
+  const fmtDot = (d) => `${d.getFullYear()}.${String(d.getMonth() + 1).padStart(2, '0')}.${String(d.getDate()).padStart(2, '0')}`;
+
+  // 화면용 짧은 라벨 — 검침일 있으면 실제 구간, 없으면 'YYYY-MM'
+  function readingPeriodLabel(customer, ym) {
+    const r = readingRange(customer, ym);
+    return r ? `${fmtDot(r.start)} ~ ${fmtDot(r.end)}` : ym;
   }
   // 데이터월 → 청구월 변환 (state.ym = 데이터월, 청구월 = nextMonth(state.ym))
   function nextMonth(ym) {
