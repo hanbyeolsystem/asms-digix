@@ -651,8 +651,8 @@ document.addEventListener("keydown", e => {
         <tr>
           <th>사진 첨부</th>
           <td colspan="3">
-            <input type="file" name="photos" multiple accept="image/*" onchange="orderFilePreview(this.files, document.getElementById('photo-preview'))">
-            <div style="font-size:11px;color:#888;margin-top:3px;">고장 부위·현장 사진 등을 첨부할 수 있습니다. 여러 장 선택 가능.</div>
+            <input type="file" name="photos" multiple accept="image/*,application/pdf,.pdf" onchange="orderFilePreview(this.files, document.getElementById('photo-preview'))">
+            <div style="font-size:11px;color:#888;margin-top:3px;">고장 부위·현장 사진, PDF 문서를 첨부할 수 있습니다. 여러 개 선택 가능.</div>
             <div id="photo-preview" style="margin-top:6px;"></div>
           </td>
         </tr>

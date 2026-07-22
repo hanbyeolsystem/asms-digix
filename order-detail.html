@@ -562,8 +562,8 @@ document.addEventListener("DOMContentLoaded", async () => {
           <td colspan="3">
             <div id="attach-list" style="margin-bottom:6px;"></div>
             <div class="print-hide">
-              <input type="file" name="photos" multiple accept="image/*" onchange="orderFilePreview(this.files, document.getElementById('attach-preview'))">
-              <div style="font-size:11px;color:#888;margin-top:3px;">추가로 첨부할 사진을 선택하세요. 기존 사진은 유지됩니다.</div>
+              <input type="file" name="photos" multiple accept="image/*,application/pdf,.pdf" onchange="orderFilePreview(this.files, document.getElementById('attach-preview'))">
+              <div style="font-size:11px;color:#888;margin-top:3px;">추가로 첨부할 사진·PDF를 선택하세요. 기존 첨부는 유지됩니다.</div>
               <div id="attach-preview" style="margin-top:6px;"></div>
             </div>
           </td>

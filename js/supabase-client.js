@@ -375,10 +375,13 @@ function orderFilePreview(files, el) {
   if (!el) return;
   const arr = Array.from(files || []);
   el.innerHTML = arr.map(f => {
-    const u = URL.createObjectURL(f);
-    return /^image\//.test(f.type)
-      ? `<img src="${u}" style="width:70px;height:70px;object-fit:cover;border:1px solid #ddd;border-radius:4px;margin:0 5px 5px 0;">`
-      : `<span style="font-size:12px;margin-right:8px;">📎 ${f.name}</span>`;
+    const isImg = /^image\//.test(f.type) || /\.(jpe?g|png|gif|webp)$/i.test(f.name || "");
+    if (isImg) {
+      const u = URL.createObjectURL(f);
+      return `<img src="${u}" style="width:70px;height:70px;object-fit:cover;border:1px solid #ddd;border-radius:4px;margin:0 5px 5px 0;">`;
+    }
+    const isPdf = /pdf/i.test(f.type) || /\.pdf$/i.test(f.name || "");
+    return `<span style="display:inline-block;font-size:12px;margin:0 8px 5px 0;padding:4px 8px;border:1px solid #ddd;border-radius:4px;">${isPdf ? "📄" : "📎"} ${f.name}</span>`;
   }).join("");
 }
 window.orderFilePreview = orderFilePreview;
