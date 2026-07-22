@@ -343,8 +343,10 @@ async function uploadOrderFiles(files) {
   if (!window.SB_CONFIGURED || !files || !files.length) return [];
   const out = [];
   for (const f of files) {
-    const safe = f.name.replace(/[^\w.\-가-힣]/g, "_");
-    const path = `${Date.now()}_${Math.random().toString(36).slice(2, 8)}_${safe}`;
+    // Storage 키는 ASCII 안전문자만 허용 → 확장자만 살리고 본문은 랜덤값으로
+    const m = /\.([A-Za-z0-9]{1,8})$/.exec(f.name || "");
+    const ext = m ? "." + m[1].toLowerCase() : "";
+    const path = `${Date.now()}_${Math.random().toString(36).slice(2, 10)}${ext}`;
     const up = await sb().storage.from(ORDER_BUCKET).upload(path, f, { upsert: false });
     if (up.error) throw new Error("사진 업로드 실패: " + up.error.message);
     const { data: pub } = sb().storage.from(ORDER_BUCKET).getPublicUrl(path);

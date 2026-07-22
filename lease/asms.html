@@ -553,7 +553,8 @@ async function ntSave() {
     // 첨부 업로드
     const attachments = [];
     for (const f of NT_FILES) {
-      const path = `${Date.now()}_${Math.random().toString(36).slice(2,8)}_${f.name.replace(/[^\w.\-가-힣]/g,'_')}`;
+      const _m = /\.([A-Za-z0-9]{1,8})$/.exec(f.name || '');
+      const path = `${Date.now()}_${Math.random().toString(36).slice(2,10)}${_m ? '.' + _m[1].toLowerCase() : ''}`;
       const up = await ntSb().storage.from(NT_BUCKET).upload(path, f, { upsert: false });
       if (up.error) throw new Error('첨부 업로드 실패: ' + up.error.message);
       const { data: pub } = ntSb().storage.from(NT_BUCKET).getPublicUrl(path);
